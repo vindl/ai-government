@@ -71,7 +71,9 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Main loop serializes analysis results to `output/data/` for site builder
 
 ### Dev Fleet (`dev-fleet/`)
-- [x] 6 role prompts: coder, reviewer, tester, pm, devops, publisher
+- [x] 3 active role prompts: coder, reviewer, pm
+- [x] Coder writes both implementation code and unit tests
+- [x] Reviewer checks for test coverage and quality
 - [x] `scripts/launch_dev_member.sh` — launches Claude Code with role prompt
 - [x] `scripts/pr_workflow.py` — automated PR-based coder-reviewer loop
   - Coder agent implements on a branch, runs checks, opens a PR

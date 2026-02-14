@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Human Overrides Transparency Report — AI Government of Montenegro{% endblock %}
+
+{% block content %}
+<div class="transparency-content">
+  <h1>Human Overrides Transparency Report</h1>
+
+  <div class="transparency-intro">
+    <p>
+      This project operates under a Constitution (Articles 5 and 22) that demands full transparency.
+      The AI does not run unchecked — humans intervene when necessary, and every intervention is
+      public record.
+    </p>
+    <p>
+      This page documents all instances where human operators overrode AI decisions in the
+      government analysis pipeline or development workflow.
+    </p>
+  </div>
+
+  {% if overrides %}
+  <div class="override-stats">
+    <p><strong>Total overrides recorded:</strong> {{ overrides|length }}</p>
+  </div>
+
+  <div class="override-list">
+    {% for override in overrides %}
+    <article class="override-record">
+      <div class="override-header">
+        <h2>
+          <a href="https://github.com/vindl/ai-government/issues/{{ override.issue_number }}"
+             target="_blank" rel="noopener noreferrer">
+            #{{ override.issue_number }}: {{ override.issue_title }}
+          </a>
+        </h2>
+        <time datetime="{{ override.timestamp.isoformat() }}">
+          {{ override.timestamp.strftime('%Y-%m-%d %H:%M UTC') }}
+        </time>
+      </div>
+
+      <div class="override-details">
+        <dl>
+          <dt>Override type:</dt>
+          <dd>
+            {% if override.override_type == 'reopened' %}
+            Reopened rejected issue
+            {% elif override.override_type == 'comment' %}
+            Explicit HUMAN OVERRIDE comment
+            {% elif override.override_type == 'pr_comment' %}
+            PR review override
+            {% endif %}
+          </dd>
+
+          <dt>Actor:</dt>
+          <dd>
+            <a href="https://github.com/{{ override.actor }}"
+               target="_blank" rel="noopener noreferrer">
+              @{{ override.actor }}
+            </a>
+          </dd>
+
+          <dt>AI verdict:</dt>
+          <dd class="ai-verdict">{{ override.ai_verdict }}</dd>
+
+          <dt>Human action:</dt>
+          <dd class="human-action">{{ override.human_action }}</dd>
+
+          {% if override.rationale %}
+          <dt>Rationale:</dt>
+          <dd class="rationale">{{ override.rationale }}</dd>
+          {% endif %}
+
+          {% if override.pr_number %}
+          <dt>Related PR:</dt>
+          <dd>
+            <a href="https://github.com/vindl/ai-government/pull/{{ override.pr_number }}"
+               target="_blank" rel="noopener noreferrer">
+              #{{ override.pr_number }}
+            </a>
+          </dd>
+          {% endif %}
+        </dl>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="no-overrides">
+    <p>No human overrides have been recorded yet.</p>
+    <p>
+      As the project operates, any interventions where humans override AI decisions will
+      appear here with full details.
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="transparency-footer">
+    <h2>How Overrides Work</h2>
+    <p>
+      Repository administrators can override AI decisions in two ways:
+    </p>
+    <ol>
+      <li><strong>Reopen a rejected issue:</strong> If the AI triage rejects a proposal, a human
+          can reopen the issue to move it to the backlog for execution.</li>
+      <li><strong>Add a HUMAN OVERRIDE comment:</strong> Any privileged user can add a comment
+          containing "HUMAN OVERRIDE" to move an issue directly to the backlog, bypassing AI debate.</li>
+    </ol>
+    <p>
+      Every override is logged with the actor, timestamp, AI verdict, human action, and rationale.
+      This ensures accountability and demonstrates that the project operates transparently —
+      not as unchecked automation, but as human-supervised AI analysis.
+    </p>
+  </div>
+</div>
+{% endblock %}

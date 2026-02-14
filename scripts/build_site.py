@@ -40,7 +40,7 @@ def main() -> None:
         print(f"No data directory at {data_dir}, building empty site")
 
     builder = SiteBuilder(output_dir)
-    builder.build(results)
+    builder.build(results, data_dir=data_dir if data_dir.exists() else None)
     print(f"Site built at {output_dir}")
 
 

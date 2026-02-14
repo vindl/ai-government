@@ -30,6 +30,7 @@ from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 from pydantic import BaseModel, Field
 
 from ai_government.config import SessionConfig
+from ai_government.models.override import HumanOverride
 from ai_government.models.telemetry import (
     CyclePhaseResult,
     CycleTelemetry,
@@ -501,6 +502,176 @@ def process_human_overrides() -> int:
             count += 1
 
     return count
+
+
+def collect_override_records() -> list[HumanOverride]:
+    """Collect all human override records from GitHub for transparency reporting.
+
+    Scans all closed issues/PRs with override-related comments and reopened
+    rejected issues to build a complete transparency log.
+    """
+    overrides: list[HumanOverride] = []
+    nwo = _get_repo_nwo()
+
+    # Scan all closed issues with HUMAN OVERRIDE comments
+    result = _run_gh(
+        [
+            "gh",
+            "issue",
+            "list",
+            "--state",
+            "all",
+            "--json",
+            "number,title,state,labels,createdAt",
+            "--limit",
+            "200",
+        ],
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        log.warning("Could not fetch issues for override collection")
+        return overrides
+
+    issues = json.loads(result.stdout)
+
+    for issue in issues:
+        n = issue["number"]
+        label_names = [lbl["name"] for lbl in issue.get("labels", [])]
+
+        # Fetch events to detect reopenings
+        events_result = _run_gh(
+            ["gh", "api", f"repos/{nwo}/issues/{n}/events"], check=False
+        )
+        events = []
+        if events_result.returncode == 0 and events_result.stdout.strip():
+            events = json.loads(events_result.stdout)
+
+        # Fetch comments for HUMAN OVERRIDE markers
+        comments_result = _run_gh(
+            ["gh", "api", f"repos/{nwo}/issues/{n}/comments"], check=False
+        )
+        comments = []
+        if comments_result.returncode == 0 and comments_result.stdout.strip():
+            comments = json.loads(comments_result.stdout)
+
+        # Case 1: Reopened after rejection
+        reopen_events = [e for e in events if e.get("event") == "reopened"]
+        labeled_rejected = [
+            e
+            for e in events
+            if e.get("event") == "labeled"
+            and e.get("label", {}).get("name") == LABEL_REJECTED
+        ]
+
+        if reopen_events and labeled_rejected:
+            # Find reopen events that happened after rejection
+            for reopen_ev in reopen_events:
+                reopen_time = reopen_ev.get("created_at", "")
+                actor_login = reopen_ev.get("actor", {}).get("login", "unknown")
+
+                if not _is_privileged_user(actor_login):
+                    continue
+
+                # Check if this reopen happened after a rejection
+                rejection_time = max(
+                    (e.get("created_at", "") for e in labeled_rejected), default=""
+                )
+                if reopen_time > rejection_time:
+                    # Extract rationale from subsequent comments
+                    rationale = None
+                    for c in comments:
+                        if (
+                            "human override" in c.get("body", "").lower()
+                            and c.get("created_at", "") >= reopen_time
+                        ):
+                            body = c.get("body", "")
+                            # Try to extract rationale after the override marker
+                            if "—" in body:
+                                rationale = body.split("—", 1)[1].strip()[:200]
+                            break
+
+                    try:
+                        timestamp = datetime.fromisoformat(
+                            reopen_time.replace("Z", "+00:00")
+                        )
+                    except (ValueError, AttributeError):
+                        timestamp = datetime.now(UTC)
+
+                    overrides.append(
+                        HumanOverride(
+                            timestamp=timestamp,
+                            issue_number=n,
+                            pr_number=None,
+                            override_type="reopened",
+                            actor=actor_login,
+                            issue_title=issue["title"],
+                            ai_verdict="Rejected by AI triage",
+                            human_action="Reopened and moved to backlog",
+                            rationale=rationale,
+                        )
+                    )
+
+        # Case 2: Explicit HUMAN OVERRIDE comment
+        for c in comments:
+            body = c.get("body", "")
+            if "HUMAN OVERRIDE" not in body:
+                continue
+
+            commenter = c.get("user", {}).get("login", "unknown")
+            if not _is_privileged_user(commenter):
+                continue
+
+            created_at = c.get("created_at", "")
+            try:
+                timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                timestamp = datetime.now(UTC)
+
+            # Determine AI verdict from labels or previous state
+            ai_verdict = "AI rejected/proposed changes"
+            if LABEL_REJECTED in label_names:
+                ai_verdict = "Rejected by AI triage"
+            elif LABEL_PROPOSED in label_names:
+                ai_verdict = "Awaiting AI debate"
+
+            # Extract rationale
+            rationale = None
+            if "—" in body:
+                rationale = body.split("—", 1)[1].strip()[:200]
+            elif "\n" in body:
+                lines = body.split("\n")
+                if len(lines) > 1:
+                    rationale = lines[1].strip()[:200]
+
+            overrides.append(
+                HumanOverride(
+                    timestamp=timestamp,
+                    issue_number=n,
+                    pr_number=None,
+                    override_type="comment",
+                    actor=commenter,
+                    issue_title=issue["title"],
+                    ai_verdict=ai_verdict,
+                    human_action="Moved to backlog via override",
+                    rationale=rationale,
+                )
+            )
+
+    # Sort by timestamp descending (newest first)
+    overrides.sort(key=lambda o: o.timestamp, reverse=True)
+    return overrides
+
+
+def save_override_records(overrides: list[HumanOverride]) -> Path:
+    """Save override records to JSON file for site builder."""
+    output_dir = PROJECT_ROOT / "output" / "data"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "overrides.json"
+
+    data = [o.model_dump(mode="json") for o in overrides]
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    log.info("Saved %d override records to %s", len(overrides), path)
+    return path
 
 
 def mark_issue_in_progress(issue_number: int) -> None:
@@ -1834,6 +2005,16 @@ async def run_one_cycle(
                 telemetry.tweet_posted = True
         except Exception:
             log.exception("X posting failed (non-fatal)")
+
+    # --- Collect and save override transparency records ---
+    if not dry_run:
+        try:
+            override_records = collect_override_records()
+            if override_records:
+                save_override_records(override_records)
+                print(f"  Collected {len(override_records)} override record(s) for transparency report")
+        except Exception:
+            log.exception("Override collection failed (non-fatal)")
 
     # --- Finalize telemetry ---
     telemetry.finished_at = datetime.now(UTC)

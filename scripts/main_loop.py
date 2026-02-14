@@ -1413,15 +1413,22 @@ async def run_one_cycle(
         print("\nPhase B: Skipped (--skip-improve)")
     else:
         print("\nPhase B: Self-improvement — proposing and debating...")
-        try:
-            ai_proposals = await step_propose(
-                num_proposals=proposals_per_cycle, model=model,
-            )
-        except Exception:
-            log.exception("Propose step failed")
-            ai_proposals = []
 
-        # Ingest human suggestions
+        # Check if backlog is empty — only generate AI proposals when backlog is drained
+        backlog = list_backlog_issues()
+        if backlog:
+            print(f"  AI proposals: Skipped (backlog has {len(backlog)} open issues — draining queue)")
+            ai_proposals = []
+        else:
+            try:
+                ai_proposals = await step_propose(
+                    num_proposals=proposals_per_cycle, model=model,
+                )
+            except Exception:
+                log.exception("Propose step failed")
+                ai_proposals = []
+
+        # Ingest human suggestions (always processed, regardless of backlog)
         human_issues = list_human_suggestions()
         human_proposals = [
             {

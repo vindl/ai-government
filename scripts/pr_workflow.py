@@ -215,13 +215,8 @@ Task: {task}
 
 def _build_coder_prompt_followup(task: str, pr_number: int) -> str:
     """Build the coder prompt for subsequent rounds (address review feedback)."""
-    # Get owner/repo for inline comment commands
-    try:
-        owner_repo = _get_owner_repo()
-    except (subprocess.CalledProcessError, ValueError):
-        # If we can't determine owner/repo, the inline comment command won't work
-        log.warning("Could not determine owner/repo for inline comment commands")
-        owner_repo = "OWNER/REPO"  # Placeholder that makes the issue obvious
+    # Get owner/repo for inline comment commands (fail fast if unavailable)
+    owner_repo = _get_owner_repo()
 
     return f"""You previously opened PR #{pr_number} for the following task:
 
@@ -244,13 +239,8 @@ The reviewer has requested changes. Do the following:
 
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
-    # Get owner/repo for inline comment commands
-    try:
-        owner_repo = _get_owner_repo()
-    except (subprocess.CalledProcessError, ValueError):
-        # If we can't determine owner/repo, the inline comment command won't work
-        log.warning("Could not determine owner/repo for inline comment commands")
-        owner_repo = "OWNER/REPO"  # Placeholder that makes the issue obvious
+    # Get owner/repo for inline comment commands (fail fast if unavailable)
+    owner_repo = _get_owner_repo()
 
     return f"""Review PR #{pr_number} thoroughly. Be skeptical — your job is to find problems.
 
@@ -258,19 +248,19 @@ Steps:
 1. `gh pr diff {pr_number}` — read the full diff carefully.
 2. Read surrounding files for context where needed.
 3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
-4. **Post inline comments** (if needed) on specific lines with issues:
+4. **Post inline comments** (optional) on specific lines with issues:
    ```
-   gh api repos/{owner_repo}/pulls/{pr_number}/comments
-     -f body="suggestion or issue"
-     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')"
-     -f path="path/to/file.py"
-     -F line=42
+   gh api repos/{owner_repo}/pulls/{pr_number}/comments \\
+     -f body="suggestion or issue" \\
+     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \\
+     -f path="path/to/file.py" \\
+     -F line=42 \\
      -f side="RIGHT"
    ```
    Note: Use -F for line (sends as integer, not string).
    Post inline comments for: logic issues, missing edge cases, unclear code,
    potential bugs, better approaches, or concrete improvement suggestions.
-   Skip this step if the code is excellent and you found no issues after thorough review.
+   If after thorough review you genuinely found no line-specific issues, proceed to step 5.
 5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
    If changes needed (you found real issues):

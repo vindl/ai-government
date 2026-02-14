@@ -59,7 +59,7 @@
       </div>
       <p>{{ a.summary }}</p>
       {% if a.key_concerns %}
-      <h4>Kljucne zabrinutosti</h4>
+      <h4>Ključne zabrinutosti</h4>
       <ul>
         {% for concern in a.key_concerns %}
         <li>{{ concern }}</li>
@@ -86,7 +86,7 @@
         </ul>
         {% endif %}
         {% if a.counter_proposal.expected_benefits %}
-        <p><strong>Ocekivane koristi:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
+        <p><strong>Očekivane koristi:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
         {% endif %}
         {% if a.counter_proposal.estimated_feasibility %}
         <p><strong>Izvodljivost:</strong> {{ a.counter_proposal.estimated_feasibility }}</p>
@@ -110,7 +110,7 @@
     <p>{{ result.debate.consensus_summary }}</p>
 
     {% if result.debate.disagreements %}
-    <h3>Tacke neslaganja</h3>
+    <h3>Tačke neslaganja</h3>
     <ul>
       {% for d in result.debate.disagreements %}
       <li>{{ d }}</li>
@@ -125,7 +125,7 @@
 
   {% if result.critic_report %}
   <section class="critic">
-    <h2>Nezavisna kriticka analiza</h2>
+    <h2>Nezavisna kritička analiza</h2>
     <p>{{ result.critic_report.overall_analysis }}</p>
     {% if result.critic_report.blind_spots %}
     <h3>Propusti</h3>
@@ -146,7 +146,7 @@
     <div class="detailed-proposal">{{ result.counter_proposal.detailed_proposal }}</div>
 
     {% if result.counter_proposal.key_differences %}
-    <h4>Kljucne razlike</h4>
+    <h4>Ključne razlike</h4>
     <ul>
       {% for diff in result.counter_proposal.key_differences %}
       <li>{{ diff }}</li>

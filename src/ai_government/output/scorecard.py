@@ -83,6 +83,18 @@ def render_scorecard(result: SessionResult) -> str:
             for rec in a.recommendations:
                 lines.append(f"- {rec}")
             lines.append("")
+        if a.counter_proposal:
+            cp = a.counter_proposal
+            lines.extend([
+                f"**Counter-proposal: {cp.title}**",
+                cp.summary,
+                "",
+            ])
+            if cp.key_changes:
+                lines.append("Key changes:")
+                for change in cp.key_changes:
+                    lines.append(f"- {change}")
+                lines.append("")
 
     # Parliament debate
     if result.debate:
@@ -119,6 +131,39 @@ def render_scorecard(result: SessionResult) -> str:
             lines.append("### Blind Spots")
             for bs in cr.blind_spots:
                 lines.append(f"- {bs}")
+            lines.append("")
+
+    # Unified counter-proposal
+    if result.counter_proposal:
+        ucp = result.counter_proposal
+        lines.extend([
+            "## Kontraprijedlog AI Vlade",
+            f"### {ucp.title}",
+            "",
+            f"**{ucp.executive_summary}**",
+            "",
+            ucp.detailed_proposal,
+            "",
+        ])
+        if ucp.key_differences:
+            lines.append("### Key Differences")
+            for diff in ucp.key_differences:
+                lines.append(f"- {diff}")
+            lines.append("")
+        if ucp.implementation_steps:
+            lines.append("### Implementation Steps")
+            for step in ucp.implementation_steps:
+                lines.append(f"1. {step}")
+            lines.append("")
+        if ucp.risks_and_tradeoffs:
+            lines.append("### Risks & Tradeoffs")
+            for risk in ucp.risks_and_tradeoffs:
+                lines.append(f"- {risk}")
+            lines.append("")
+        if ucp.ministry_contributions:
+            lines.append("### Ministry Contributions")
+            for contrib in ucp.ministry_contributions:
+                lines.append(f"- {contrib}")
             lines.append("")
 
     lines.append("---")

@@ -178,3 +178,30 @@ Analysis tasks skip debate (analyzing real decisions is always the right thing t
 - Checking X API for last post time — rejected: unnecessary API calls when a local state file suffices
 
 **Consequences**: Predictable, low-noise X presence. The existing `social_media.py` thread formatter remains available for future use (e.g., manual posting, other platforms). Dev environments work without X credentials.
+
+---
+
+## ADR-012: Layered Counter-Proposal Architecture
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The AI Government critiques and scores government decisions but never proposes alternatives. To act as a true parallel governing body, it should say "here's what we would do instead."
+
+**Decision**: Use a layered approach:
+1. Each ministry produces a domain-specific counter-proposal as part of its existing analysis (same API call, no extra cost — just more output tokens)
+2. A new `SynthesizerAgent` consolidates ministry counter-proposals into one unified counter-proposal (+1 API call per decision)
+
+Pipeline changes from 7 → 8 API calls:
+```
+Before: Decision → 5 ministries (parallel) → parliament + critic (parallel) → output
+After:  Decision → 5 ministries w/ counter-proposals (parallel) → parliament + critic (parallel) → synthesizer → output
+```
+
+All new model fields are optional (`None` default) for backwards compatibility with existing serialized data.
+
+**Alternatives considered**:
+- Single synthesizer without per-ministry proposals — rejected: loses domain-specific expertise, and ministries already have the context during analysis
+- Parallel synthesizer with Phase 2 — rejected: keeping it sequential (Phase 3) leaves the door open to feed parliament/critic results into the synthesizer later
+- Separate API call per ministry for counter-proposals — rejected: wasteful when the same context is already in the ministry analysis call
+
+**Consequences**: ~14% cost increase (8 vs 7 API calls). Per-ministry counter-proposals are essentially free (same call, ~15-20% more output tokens). The unified counter-proposal gives the project its identity as a parallel governing body, not just a critic.

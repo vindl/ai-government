@@ -8,7 +8,9 @@ import pytest
 
 from ai_government.models.assessment import (
     Assessment,
+    CounterProposal,
     CriticReport,
+    MinistryCounterProposal,
     ParliamentDebate,
     Verdict,
 )
@@ -79,6 +81,58 @@ def sample_critic_report() -> CriticReport:
         blind_spots=["Uticaj na mala preduzeća"],
         overall_analysis="Dobra mjera sa prostorom za poboljšanje.",
         headline="PDV reforma: korak naprijed uz rizike",
+    )
+
+
+@pytest.fixture
+def sample_ministry_counter_proposal() -> MinistryCounterProposal:
+    return MinistryCounterProposal(
+        title="Postepeno smanjenje PDV-a",
+        summary="Umjesto jednokratnog smanjenja, predlažemo postepeno sniženje u tri faze.",
+        key_changes=["Faza 1: smanjenje na 15%", "Faza 2: smanjenje na 10%", "Faza 3: smanjenje na 7%"],
+        expected_benefits=["Manji fiskalni šok", "Vrijeme za adaptaciju tržišta"],
+        estimated_feasibility="Visoka — postepeni pristup smanjuje rizik",
+    )
+
+
+@pytest.fixture
+def sample_assessment_with_counter_proposal(
+    sample_ministry_counter_proposal: MinistryCounterProposal,
+) -> Assessment:
+    return Assessment(
+        ministry="Finance",
+        decision_id="test-001",
+        verdict=Verdict.POSITIVE,
+        score=7,
+        summary="Pozitivna mjera za životni standard, ali sa fiskalnim rizicima.",
+        reasoning="Smanjenje PDV-a na osnovne proizvode direktno pomaže građanima.",
+        key_concerns=["Smanjenje budžetskih prihoda"],
+        recommendations=["Monitoring fiskalnog uticaja"],
+        counter_proposal=sample_ministry_counter_proposal,
+    )
+
+
+@pytest.fixture
+def sample_counter_proposal() -> CounterProposal:
+    return CounterProposal(
+        decision_id="test-001",
+        title="Progresivna PDV reforma",
+        executive_summary=(
+            "AI Vlada predlaže postepenu, trofaznu reformu PDV-a "
+            "umjesto jednokratnog smanjenja."
+        ),
+        detailed_proposal="Predloženi pristup kombinuje fiskalni oprez sa socijalnom pravdom.",
+        ministry_contributions=[
+            "Finance: postepeno smanjenje stopa",
+            "Justice: pravni okvir za faznu implementaciju",
+        ],
+        key_differences=["Postepeno umjesto jednokratnog smanjenja", "Uključuje kompenzacione mjere"],
+        implementation_steps=[
+            "Usvajanje zakonskog okvira",
+            "Faza 1 — smanjenje na 15%",
+            "Evaluacija nakon 6 mjeseci",
+        ],
+        risks_and_tradeoffs=["Sporiji efekat na građane", "Politički pritisak za brže smanjenje"],
     )
 
 

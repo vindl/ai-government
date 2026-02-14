@@ -18,10 +18,12 @@ The full repository scaffold is in place. All code passes linting, type checking
 
 ### Data Models (`src/ai_government/models/`)
 - [x] `GovernmentDecision` — Pydantic model for input decisions
-- [x] `Assessment` — ministry agent output with verdict + score
+- [x] `Assessment` — ministry agent output with verdict + score + optional counter-proposal
 - [x] `Verdict` — StrEnum (strongly_positive → strongly_negative)
 - [x] `ParliamentDebate` — synthesized debate output
 - [x] `CriticReport` — independent auditor output
+- [x] `MinistryCounterProposal` — per-ministry alternative proposal
+- [x] `CounterProposal` — unified counter-proposal from synthesizer
 
 ### Agent Framework (`src/ai_government/agents/`)
 - [x] `GovernmentAgent` base class with `analyze()` method
@@ -30,6 +32,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] 5 ministry agents: Finance, Justice, EU Integration, Health, Interior
 - [x] `ParliamentAgent` — receives all assessments, synthesizes debate
 - [x] `CriticAgent` — independent scoring of decision + assessments
+- [x] `SynthesizerAgent` — consolidates ministry counter-proposals into unified alternative
 
 ### Prompts (`src/ai_government/prompts/`)
 - [x] `ministry_base.py` — shared template with `build_ministry_prompt()`
@@ -41,8 +44,8 @@ The full repository scaffold is in place. All code passes linting, type checking
 ### Orchestrator (`src/ai_government/orchestrator.py`)
 - [x] Parallel ministry dispatch via `anyio.create_task_group()`
 - [x] Sequential mode option for debugging/budget control
-- [x] Phase 1: ministries in parallel → Phase 2: parliament + critic in parallel
-- [x] `SessionResult` dataclass aggregating all outputs
+- [x] Phase 1: ministries in parallel → Phase 2: parliament + critic in parallel → Phase 3: synthesizer
+- [x] `SessionResult` dataclass aggregating all outputs (including optional `counter_proposal`)
 
 ### Session Runner (`src/ai_government/session.py`)
 - [x] CLI entrypoint with argparse
@@ -110,8 +113,22 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `step_post_tweet()` in main loop — runs after each cycle, non-fatal, logs composed post content
 - [x] Docker env var passthrough for `TWITTER_*` credentials
 
+### Counter-Proposals
+- [x] `MinistryCounterProposal` model — per-ministry alternative proposal (optional on `Assessment`)
+- [x] `CounterProposal` model — unified counter-proposal synthesized from all ministry inputs
+- [x] Ministry prompts updated to request counter-proposals in JSON response
+- [x] `SynthesizerAgent` — consolidates ministry counter-proposals into a unified alternative (+1 API call)
+- [x] Orchestrator Phase 3: synthesizer runs after parliament + critic
+- [x] `SessionResult.counter_proposal` field (optional, backwards compatible)
+- [x] Markdown scorecard renders per-ministry and unified counter-proposals
+- [x] HTML scorecard template with counter-proposal sections (ministry inset + unified card)
+- [x] CSS styles: `.counter-proposal`, `.counter-proposal-mini`, `.feed-counter-proposal`
+- [x] Index page badge "Kontraprijedlog dostupan" when counter-proposal exists
+- [x] Social media thread includes counter-proposal tweet
+- [x] X daily digest includes `[+kontraprijedlog]` indicator
+
 ### Tests
-- [x] 16 tests passing
+- [x] 29 tests passing
 - [x] `tests/models/test_decision.py` — model creation, validation, JSON roundtrip, seed data loading
 - [x] `tests/agents/test_base.py` — config, prompt building, response parsing (valid/invalid/surrounded), factory functions
 - [x] `tests/conftest.py` — shared fixtures with realistic Montenegrin data

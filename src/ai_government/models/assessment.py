@@ -15,6 +15,20 @@ class Verdict(StrEnum):
     STRONGLY_NEGATIVE = "strongly_negative"
 
 
+class MinistryCounterProposal(BaseModel):
+    """A ministry's alternative proposal for a government decision."""
+
+    title: str = Field(description="Title of the counter-proposal")
+    summary: str = Field(description="Brief summary of what the ministry would do differently")
+    key_changes: list[str] = Field(default_factory=list, description="Concrete changes proposed")
+    expected_benefits: list[str] = Field(
+        default_factory=list, description="Expected benefits of this alternative"
+    )
+    estimated_feasibility: str = Field(
+        default="", description="How feasible this alternative is"
+    )
+
+
 class Assessment(BaseModel):
     """A ministry agent's assessment of a government decision."""
 
@@ -26,6 +40,9 @@ class Assessment(BaseModel):
     reasoning: str = Field(description="Detailed reasoning behind the assessment")
     key_concerns: list[str] = Field(default_factory=list, description="Key concerns identified")
     recommendations: list[str] = Field(default_factory=list, description="Recommendations for improvement")
+    counter_proposal: MinistryCounterProposal | None = Field(
+        default=None, description="Ministry's alternative proposal"
+    )
 
 
 class ParliamentDebate(BaseModel):
@@ -36,6 +53,27 @@ class ParliamentDebate(BaseModel):
     disagreements: list[str] = Field(default_factory=list, description="Key points of disagreement")
     overall_verdict: Verdict = Field(description="Parliament's collective verdict")
     debate_transcript: str = Field(description="Simulated debate transcript")
+
+
+class CounterProposal(BaseModel):
+    """Unified counter-proposal synthesized from all ministry alternatives."""
+
+    decision_id: str = Field(description="ID of the decision this counter-proposal addresses")
+    title: str = Field(description="Title of the unified counter-proposal")
+    executive_summary: str = Field(description="Executive summary of the alternative approach")
+    detailed_proposal: str = Field(description="Full detailed proposal text")
+    ministry_contributions: list[str] = Field(
+        default_factory=list, description="Which ministries contributed"
+    )
+    key_differences: list[str] = Field(
+        default_factory=list, description="Key differences from the original"
+    )
+    implementation_steps: list[str] = Field(
+        default_factory=list, description="Steps to implement this alternative"
+    )
+    risks_and_tradeoffs: list[str] = Field(
+        default_factory=list, description="Risks and tradeoffs of this approach"
+    )
 
 
 class CriticReport(BaseModel):

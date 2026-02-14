@@ -90,7 +90,8 @@ def compose_daily_tweet(results: list[SessionResult]) -> str:
     for r in sorted_results:
         score = r.critic_report.decision_score if r.critic_report else "?"
         title = r.decision.title
-        line = f"\u2022 {title}: {score}/10"
+        cp_tag = " [+kontraprijedlog]" if r.counter_proposal else ""
+        line = f"\u2022 {title}: {score}/10{cp_tag}"
         bullets.append(line)
 
     body = "\n".join(bullets)

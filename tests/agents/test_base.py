@@ -128,6 +128,75 @@ class TestGovernmentAgent:
         assert assessment.verdict == Verdict.NEGATIVE
         assert assessment.score == 3
 
+    def test_parse_response_with_counter_proposal(self) -> None:
+        ministry_config = MinistryConfig(
+            name="Finance",
+            slug="finance",
+            focus_areas=["budget"],
+            system_prompt="prompt",
+        )
+        agent = GovernmentAgent(ministry_config)
+        response = json.dumps({
+            "ministry": "Finance",
+            "decision_id": "test-001",
+            "verdict": "positive",
+            "score": 7,
+            "summary": "Good decision.",
+            "reasoning": "Solid fiscal reasoning.",
+            "key_concerns": ["Budget impact"],
+            "recommendations": ["Monitor spending"],
+            "counter_proposal": {
+                "title": "Alternative approach",
+                "summary": "We would do it differently.",
+                "key_changes": ["Change 1"],
+                "expected_benefits": ["Benefit 1"],
+                "estimated_feasibility": "High",
+            },
+        })
+        assessment = agent._parse_response(response, "test-001")
+        assert assessment.counter_proposal is not None
+        assert assessment.counter_proposal.title == "Alternative approach"
+        assert len(assessment.counter_proposal.key_changes) == 1
+
+    def test_parse_response_without_counter_proposal(self) -> None:
+        ministry_config = MinistryConfig(
+            name="Finance",
+            slug="finance",
+            focus_areas=["budget"],
+            system_prompt="prompt",
+        )
+        agent = GovernmentAgent(ministry_config)
+        response = json.dumps({
+            "ministry": "Finance",
+            "decision_id": "test-001",
+            "verdict": "positive",
+            "score": 7,
+            "summary": "Good decision.",
+            "reasoning": "Solid reasoning.",
+            "key_concerns": [],
+            "recommendations": [],
+        })
+        assessment = agent._parse_response(response, "test-001")
+        assert assessment.counter_proposal is None
+
+    def test_build_prompt_includes_counter_proposal_schema(self) -> None:
+        ministry_config = MinistryConfig(
+            name="Finance",
+            slug="finance",
+            focus_areas=["budget"],
+            system_prompt="prompt",
+        )
+        agent = GovernmentAgent(ministry_config)
+        decision = GovernmentDecision(
+            id="test-001",
+            title="Test",
+            summary="A test.",
+            date=date(2025, 12, 15),
+        )
+        prompt = agent._build_prompt(decision)
+        assert "counter_proposal" in prompt
+        assert "key_changes" in prompt
+
     def test_ministry_agent_factories(self) -> None:
         from ai_government.agents.ministry_eu import create_eu_agent
         from ai_government.agents.ministry_finance import create_finance_agent

@@ -16,6 +16,8 @@ Montenegro is a small country with an active government making consequential dec
 - **Phase**: Initial scaffold (v0.1.0)
 - **Status**: Repository structure created, core models and agent framework in place
 - **Next**: Wire up real scraping, tune prompts, launch first automated sessions
+- See [STATUS.md](./STATUS.md) for detailed implementation status
+- See [ROADMAP.md](./ROADMAP.md) for what's next
 
 ## Key Technical Choices
 - See [DECISIONS.md](./DECISIONS.md) for architectural decision records

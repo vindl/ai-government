@@ -50,6 +50,13 @@ uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.
 - The orchestrator dispatches to agents in parallel via `anyio.create_task_group()`
 - Output goes to `output/` directory (gitignored)
 
+## Documentation
+- `docs/CONTEXT.md` — project background, goals, why Montenegro, agent roles
+- `docs/STATUS.md` — what's implemented, what's a stub, known gotchas
+- `docs/ROADMAP.md` — phased plan for what to build next
+- `docs/DECISIONS.md` — architectural decision records (ADRs)
+- **Read `docs/STATUS.md` first when resuming work** — it has implementation details and known issues
+
 ## Git
 - Do NOT include `Co-Authored-By` lines in commit messages
 - Write concise commit messages focused on the "why"

@@ -26,8 +26,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_MAX_ROUNDS = 0  # 0 = unlimited, loop until approved
 
-CODER_MAX_TURNS = 0  # 0 = unlimited; let the coder run until it finishes
-REVIEWER_MAX_TURNS = 0  # 0 = unlimited; let the reviewer complete all steps
+CODER_MAX_TURNS = 200  # generous cap to prevent infinite loops
+REVIEWER_MAX_TURNS = 200  # generous cap to prevent infinite loops
 
 CODER_TOOLS = ["Bash", "Write", "Edit", "Read", "Glob", "Grep"]
 REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
@@ -54,7 +54,22 @@ def _sdk_options(
     max_turns: int,
     allowed_tools: list[str],
 ) -> ClaudeCodeOptions:
-    """Build ClaudeCodeOptions with shared defaults."""
+    """Build ClaudeCodeOptions with shared defaults.
+
+    Agents WITH tools get ``append_system_prompt`` so Claude Code's built-in
+    tool instructions, safety guards, and CLAUDE.md project context are
+    preserved.  Agents WITHOUT tools get a full ``system_prompt`` replacement.
+    """
+    if allowed_tools:
+        return ClaudeCodeOptions(
+            append_system_prompt=system_prompt,
+            model=model,
+            max_turns=max_turns,
+            allowed_tools=allowed_tools,
+            permission_mode="bypassPermissions",
+            cwd=PROJECT_ROOT,
+            env=SDK_ENV,
+        )
     return ClaudeCodeOptions(
         system_prompt=system_prompt,
         model=model,

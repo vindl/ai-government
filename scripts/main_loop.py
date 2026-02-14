@@ -45,8 +45,10 @@ from ai_government.output.twitter import (
     get_unposted_results,
     load_state,
     post_tweet,
+    record_post,
     save_state,
     should_post,
+    try_post_analysis,
 )
 from ai_government.session import load_decisions
 
@@ -1013,6 +1015,13 @@ async def step_execute_analysis(
         saved = save_result_json(results[0], data_dir)
         log.info("Saved result JSON to %s", saved)
 
+        # Post analysis tweet (non-fatal)
+        try:
+            if try_post_analysis(results[0]):
+                log.info("Posted analysis tweet for %s", results[0].decision.id)
+        except Exception:
+            log.exception("Analysis tweet failed (non-fatal)")
+
         mark_issue_done(issue_number)
         log.info("Analysis issue #%d completed successfully", issue_number)
         return True
@@ -1796,6 +1805,7 @@ def step_post_tweet() -> bool:
     # Update state
     state.last_posted_at = datetime.now(UTC)
     state.posted_decision_ids.extend(r.decision.id for r in unposted[:3])
+    record_post(state)
     save_state(state)
     return True
 

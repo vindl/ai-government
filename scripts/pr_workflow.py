@@ -163,6 +163,19 @@ def merge_pr(pr_number: int) -> None:
     log.info("Merged PR #%d", pr_number)
 
 
+def _get_owner_repo() -> str:
+    """Get owner/repo for the current repository.
+
+    Returns the owner/repo string (e.g., "vindl/ai-government").
+    Raises ValueError if the repository cannot be determined.
+    """
+    result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
+    owner_repo = result.stdout.strip()
+    if not owner_repo:
+        raise ValueError("Could not determine repository owner/repo")
+    return owner_repo
+
+
 # ---------------------------------------------------------------------------
 # Role prompt loading
 # ---------------------------------------------------------------------------
@@ -203,13 +216,12 @@ Task: {task}
 def _build_coder_prompt_followup(task: str, pr_number: int) -> str:
     """Build the coder prompt for subsequent rounds (address review feedback)."""
     # Get owner/repo for inline comment commands
-    owner_repo = "{{owner}}/{{repo}}"  # Default fallback
     try:
-        result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
-        if result.stdout.strip():
-            owner_repo = result.stdout.strip()
+        owner_repo = _get_owner_repo()
     except (subprocess.CalledProcessError, ValueError):
-        pass  # Use fallback
+        # If we can't determine owner/repo, the inline comment command won't work
+        log.warning("Could not determine owner/repo for inline comment commands")
+        owner_repo = "OWNER/REPO"  # Placeholder that makes the issue obvious
 
     return f"""You previously opened PR #{pr_number} for the following task:
 
@@ -233,13 +245,12 @@ The reviewer has requested changes. Do the following:
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
     # Get owner/repo for inline comment commands
-    owner_repo = "{{owner}}/{{repo}}"  # Default fallback
     try:
-        result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
-        if result.stdout.strip():
-            owner_repo = result.stdout.strip()
+        owner_repo = _get_owner_repo()
     except (subprocess.CalledProcessError, ValueError):
-        pass  # Use fallback
+        # If we can't determine owner/repo, the inline comment command won't work
+        log.warning("Could not determine owner/repo for inline comment commands")
+        owner_repo = "OWNER/REPO"  # Placeholder that makes the issue obvious
 
     return f"""Review PR #{pr_number} thoroughly. Be skeptical — your job is to find problems.
 
@@ -249,17 +260,17 @@ Steps:
 3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
 4. **Post inline comments** (if needed) on specific lines with issues:
    ```
-   gh api repos/{owner_repo}/pulls/{pr_number}/comments \
-     -f body="suggestion or issue" \
-     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \
-     -f path="path/to/file.py" \
-     -F line=42 \
+   gh api repos/{owner_repo}/pulls/{pr_number}/comments
+     -f body="suggestion or issue"
+     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')"
+     -f path="path/to/file.py"
+     -F line=42
      -f side="RIGHT"
    ```
    Note: Use -F for line (sends as integer, not string).
    Post inline comments for: logic issues, missing edge cases, unclear code,
    potential bugs, better approaches, or concrete improvement suggestions.
-   If there are no line-specific issues, proceed directly to step 5.
+   Skip this step if the code is excellent and you found no issues after thorough review.
 5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
    If changes needed (you found real issues):
@@ -272,7 +283,8 @@ Rules:
 - Do NOT approve if checks fail.
 - Do NOT approve without reading the full diff and understanding what it does.
 - Requesting changes is normal — the coder expects it and will address your feedback.
-- A good review finds at least one improvement. If everything looks perfect, look harder.
+- Be thorough: a good review finds genuine issues when they exist.
+- If the code is truly excellent after careful review, it's okay to approve.
 - The comment body MUST start with exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
 """
 

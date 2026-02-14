@@ -128,7 +128,7 @@ def ensure_labels_exist() -> None:
 
 def create_proposal_issue(title: str, body: str) -> int:
     """Create a GitHub Issue with the proposed label. Returns issue number."""
-    ai_body = f"\U0001f916 **AI-generated proposal**\n\n{body}"
+    ai_body = f"Written by PM agent:\n\n{body}"
     result = _run_gh([
         "gh", "issue", "create",
         "--title", title,
@@ -151,12 +151,12 @@ def post_debate_comment(
     """Post the full debate as a comment on the issue."""
     body = (
         f"## \U0001f916 AI Triage Debate\n\n"
-        f"### Round 1 — Opening\n\n"
-        f"**\U0001f916 AI Advocate (PM agent):**\n{advocate_arg}\n\n"
-        f"**\U0001f916 AI Skeptic (Reviewer agent):**\n{skeptic_challenge}\n\n"
-        f"### Round 2 — Rebuttal & Verdict\n\n"
-        f"**\U0001f916 AI Advocate rebuttal:**\n{advocate_rebuttal}\n\n"
-        f"**\U0001f916 AI Skeptic final verdict:**\n{skeptic_verdict}\n\n"
+        f"### Round 1 — Proposal & Feedback\n\n"
+        f"**Written by PM agent:**\n{advocate_arg}\n\n"
+        f"**Written by Critic agent:**\n{skeptic_challenge}\n\n"
+        f"### Round 2 — Refinement & Verdict\n\n"
+        f"**Written by PM agent (refined):**\n{advocate_rebuttal}\n\n"
+        f"**Written by Critic agent (verdict):**\n{skeptic_verdict}\n\n"
         f"### Result: **{verdict}**"
     )
     _run_gh(["gh", "issue", "comment", str(issue_number), "--body", body])
@@ -175,7 +175,7 @@ def reject_issue(issue_number: int) -> None:
              "--remove-label", LABEL_PROPOSED,
              "--add-label", LABEL_REJECTED])
     _run_gh(["gh", "issue", "close", str(issue_number),
-             "--comment", "\U0001f916 **AI Triage:** Rejected by triage debate. See debate above."])
+             "--comment", "Written by Triage agent: Rejected by triage debate. See debate above."])
 
 
 def list_backlog_issues() -> list[dict[str, Any]]:
@@ -232,7 +232,7 @@ def process_human_overrides() -> int:
                  "--add-label", LABEL_BACKLOG])
         _run_gh(["gh", "issue", "comment", str(n),
                  "--body",
-                 "\U0001f916 **AI Triage:** Issue reopened by human — "
+                 "Written by Triage agent: Issue reopened by human — "
                  "moved to backlog via human override."])
         log.info("Human override (reopened): #%d %s", n, issue["title"])
         count += 1
@@ -275,7 +275,7 @@ def process_human_overrides() -> int:
             _run_gh(["gh", "issue", "reopen", str(n)], check=False)
             _run_gh(["gh", "issue", "comment", str(n),
                      "--body",
-                     "\U0001f916 **AI Triage:** HUMAN OVERRIDE detected — "
+                     "Written by Triage agent: HUMAN OVERRIDE detected — "
                      "moved to backlog."])
             log.info("Human override (comment): #%d %s", n, issue["title"])
             count += 1
@@ -301,7 +301,7 @@ def mark_issue_failed(issue_number: int, reason: str) -> None:
              "--remove-label", LABEL_IN_PROGRESS,
              "--add-label", LABEL_FAILED])
     _run_gh(["gh", "issue", "comment", str(issue_number),
-             "--body", f"\U0001f916 **AI Executor:** Execution failed: {reason}"])
+             "--body", f"Written by Executor agent: Execution failed: {reason}"])
 
 
 def get_failed_issue_titles() -> list[str]:
@@ -519,14 +519,19 @@ async def _run_advocate(
     model: str,
 ) -> str:
     """Round 1: PM argues for the proposal (~200 words)."""
-    prompt = f"""Argue in favor of this proposed improvement for the AI Government project.
+    prompt = f"""Written by PM agent:
+
+Propose this improvement for the AI Government project. Focus on why it's the
+highest-impact thing to do right now.
 
 Title: {title}
 Description: {description}
 Domain: {domain}
 
-Write a concise argument (~200 words) for why this should be accepted.
-Consider: impact, feasibility, alignment with project goals, and priority.
+Write a concise argument (~200 words) covering:
+- What concrete value does this deliver?
+- Why now — what makes this the right priority?
+- How does it move the project forward?
 """
     system_prompt = _load_role_prompt("pm")
     opts = _sdk_options(
@@ -546,22 +551,29 @@ async def _run_skeptic_challenge(
     *,
     model: str,
 ) -> str:
-    """Round 1: Reviewer challenges the proposal. No verdict yet."""
-    prompt = f"""Challenge this proposed improvement for the AI Government project.
+    """Round 1: Reviewer provides constructive feedback. No verdict yet."""
+    prompt = f"""Written by Critic agent:
+
+Review this proposed improvement for the AI Government project. Your goal is to
+help refine the idea, not to kill it.
 
 Title: {title}
 Description: {description}
 
-The advocate argues:
+The PM argues:
 {advocate_arg}
 
-Respond with a critical assessment (~200 words). Raise your strongest concerns:
-- Is the scope too large or vague?
-- Are there higher-priority items?
-- Is it feasible with the current codebase?
-- Does it align with the project constitution and roadmap?
+Provide constructive feedback (~200 words):
+- Are there ways to scope or sharpen this to increase impact?
+- Any technical risks or dependencies the PM should consider?
+- Suggestions to make implementation smoother?
 
-Do NOT give a verdict yet. Just raise your concerns so the advocate can respond.
+Flag as a **blocking concern** ONLY if the proposal:
+- Is technically infeasible with the current codebase
+- Violates the project constitution (ethics, transparency, public interest)
+- Has a serious security or safety issue
+
+Do NOT give a verdict yet. Just provide your feedback so the PM can refine.
 """
     system_prompt = _load_role_prompt("reviewer")
     opts = _sdk_options(
@@ -581,19 +593,22 @@ async def _run_advocate_rebuttal(
     *,
     model: str,
 ) -> str:
-    """Round 2: PM rebuts the skeptic's concerns (~200 words)."""
-    prompt = f"""You previously argued for this improvement. The skeptic raised concerns.
-Respond to their specific objections.
+    """Round 2: PM refines the proposal based on feedback (~200 words)."""
+    prompt = f"""Written by PM agent:
+
+The critic provided feedback on your proposal. Refine the idea based on their input.
 
 Title: {title}
 Description: {description}
 
-Skeptic's concerns:
+Critic's feedback:
 {skeptic_challenge}
 
-Write a concise rebuttal (~200 words). Address each concern directly.
-If the skeptic raised a valid point, acknowledge it and explain how it can be mitigated.
-If you can scope the proposal down to address feasibility concerns, do so.
+Write a concise response (~200 words):
+- Acknowledge good suggestions and incorporate them
+- If the critic raised a blocking concern, explain how you'll address it
+- Adjust scope if needed based on their feedback
+- Present the refined version of the proposal
 """
     system_prompt = _load_role_prompt("pm")
     opts = _sdk_options(
@@ -613,20 +628,28 @@ async def _run_skeptic_verdict(
     *,
     model: str,
 ) -> str:
-    """Round 2: Reviewer gives final verdict after hearing the rebuttal."""
-    prompt = f"""You previously raised concerns about this proposal. The advocate has responded.
-Now render your final verdict.
+    """Round 2: Reviewer gives final verdict after PM refinement."""
+    prompt = f"""Written by Critic agent:
+
+The PM has refined the proposal based on your feedback. Render your final verdict.
 
 Title: {title}
 Description: {description}
 
-Advocate's rebuttal:
+PM's refined proposal:
 {advocate_rebuttal}
 
-Consider whether the advocate adequately addressed your concerns.
 Write a brief assessment (~100 words), then end with EXACTLY one of:
-- "VERDICT: REJECT — <reason>" if concerns remain unresolved
-- "VERDICT: ACCEPT — <reason>" if the rebuttal was convincing
+
+- "VERDICT: ACCEPT — <reason>" if the proposal is sound (this is the default
+  for any reasonable proposal without blocking issues)
+- "VERDICT: REJECT — <reason>" ONLY if there is a genuine blocking issue:
+  technically infeasible, violates the constitution, or has a serious
+  security/safety problem
+
+The bar for rejection is HIGH. Style preferences, priority disagreements,
+and scope concerns are NOT blocking — those get refined during implementation.
+When in doubt, accept.
 """
     system_prompt = _load_role_prompt("reviewer")
     opts = _sdk_options(

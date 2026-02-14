@@ -374,14 +374,16 @@ task description below, the HUMAN OVERRIDE wins.
     return f"""{override_section}You have a task to implement. Do the following steps:
 
 1. Implement the task described below.
-2. Run checks to make sure everything passes:
+2. Write unit tests for any new functionality. Follow existing patterns in `tests/`.
+   Tests should cover key behaviors, not just happy paths.
+3. Run checks to make sure everything passes:
    - `uv run ruff check src/ tests/`
    - `uv run mypy src/`
    - `uv run pytest`
-3. Fix any issues found by the checks.
-4. Stage and commit your changes with a concise commit message.
-5. Push the branch to the remote: `git push -u origin HEAD`
-6. Create a PR with `gh pr create`. Use a descriptive title. Start the PR body
+4. Fix any issues found by the checks.
+5. Stage and commit your changes with a concise commit message.
+6. Push the branch to the remote: `git push -u origin HEAD`
+7. Create a PR with `gh pr create`. Use a descriptive title. Start the PR body
    with "Written by Coder agent:" followed by a summary of what was implemented.
 
 Task: {task}
@@ -489,11 +491,13 @@ Steps:
 
 Verdict rules:
 - CHANGES_REQUESTED: only for **blocking issues** — bugs, security problems,
-  failing checks, or correctness errors. NOT for style preferences or nice-to-haves.
-- APPROVED: when checks pass and there are no blocking issues. You may include
-  non-blocking suggestions in an approved review.
+  failing checks, missing tests for new functionality, or correctness errors.
+  NOT for style preferences or nice-to-haves.
+- APPROVED: when checks pass, new functionality has tests, and there are no
+  blocking issues. You may include non-blocking suggestions in an approved review.
 - Distinguish clearly between "must fix" (blocking) and "consider improving" (suggestion).
-- If checks pass and the code is correct, approve it. Don't block on polish.
+- If checks pass, tests exist for new code, and the code is correct, approve it.
+  Don't block on polish.
 - The comment body MUST contain exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
 
 IMPORTANT — PR comment formatting:

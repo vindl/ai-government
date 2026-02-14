@@ -68,6 +68,13 @@ uv run python scripts/pr_workflow.py "<task description>"  # PR workflow
   - `docs/DECISIONS.md` — add an ADR for any architectural or design decision
   - `docs/ROADMAP.md` — check off completed items, add new items discovered
 
+## PR Workflow Operation
+- The PR workflow (`scripts/pr_workflow.py`) should be run from within the Claude Code session, not in a separate terminal
+- Launch it as a background task, monitor output, and fix errors in a loop
+- Success criteria: visible GitHub PR comments, coder responses to feedback, and ultimately PR merge or close
+- The reviewer agent uses `gh pr comment` (not `gh pr review`) with structured verdict markers (`VERDICT: APPROVED` or `VERDICT: CHANGES_REQUESTED`) because GitHub blocks self-reviews
+- If the reviewer fails to post a verdict comment, the prompt or max_turns may need adjustment
+
 ## Git
 - Do NOT include `Co-Authored-By` lines in commit messages
 - Write concise commit messages focused on the "why"

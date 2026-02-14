@@ -1,0 +1,22 @@
+name: Improvement Suggestion
+description: Suggest a project improvement for the AI agents to implement
+labels: ["human-suggestion"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What should be improved? Be specific about the desired outcome.
+      placeholder: Describe the improvement you'd like to see.
+    validations:
+      required: true
+  - type: dropdown
+    id: domain
+    attributes:
+      label: Domain
+      description: Which area of the project does this affect?
+      options:
+        - dev (codebase, infrastructure, tooling)
+        - government (agents, analysis, prompts, site)
+    validations:
+      required: true

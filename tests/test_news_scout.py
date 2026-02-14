@@ -53,6 +53,7 @@ class TestShouldFetchNews:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 0)
         assert should_fetch_news() is True
 
     def test_returns_false_when_fetched_today(
@@ -62,6 +63,7 @@ class TestShouldFetchNews:
         today = _dt.date.today().isoformat()
         state_path.write_text(NewsScoutState(last_fetch_date=today).model_dump_json())
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", state_path)
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 0)
         assert should_fetch_news() is False
 
     def test_returns_true_when_fetched_yesterday(
@@ -71,6 +73,7 @@ class TestShouldFetchNews:
         yesterday = (_dt.date.today() - _dt.timedelta(days=1)).isoformat()
         state_path.write_text(NewsScoutState(last_fetch_date=yesterday).model_dump_json())
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", state_path)
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 0)
         assert should_fetch_news() is True
 
     def test_returns_true_on_corrupt_file(
@@ -79,7 +82,22 @@ class TestShouldFetchNews:
         state_path = tmp_path / "state.json"
         state_path.write_text("not json")
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", state_path)
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 0)
         assert should_fetch_news() is True
+
+    def test_returns_false_when_backlog_full(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 3)
+        assert should_fetch_news() is False
+
+    def test_returns_false_when_backlog_over_max(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 5)
+        assert should_fetch_news() is False
 
 
 # ---------------------------------------------------------------------------

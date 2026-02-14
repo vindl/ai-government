@@ -73,6 +73,14 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Failed tasks tracked and excluded from re-proposal
   - Configurable: `--max-cycles`, `--cooldown`, `--proposals`, `--dry-run`
 
+### Docker Support
+- [x] `Dockerfile` — Python 3.12-slim with Node.js 20, gh CLI, uv, Claude Code CLI
+- [x] `docker-compose.yml` — service config with resource limits, restart policy, logging
+- [x] `scripts/docker-entrypoint.sh` — validates env, clones repo, installs deps, runs loop
+- [x] `.dockerignore` — excludes .venv, .git, .env, .claude, output, caches
+- [x] Fresh clone at runtime (no host filesystem mount) for full isolation
+- [x] `uv sync` in `_reexec()` so new dependencies are installed after git pull
+
 ### Tests
 - [x] 16 tests passing
 - [x] `tests/models/test_decision.py` — model creation, validation, JSON roundtrip, seed data loading

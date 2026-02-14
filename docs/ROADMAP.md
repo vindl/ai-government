@@ -15,6 +15,12 @@
 - [x] Documentation convention: always update docs/ when doing work
 - [x] Autonomous self-improvement loop (`scripts/self_improve.py`)
 
+## Phase 1.7: Docker Isolation (DONE)
+- [x] Dockerfile with Python 3.12, Node.js 20, gh CLI, uv, Claude Code CLI
+- [x] docker-compose.yml with resource limits, restart policy, signal handling
+- [x] Entrypoint script: validates env, clones repo, maps env vars to CLI flags
+- [x] `uv sync` in `_reexec()` for dependency updates between cycles
+
 ## Phase 2: First Real Run
 - [ ] Run the full pipeline against Claude API with seed decisions
 - [ ] Evaluate output quality — are assessments substantive?

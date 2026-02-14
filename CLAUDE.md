@@ -44,6 +44,17 @@ uv run python scripts/pr_workflow.py "<task description>"  # PR workflow
 uv run python scripts/self_improve.py                     # self-improvement loop (indefinite)
 uv run python scripts/self_improve.py --dry-run --max-cycles 1  # test ideation + triage only
 uv run python scripts/self_improve.py --max-cycles 3      # 3 cycles then stop
+
+# Docker (isolated self-improvement loop)
+export GH_TOKEN="ghp_..."
+export UID=$(id -u) GID=$(id -g)
+docker compose build                                       # build image
+docker compose up                                          # run indefinitely
+docker compose up -d                                       # detached
+docker compose logs -f self-improve                        # follow logs
+SELF_IMPROVE_DRY_RUN=true docker compose up                # dry run
+SELF_IMPROVE_MAX_CYCLES=3 docker compose up                # 3 cycles
+docker compose down                                        # stop
 ```
 
 ## Conventions

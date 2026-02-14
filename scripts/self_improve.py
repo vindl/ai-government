@@ -835,6 +835,13 @@ def _reexec(
     _run_gh(["git", "checkout", "main"], check=False)
     _run_gh(["git", "pull", "--ff-only"], check=False)
 
+    # Sync dependencies in case a merged PR changed pyproject.toml
+    log.info("Syncing dependencies before re-exec...")
+    subprocess.run(  # noqa: S603
+        ["uv", "sync"], cwd=PROJECT_ROOT, check=False,
+        capture_output=True, text=True,
+    )
+
     argv: list[str] = [
         sys.executable, str(Path(__file__).resolve()),
         "--_cycle-offset", str(cycle_offset),

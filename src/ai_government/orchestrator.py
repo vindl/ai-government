@@ -8,6 +8,8 @@ import anyio
 from pydantic import BaseModel, Field
 
 from ai_government.agents.critic import CriticAgent
+from ai_government.agents.ministry_economy import create_economy_agent
+from ai_government.agents.ministry_education import create_education_agent
 from ai_government.agents.ministry_eu import create_eu_agent
 from ai_government.agents.ministry_finance import create_finance_agent
 from ai_government.agents.ministry_health import create_health_agent
@@ -50,6 +52,8 @@ class Orchestrator:
             create_eu_agent(self.config),
             create_health_agent(self.config),
             create_interior_agent(self.config),
+            create_education_agent(self.config),
+            create_economy_agent(self.config),
         ]
 
     async def run_session(

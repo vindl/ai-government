@@ -85,18 +85,19 @@ class TestShouldFetchNews:
         monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 0)
         assert should_fetch_news() is True
 
-    def test_returns_false_when_backlog_full(
+    def test_returns_false_when_backlog_not_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """News scout waits until analysis queue is fully drained."""
+        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 1)
+        assert should_fetch_news() is False
+
+    def test_returns_false_when_backlog_has_multiple(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
         monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 3)
-        assert should_fetch_news() is False
-
-    def test_returns_false_when_backlog_over_max(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
-        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 5)
         assert should_fetch_news() is False
 
 

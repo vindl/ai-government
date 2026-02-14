@@ -41,6 +41,9 @@ uv run mypy src/           # type check
 uv run pytest              # test
 uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.json
 uv run python scripts/pr_workflow.py "<task description>"  # PR workflow
+uv run python scripts/self_improve.py                     # self-improvement loop (indefinite)
+uv run python scripts/self_improve.py --dry-run --max-cycles 1  # test ideation + triage only
+uv run python scripts/self_improve.py --max-cycles 3      # 3 cycles then stop
 ```
 
 ## Conventions

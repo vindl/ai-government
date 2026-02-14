@@ -76,3 +76,23 @@
 - A max rounds cap (default 3) prevents runaway loops
 
 **Consequences**: Work is fully traceable in GitHub history. Reviewer stays honest (read-only). Each round has fresh context, avoiding stale state. The workflow can run unattended but has a safety cap.
+
+---
+
+## ADR-007: Autonomous Self-Improvement Loop
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The PR workflow automates coder-reviewer cycles, but task selection is still manual. We want the project to improve itself autonomously: propose improvements, triage them, and execute them in a continuous loop.
+
+**Decision**: Build `scripts/self_improve.py` — an outer loop around `pr_workflow.py` that:
+- **Proposes**: PM agent reads project status and proposes N improvements per cycle (dev + government domains)
+- **Debates**: Two-agent dialectic (PM advocate vs Reviewer skeptic) with deterministic judge — no third LLM call for judging
+- **Tracks via GitHub Issues**: Every proposal becomes an issue; debates are posted as comments; labels track lifecycle (proposed → backlog → in-progress → done/failed)
+- **Human input**: Humans can submit suggestions via `human-suggestion` labeled issues, which get triaged alongside AI proposals
+- **Executes**: Imports `run_workflow` directly (no subprocess) with `Closes #N` in the task to auto-link PRs to issues
+- **Deduplicates**: Failed task titles are passed to the ideation prompt to prevent re-proposal
+- **FIFO picking**: Oldest backlog issue gets executed first; triage already filters quality
+- **Configurable safety**: `--max-cycles`, `--cooldown`, `--dry-run`, `--max-pr-rounds`
+
+**Consequences**: The project can run unattended and continuously improve itself. All decisions are publicly traceable on GitHub (issues, comments, PRs). The debate mechanism prevents low-quality proposals from wasting execution time. Human suggestions are first-class citizens in the triage pipeline.

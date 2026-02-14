@@ -63,6 +63,15 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Loop iterates until approval (auto-merge) or max rounds reached
   - Each agent gets fresh context per round (no session continuity)
   - Configurable: `--max-rounds`, `--model`, `--branch`, `-v`
+- [x] `scripts/self_improve.py` — autonomous self-improvement loop
+  - Indefinite cycle: propose → debate → backlog → pick → execute → repeat
+  - PM agent proposes improvements across dev and government domains
+  - Two-agent debate (PM advocate vs Reviewer skeptic) with deterministic judge
+  - All proposals, debates, and verdicts tracked as GitHub Issues with labels
+  - Human suggestions supported via `human-suggestion` label
+  - Execution uses pr_workflow directly (same process, no subprocess)
+  - Failed tasks tracked and excluded from re-proposal
+  - Configurable: `--max-cycles`, `--cooldown`, `--proposals`, `--dry-run`
 
 ### Tests
 - [x] 16 tests passing

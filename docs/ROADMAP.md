@@ -13,6 +13,7 @@
 ## Phase 1.5: Dev Fleet Tooling (DONE)
 - [x] PR-based coder-reviewer workflow (`scripts/pr_workflow.py`)
 - [x] Documentation convention: always update docs/ when doing work
+- [x] Autonomous self-improvement loop (`scripts/self_improve.py`)
 
 ## Phase 2: First Real Run
 - [ ] Run the full pipeline against Claude API with seed decisions

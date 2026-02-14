@@ -137,7 +137,7 @@ def render_scorecard(result: SessionResult) -> str:
     if result.counter_proposal:
         ucp = result.counter_proposal
         lines.extend([
-            "## Kontraprijedlog AI Vlade",
+            "## AI Government Counter-proposal",
             f"### {ucp.title}",
             "",
             f"**{ucp.executive_summary}**",

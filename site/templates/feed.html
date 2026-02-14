@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Novosti — AI Vlada{% endblock %}
+{% block title %}News — AI Government{% endblock %}
 
 {% block content %}
-<h1>Novosti</h1>
+<h1>News</h1>
 
 {% if announcements %}
 <ul class="announcements">
@@ -16,6 +16,6 @@
   {% endfor %}
 </ul>
 {% else %}
-<p>Nema novosti.</p>
+<p>No news available.</p>
 {% endif %}
 {% endblock %}

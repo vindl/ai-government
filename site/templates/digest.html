@@ -1,54 +1,54 @@
 {% extends "base.html" %}
 
-{% block title %}Dnevni pregled {{ digest.date }} — AI Vlada{% endblock %}
+{% block title %}Daily Digest {{ digest.date }} — AI Government{% endblock %}
 
 {% block content %}
 <article class="daily-digest">
-  <h1>Dnevni pregled: {{ digest.date }}</h1>
+  <h1>Daily Digest: {{ digest.date }}</h1>
   <div class="decision-meta">
-    <span>{{ digest.decision_count }} {{ "odluka" if digest.decision_count == 1 else "odluke" if digest.decision_count < 5 else "odluka" }}</span>
-    <span>Prosječna ocjena: {{ digest.avg_score }}/10</span>
+    <span>{{ digest.decision_count }} decision{{ "s" if digest.decision_count != 1 else "" }}</span>
+    <span>Average score: {{ digest.avg_score }}/10</span>
     {% if digest.counter_proposal_count %}
-    <span>{{ digest.counter_proposal_count }} {{ "kontraprijedlog" if digest.counter_proposal_count == 1 else "kontraprijedloga" }}</span>
+    <span>{{ digest.counter_proposal_count }} counter-proposal{{ "s" if digest.counter_proposal_count != 1 else "" }}</span>
     {% endif %}
   </div>
 
   <section class="digest-summary">
-    <h2>Rezime dana</h2>
+    <h2>Summary of the Day</h2>
     <p>
       {% if digest.lowest_score_decision %}
-      Najslabije ocijenjena odluka dana je <strong>{{ digest.lowest_score_decision.title }}</strong>
-      sa ocjenom {{ digest.lowest_score_decision.score }}/10{% if digest.lowest_score_decision.headline %} —
+      The lowest-rated decision of the day is <strong>{{ digest.lowest_score_decision.title }}</strong>
+      with a score of {{ digest.lowest_score_decision.score }}/10{% if digest.lowest_score_decision.headline %} —
       {{ digest.lowest_score_decision.headline }}{% endif %}.
       {% endif %}
       {% if digest.highest_score_decision and digest.highest_score_decision != digest.lowest_score_decision %}
-      Najpozitivnije je ocijenjena odluka <strong>{{ digest.highest_score_decision.title }}</strong>
+      The highest-rated decision is <strong>{{ digest.highest_score_decision.title }}</strong>
       ({{ digest.highest_score_decision.score }}/10).
       {% endif %}
-      Prosječna ocjena analiziranih odluka je {{ digest.avg_score }}/10.
+      The average score of analyzed decisions is {{ digest.avg_score }}/10.
     </p>
     {% if digest.common_concerns %}
     <p>
-      Zajedničke zabrinutosti ministarstava:
+      Common ministry concerns:
       {% for concern in digest.common_concerns %}
       <em>{{ concern }}</em>{% if not loop.last %};{% else %}.{% endif %}
       {% endfor %}
       {% if digest.counter_proposal_count %}
-      AI Vlada je formulisala {{ digest.counter_proposal_count }} {{ "kontraprijedlog" if digest.counter_proposal_count == 1 else "kontraprijedloga" }}
-      sa alternativnim pristupima.
+      The AI Government has formulated {{ digest.counter_proposal_count }} counter-proposal{{ "s" if digest.counter_proposal_count != 1 else "" }}
+      with alternative approaches.
       {% endif %}
     </p>
     {% endif %}
   </section>
 
   <section>
-    <h2>Analizirane odluke</h2>
+    <h2>Analyzed Decisions</h2>
     <div class="digest-decision-cards">
       {% for d in digest.decisions %}
-      <a href="{{ base_path }}odluke/{{ d.id }}.html" class="digest-decision-card {{ d.verdict | verdict_css_class }}">
+      <a href="{{ base_path }}decisions/{{ d.id }}.html" class="digest-decision-card {{ d.verdict | verdict_css_class }}">
         <div class="digest-card-header">
           <span class="card-score">{{ d.score }}/10</span>
-          {% if d.has_counter_proposal %}<span class="feed-counter-proposal">Kontraprijedlog</span>{% endif %}
+          {% if d.has_counter_proposal %}<span class="feed-counter-proposal">Counter-proposal</span>{% endif %}
         </div>
         <h3>{{ d.title }}</h3>
         <p class="digest-card-headline">{{ d.headline }}</p>
@@ -59,23 +59,23 @@
   </section>
 
   <section>
-    <h2>Statistika</h2>
+    <h2>Statistics</h2>
     <div class="stats-grid">
       <div class="stat-item">
         <span class="stat-value">{{ digest.decision_count }}</span>
-        <span class="stat-label">Ukupno odluka</span>
+        <span class="stat-label">Total decisions</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{{ digest.avg_score }}/10</span>
-        <span class="stat-label">Prosječna ocjena</span>
+        <span class="stat-label">Average score</span>
       </div>
       <div class="stat-item">
         <span class="stat-value">{{ digest.counter_proposal_count }}</span>
-        <span class="stat-label">Kontraprijedloga</span>
+        <span class="stat-label">Counter-proposals</span>
       </div>
     </div>
     {% if digest.verdict_distribution %}
-    <h3>Raspodjela ocjena ministarstava</h3>
+    <h3>Ministry Verdict Distribution</h3>
     <ul class="verdict-list">
       {% for verdict, count in digest.verdict_distribution.items() %}
       <li><span class="{{ verdict | verdict_css_class }}">{{ verdict | verdict_label }}</span>: {{ count }}</li>

@@ -1,16 +1,16 @@
 {% extends "base.html" %}
 
-{% block title %}{{ result.decision.title }} — AI Vlada{% endblock %}
+{% block title %}{{ result.decision.title }} — AI Government{% endblock %}
 
 {% block content %}
 <article class="scorecard">
   <h1>{{ result.decision.title }}</h1>
 
   <div class="decision-meta">
-    <span class="meta-item"><strong>Datum:</strong> {{ result.decision.date }}</span>
-    <span class="meta-item"><strong>Kategorija:</strong> {{ result.decision.category }}</span>
+    <span class="meta-item"><strong>Date:</strong> {{ result.decision.date }}</span>
+    <span class="meta-item"><strong>Category:</strong> {{ result.decision.category }}</span>
     {% if result.decision.source_url %}
-    <span class="meta-item"><a href="{{ result.decision.source_url }}">Izvor</a></span>
+    <span class="meta-item"><a href="{{ result.decision.source_url }}">Source</a></span>
     {% endif %}
   </div>
 
@@ -21,12 +21,12 @@
     <h2>{{ result.critic_report.headline }}</h2>
     <div class="scores">
       <div class="score-item">
-        <span class="score-label">Ocjena odluke</span>
+        <span class="score-label">Decision Score</span>
         <span class="score-value">{{ result.critic_report.decision_score }}/10</span>
         <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.decision_score * 10 }}%"></div></div>
       </div>
       <div class="score-item">
-        <span class="score-label">Kvalitet analize</span>
+        <span class="score-label">Assessment Quality</span>
         <span class="score-value">{{ result.critic_report.assessment_quality_score }}/10</span>
         <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.assessment_quality_score * 10 }}%"></div></div>
       </div>
@@ -35,7 +35,7 @@
   {% endif %}
 
   <section class="ministry-overview">
-    <h2>Ocjene ministarstava</h2>
+    <h2>Ministry Verdicts</h2>
     <div class="ministry-cards">
       {% for a in result.assessments %}
       <div class="ministry-card {{ a.verdict.value | verdict_css_class }}">
@@ -49,17 +49,17 @@
   </section>
 
   <section class="ministry-details">
-    <h2>Detaljne analize</h2>
+    <h2>Detailed Analyses</h2>
     {% for a in result.assessments %}
     <div class="ministry-detail">
-      <h3>Ministarstvo {{ a.ministry }}</h3>
+      <h3>Ministry of {{ a.ministry }}</h3>
       <div class="detail-meta">
         <span class="{{ a.verdict.value | verdict_css_class }}">{{ a.verdict.value | verdict_label }}</span>
         <span>{{ a.score }}/10</span>
       </div>
       <p>{{ a.summary }}</p>
       {% if a.key_concerns %}
-      <h4>Ključne zabrinutosti</h4>
+      <h4>Key Concerns</h4>
       <ul>
         {% for concern in a.key_concerns %}
         <li>{{ concern }}</li>
@@ -67,7 +67,7 @@
       </ul>
       {% endif %}
       {% if a.recommendations %}
-      <h4>Preporuke</h4>
+      <h4>Recommendations</h4>
       <ul>
         {% for rec in a.recommendations %}
         <li>{{ rec }}</li>
@@ -76,7 +76,7 @@
       {% endif %}
       {% if a.counter_proposal %}
       <div class="counter-proposal-mini">
-        <h4>Kontraprijedlog: {{ a.counter_proposal.title }}</h4>
+        <h4>Counter-proposal: {{ a.counter_proposal.title }}</h4>
         <p>{{ a.counter_proposal.summary }}</p>
         {% if a.counter_proposal.key_changes %}
         <ul>
@@ -86,10 +86,10 @@
         </ul>
         {% endif %}
         {% if a.counter_proposal.expected_benefits %}
-        <p><strong>Očekivane koristi:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
+        <p><strong>Expected benefits:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
         {% endif %}
         {% if a.counter_proposal.estimated_feasibility %}
-        <p><strong>Izvodljivost:</strong> {{ a.counter_proposal.estimated_feasibility }}</p>
+        <p><strong>Feasibility:</strong> {{ a.counter_proposal.estimated_feasibility }}</p>
         {% endif %}
       </div>
       {% endif %}
@@ -99,18 +99,18 @@
 
   {% if result.debate %}
   <section class="debate">
-    <h2>Parlamentarna debata</h2>
+    <h2>Parliamentary Debate</h2>
     <div class="detail-meta">
       <span class="{{ result.debate.overall_verdict.value | verdict_css_class }}">
         {{ result.debate.overall_verdict.value | verdict_label }}
       </span>
     </div>
 
-    <h3>Konsenzus</h3>
+    <h3>Consensus</h3>
     <p>{{ result.debate.consensus_summary }}</p>
 
     {% if result.debate.disagreements %}
-    <h3>Tačke neslaganja</h3>
+    <h3>Disagreements</h3>
     <ul>
       {% for d in result.debate.disagreements %}
       <li>{{ d }}</li>
@@ -118,17 +118,17 @@
     </ul>
     {% endif %}
 
-    <h3>Transkript</h3>
+    <h3>Transcript</h3>
     <div class="transcript">{{ result.debate.debate_transcript }}</div>
   </section>
   {% endif %}
 
   {% if result.critic_report %}
   <section class="critic">
-    <h2>Nezavisna kritička analiza</h2>
+    <h2>Independent Critical Analysis</h2>
     <p>{{ result.critic_report.overall_analysis }}</p>
     {% if result.critic_report.blind_spots %}
-    <h3>Propusti</h3>
+    <h3>Blind Spots</h3>
     <ul>
       {% for bs in result.critic_report.blind_spots %}
       <li>{{ bs }}</li>
@@ -140,13 +140,13 @@
 
   {% if result.counter_proposal %}
   <section class="counter-proposal">
-    <h2>Kontraprijedlog AI Vlade</h2>
+    <h2>AI Government Counter-proposal</h2>
     <h3>{{ result.counter_proposal.title }}</h3>
     <p class="executive-summary"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
     <div class="detailed-proposal">{{ result.counter_proposal.detailed_proposal }}</div>
 
     {% if result.counter_proposal.key_differences %}
-    <h4>Ključne razlike</h4>
+    <h4>Key Differences</h4>
     <ul>
       {% for diff in result.counter_proposal.key_differences %}
       <li>{{ diff }}</li>
@@ -155,7 +155,7 @@
     {% endif %}
 
     {% if result.counter_proposal.implementation_steps %}
-    <h4>Koraci implementacije</h4>
+    <h4>Implementation Steps</h4>
     <ol>
       {% for step in result.counter_proposal.implementation_steps %}
       <li>{{ step }}</li>
@@ -164,7 +164,7 @@
     {% endif %}
 
     {% if result.counter_proposal.risks_and_tradeoffs %}
-    <h4>Rizici i kompromisi</h4>
+    <h4>Risks and Trade-offs</h4>
     <ul>
       {% for risk in result.counter_proposal.risks_and_tradeoffs %}
       <li>{{ risk }}</li>
@@ -173,7 +173,7 @@
     {% endif %}
 
     {% if result.counter_proposal.ministry_contributions %}
-    <h4>Doprinosi ministarstava</h4>
+    <h4>Ministry Contributions</h4>
     <ul>
       {% for contrib in result.counter_proposal.ministry_contributions %}
       <li>{{ contrib }}</li>
@@ -184,7 +184,7 @@
   {% endif %}
 
   <div class="error-report">
-    <p>Pronašli ste grešku u ovoj analizi? <a href="https://github.com/vindl/ai-government/discussions/categories/corrections">Prijavite grešku</a></p>
+    <p>Found an error in this analysis? <a href="https://github.com/vindl/ai-government/discussions/categories/corrections">Report an error</a></p>
   </div>
 </article>
 {% endblock %}

@@ -125,9 +125,9 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Markdown scorecard renders per-ministry and unified counter-proposals
 - [x] HTML scorecard template with counter-proposal sections (ministry inset + unified card)
 - [x] CSS styles: `.counter-proposal`, `.counter-proposal-mini`, `.feed-counter-proposal`
-- [x] Index page badge "Kontraprijedlog dostupan" when counter-proposal exists
+- [x] Index page badge "Counter-proposal available" when counter-proposal exists
 - [x] Social media thread includes counter-proposal tweet
-- [x] X daily digest includes `[+kontraprijedlog]` indicator
+- [x] X daily digest includes `[+counter-proposal]` indicator
 
 ### GitHub Projects Integration
 - [x] Single project "AI Government Workflow" auto-created via `gh project create`

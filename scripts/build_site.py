@@ -14,7 +14,7 @@ from ai_government.output.site_builder import SiteBuilder, load_results_from_dir
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build AI Vlada static site")
+    parser = argparse.ArgumentParser(description="Build AI Government static site")
     parser.add_argument(
         "--data-dir",
         type=Path,

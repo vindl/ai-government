@@ -15,11 +15,11 @@ TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent.parent / "site" / 
 
 def _verdict_label(verdict_value: str) -> str:
     mapping = {
-        "strongly_positive": "Izrazito pozitivno",
-        "positive": "Pozitivno",
-        "neutral": "Neutralno",
-        "negative": "Negativno",
-        "strongly_negative": "Izrazito negativno",
+        "strongly_positive": "Strongly Positive",
+        "positive": "Positive",
+        "neutral": "Neutral",
+        "negative": "Negative",
+        "strongly_negative": "Strongly Negative",
     }
     return mapping.get(verdict_value, verdict_value)
 

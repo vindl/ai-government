@@ -6,7 +6,7 @@
 - [x] Agent framework (base class, 5 ministries, parliament, critic)
 - [x] Orchestrator with parallel dispatch
 - [x] Output formatters (markdown scorecard, Twitter/X threads)
-- [x] Dev fleet prompts (coder, reviewer, tester, pm, devops)
+- [x] Dev fleet prompts (coder, reviewer, pm)
 - [x] Seed data (3 realistic Montenegrin government decisions)
 - [x] Tests (16 passing), ruff, mypy all green
 
@@ -48,7 +48,6 @@
 
 ## Phase 4: Output & Distribution
 - [x] Add a web-friendly HTML/static site output option (Jinja2 templates, site builder, GitHub Pages deploy)
-- [x] Publisher dev-fleet role for curating public content
 - [ ] Polish scorecard format for readability
 - [ ] Generate social media thread output automatically
 - [x] Set up automated posting (X API integration via tweepy)

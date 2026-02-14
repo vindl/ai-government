@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class CyclePhaseResult(BaseModel):
     """Result of a single phase within a cycle."""
 
-    phase: str = Field(description="Phase identifier (A, B, C, D)")
+    phase: str = Field(description="Phase identifier (A, B, C, D, E)")
     success: bool = Field(default=True)
     duration_seconds: float = Field(default=0.0)
     detail: str = Field(default="")
@@ -46,6 +46,10 @@ class CycleTelemetry(BaseModel):
     # Phase D — Project Director
     director_ran: bool = False
     director_issues_filed: int = 0
+
+    # Phase E — Strategic Director
+    strategic_director_ran: bool = False
+    strategic_director_issues_filed: int = 0
 
     # Yield — did this cycle produce a tangible outcome?
     cycle_yielded: bool = False

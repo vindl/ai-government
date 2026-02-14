@@ -67,7 +67,9 @@ DEFAULT_COOLDOWN_SECONDS = 60
 DEFAULT_PROPOSALS_PER_CYCLE = 1
 DEFAULT_MAX_PR_ROUNDS = 0  # 0 = unlimited
 DEFAULT_DIRECTOR_INTERVAL = 5
+DEFAULT_STRATEGIC_DIRECTOR_INTERVAL = 10
 DIRECTOR_MAX_TURNS = 10
+STRATEGIC_DIRECTOR_MAX_TURNS = 10
 ERROR_PATTERN_WINDOW = 5
 ERROR_PATTERN_THRESHOLD = 3
 
@@ -133,6 +135,13 @@ class ProposalOutput(BaseModel):
 
 class DirectorOutput(BaseModel):
     """Validated output from Director agent."""
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1)
+
+
+class StrategicDirectorOutput(BaseModel):
+    """Validated output from Strategic Director agent."""
 
     title: str = Field(min_length=1, max_length=120)
     description: str = Field(min_length=1)
@@ -295,6 +304,20 @@ def create_director_issue(title: str, body: str) -> int:
         "--title", title,
         "--body", ai_body,
         "--label", f"{LABEL_DIRECTOR},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+    ])
+    url = result.stdout.strip()
+    issue_number = int(url.rstrip("/").split("/")[-1])
+    return issue_number
+
+
+def create_strategic_director_issue(title: str, body: str) -> int:
+    """Create a GitHub Issue from the Strategic Director. Returns issue number."""
+    ai_body = f"Written by Strategic Director agent:\n\n{body}"
+    result = _run_gh([
+        "gh", "issue", "create",
+        "--title", title,
+        "--body", ai_body,
+        "--label", f"{LABEL_STRATEGY},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
     ])
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
@@ -1655,6 +1678,132 @@ Format:
 
 
 # ---------------------------------------------------------------------------
+# Phase E: Strategic Director
+# ---------------------------------------------------------------------------
+
+
+def _prefetch_strategic_context(last_n_cycles: int) -> str:
+    """Pre-fetch all context the Strategic Director needs (no tool access).
+
+    This is a placeholder that will be expanded with real metrics when
+    data sources are available (X analytics, site traffic, API costs).
+    """
+    sections: list[str] = []
+
+    # 1. Recent telemetry (focusing on output yield)
+    entries = load_telemetry(TELEMETRY_PATH, last_n=last_n_cycles)
+    if entries:
+        telem_lines = [e.model_dump_json() for e in entries]
+        sections.append(
+            f"## Recent Telemetry (last {len(entries)} cycles)\n\n"
+            + "\n".join(telem_lines)
+        )
+
+        # Tweet posting stats
+        tweets_posted = sum(1 for e in entries if e.tweet_posted)
+        sections.append(
+            f"\n## Social Media Activity: {tweets_posted}/{len(entries)} cycles posted tweets\n"
+        )
+    else:
+        sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
+
+    # 2. Recent published analyses
+    if DATA_DIR.exists():
+        try:
+            results = load_results_from_dir(DATA_DIR)
+            sections.append(
+                f"## Published Analyses: {len(results)} total\n\n"
+                f"Most recent: {[r.decision.title[:50] for r in results[:3]]}"
+            )
+        except Exception as exc:
+            log.warning("Failed to load results for strategic context: %s", exc)
+
+    # 3. Issue distribution by type
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--state", "all",
+        "--json", "labels,state,createdAt",
+        "--limit", "100",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        try:
+            issues = json.loads(result.stdout)
+            label_counts: Counter[str] = Counter()
+            for issue in issues:
+                for lbl in issue.get("labels", []):
+                    label_counts[lbl.get("name", "")] += 1
+            dist = "\n".join(f"  {k}: {v}" for k, v in label_counts.most_common())
+            sections.append(f"## Issue Type Distribution\n\n{dist}")
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # Placeholder for future metrics
+    sections.append(
+        "\n## Future Metrics (not yet implemented)\n\n"
+        "- X/Twitter analytics (impressions, engagement, follower growth)\n"
+        "- Site traffic (visitors, page views, time on site)\n"
+        "- API costs and budget trends\n"
+        "- Media mentions and citations\n"
+    )
+
+    return "\n\n".join(sections)
+
+
+async def step_strategic_director(
+    *, model: str, strategic_interval: int
+) -> list[int]:
+    """Run the Strategic Director agent. Returns list of created issue numbers."""
+    context = _prefetch_strategic_context(last_n_cycles=strategic_interval * 2)
+
+    system_prompt = _load_role_prompt("strategic-director")
+    prompt = f"""Review the external impact data below and identify strategic opportunities.
+
+{context}
+
+Based on this data, output a JSON array of 0-2 strategic issues to file.
+Focus on:
+- Public reach and engagement
+- Content resonance with the news cycle
+- Sustainability (costs, scaling)
+- Capability gaps that no existing agent covers
+- Organizational growth (new agent roles needed)
+
+If no strategic issues need attention, output an empty array: []
+
+Format:
+[
+  {{"title": "Short imperative title", "description": "Strategic action, why it matters, expected impact"}}
+]
+"""
+
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=STRATEGIC_DIRECTOR_MAX_TURNS,
+        allowed_tools=[],
+    )
+
+    log.info("Running Strategic Director agent...")
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    output = await _collect_agent_output(stream)
+
+    raw = _parse_json_array(output)
+
+    created: list[int] = []
+    for item in raw[:2]:  # Hard cap at 2
+        try:
+            validated = StrategicDirectorOutput.model_validate(item)
+        except Exception:
+            log.warning("Skipping invalid Strategic Director output: %s", item)
+            continue
+        num = create_strategic_director_issue(validated.title, validated.description)
+        log.info("Strategic Director filed issue #%d: %s", num, validated.title)
+        created.append(num)
+
+    return created
+
+
+# ---------------------------------------------------------------------------
 # Resilience — Layer 3: error pattern detection (circuit breaker)
 # ---------------------------------------------------------------------------
 
@@ -1822,11 +1971,12 @@ async def run_one_cycle(
     model: str = DEFAULT_MODEL,
     max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
     director_interval: int = DEFAULT_DIRECTOR_INTERVAL,
+    strategic_director_interval: int = DEFAULT_STRATEGIC_DIRECTOR_INTERVAL,
     dry_run: bool = False,
     skip_analysis: bool = False,
     skip_improve: bool = False,
 ) -> None:
-    """Run a single main loop cycle with four phases."""
+    """Run a single main loop cycle with five phases."""
     telemetry = CycleTelemetry(
         cycle=cycle,
         dry_run=dry_run,
@@ -2011,6 +2161,38 @@ async def run_one_cycle(
     phase_d.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase_d)
 
+    # --- Phase E: Strategic Director ---
+    t0 = time.monotonic()
+    phase_e = CyclePhaseResult(phase="E")
+    should_run_strategic = (
+        strategic_director_interval > 0
+        and cycle % strategic_director_interval == 0
+        and len(load_telemetry(TELEMETRY_PATH)) >= strategic_director_interval
+    )
+    if should_run_strategic:
+        if dry_run:
+            print("\nPhase E: Strategic Director — skipped (dry run)")
+            phase_e.detail = "skipped (dry run)"
+        else:
+            print("\nPhase E: Running Strategic Director...")
+            try:
+                filed = await step_strategic_director(
+                    model=model, strategic_interval=strategic_director_interval
+                )
+                telemetry.strategic_director_ran = True
+                telemetry.strategic_director_issues_filed = len(filed)
+                phase_e.detail = f"filed {len(filed)} issues"
+                print(f"  Strategic Director filed {len(filed)} issue(s)")
+            except Exception as exc:
+                log.exception("Phase E (Strategic Director) failed (non-fatal)")
+                phase_e.success = False
+                phase_e.detail = str(exc)
+                telemetry.errors.append(f"Phase E: {exc}")
+    else:
+        phase_e.detail = "not scheduled"
+    phase_e.duration_seconds = time.monotonic() - t0
+    telemetry.phases.append(phase_e)
+
     # --- Post daily X digest (if due) ---
     if not dry_run:
         try:
@@ -2055,6 +2237,7 @@ def _reexec(
     model: str,
     max_pr_rounds: int,
     director_interval: int,
+    strategic_director_interval: int,
     dry_run: bool,
     skip_analysis: bool,
     skip_improve: bool,
@@ -2094,6 +2277,8 @@ def _reexec(
         argv += ["--max-pr-rounds", str(max_pr_rounds)]
     if director_interval != DEFAULT_DIRECTOR_INTERVAL:
         argv += ["--director-interval", str(director_interval)]
+    if strategic_director_interval != DEFAULT_STRATEGIC_DIRECTOR_INTERVAL:
+        argv += ["--strategic-director-interval", str(strategic_director_interval)]
     if dry_run:
         argv += ["--dry-run"]
     if skip_analysis:
@@ -2153,6 +2338,13 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--strategic-director-interval", type=int, default=DEFAULT_STRATEGIC_DIRECTOR_INTERVAL,
+        help=(
+            f"Run Strategic Director every N cycles; 0 = disabled "
+            f"(default: {DEFAULT_STRATEGIC_DIRECTOR_INTERVAL})"
+        ),
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Propose and debate only; skip execution",
     )
@@ -2196,6 +2388,7 @@ def main() -> None:
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
             director_interval=args.director_interval,
+            strategic_director_interval=args.strategic_director_interval,
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,
@@ -2239,6 +2432,7 @@ def main() -> None:
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
             director_interval=args.director_interval,
+            strategic_director_interval=args.strategic_director_interval,
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,

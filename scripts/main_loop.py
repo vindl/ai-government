@@ -1375,8 +1375,8 @@ def step_pick() -> dict[str, Any] | None:
     """Pick the next backlog issue using 5-tier priority.
 
     Priority order:
-      1. Analysis tasks (task:analysis)
-      2. Human suggestions (human-suggestion)
+      1. Human suggestions (human-suggestion)
+      2. Analysis tasks (task:analysis)
       3. Strategy suggestions (strategy-suggestion) — reserved for #83
       4. Director suggestions (director-suggestion)
       5. Regular FIFO (oldest first)
@@ -1387,8 +1387,8 @@ def step_pick() -> dict[str, Any] | None:
         return None
 
     priority_labels = [
-        LABEL_TASK_ANALYSIS,
         LABEL_HUMAN,
+        LABEL_TASK_ANALYSIS,
         LABEL_STRATEGY,
         LABEL_DIRECTOR,
     ]

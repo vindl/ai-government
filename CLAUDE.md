@@ -40,6 +40,7 @@ uv run ruff check src/ tests/  # lint
 uv run mypy src/           # type check
 uv run pytest              # test
 uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.json
+uv run python scripts/pr_workflow.py "<task description>"  # PR workflow
 ```
 
 ## Conventions
@@ -56,6 +57,10 @@ uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.
 - `docs/ROADMAP.md` — phased plan for what to build next
 - `docs/DECISIONS.md` — architectural decision records (ADRs)
 - **Read `docs/STATUS.md` first when resuming work** — it has implementation details and known issues
+- **Always update docs/ when doing work** — every session should update relevant docs:
+  - `docs/STATUS.md` — update what's implemented, what changed, new gotchas
+  - `docs/DECISIONS.md` — add an ADR for any architectural or design decision
+  - `docs/ROADMAP.md` — check off completed items, add new items discovered
 
 ## Git
 - Do NOT include `Co-Authored-By` lines in commit messages

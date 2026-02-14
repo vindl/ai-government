@@ -44,39 +44,47 @@ echo "gh:     $(gh --version | head -1)"
 echo "claude: $(claude --version 2>/dev/null || echo 'not found')"
 echo "================="
 
-# --- Map SELF_IMPROVE_* env vars to CLI flags ---
+# --- Map LOOP_* env vars to CLI flags ---
 
 ARGS=()
 
-if [[ -n "${SELF_IMPROVE_MAX_CYCLES:-}" ]]; then
-  ARGS+=(--max-cycles "${SELF_IMPROVE_MAX_CYCLES}")
+if [[ -n "${LOOP_MAX_CYCLES:-}" ]]; then
+  ARGS+=(--max-cycles "${LOOP_MAX_CYCLES}")
 fi
 
-if [[ -n "${SELF_IMPROVE_COOLDOWN:-}" ]]; then
-  ARGS+=(--cooldown "${SELF_IMPROVE_COOLDOWN}")
+if [[ -n "${LOOP_COOLDOWN:-}" ]]; then
+  ARGS+=(--cooldown "${LOOP_COOLDOWN}")
 fi
 
-if [[ -n "${SELF_IMPROVE_PROPOSALS:-}" ]]; then
-  ARGS+=(--proposals "${SELF_IMPROVE_PROPOSALS}")
+if [[ -n "${LOOP_PROPOSALS:-}" ]]; then
+  ARGS+=(--proposals "${LOOP_PROPOSALS}")
 fi
 
-if [[ -n "${SELF_IMPROVE_MODEL:-}" ]]; then
-  ARGS+=(--model "${SELF_IMPROVE_MODEL}")
+if [[ -n "${LOOP_MODEL:-}" ]]; then
+  ARGS+=(--model "${LOOP_MODEL}")
 fi
 
-if [[ -n "${SELF_IMPROVE_MAX_PR_ROUNDS:-}" ]]; then
-  ARGS+=(--max-pr-rounds "${SELF_IMPROVE_MAX_PR_ROUNDS}")
+if [[ -n "${LOOP_MAX_PR_ROUNDS:-}" ]]; then
+  ARGS+=(--max-pr-rounds "${LOOP_MAX_PR_ROUNDS}")
 fi
 
-if [[ "${SELF_IMPROVE_DRY_RUN:-false}" == "true" ]]; then
+if [[ "${LOOP_DRY_RUN:-false}" == "true" ]]; then
   ARGS+=(--dry-run)
 fi
 
-if [[ "${SELF_IMPROVE_VERBOSE:-false}" == "true" ]]; then
+if [[ "${LOOP_SKIP_ANALYSIS:-false}" == "true" ]]; then
+  ARGS+=(--skip-analysis)
+fi
+
+if [[ "${LOOP_SKIP_IMPROVE:-false}" == "true" ]]; then
+  ARGS+=(--skip-improve)
+fi
+
+if [[ "${LOOP_VERBOSE:-false}" == "true" ]]; then
   ARGS+=(--verbose)
 fi
 
-# --- Run self-improvement loop (exec replaces shell so os.execv works) ---
+# --- Run main loop (exec replaces shell so os.execv works) ---
 
-echo "Starting self-improvement loop with args: ${ARGS[*]:-<none>}"
-exec uv run python scripts/self_improve.py "${ARGS[@]}"
+echo "Starting main loop with args: ${ARGS[*]:-<none>}"
+exec uv run python scripts/main_loop.py "${ARGS[@]}"

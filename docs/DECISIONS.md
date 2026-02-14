@@ -115,3 +115,20 @@
 - `uv sync` added to `_reexec()` so dependency changes from merged PRs are installed before the next cycle
 
 **Consequences**: The autonomous loop is sandboxed — even with `bypassPermissions`, it cannot access host secrets, other repos, or system configuration. The trade-off is a heavier image (~1GB) due to Node.js and Claude Code CLI dependencies, and slightly slower startup from the fresh clone on each container start.
+
+---
+
+## ADR-009: Unified Main Loop
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The project had two separate entry points: `self_improve.py` (infinite loop for codebase improvement) and `run_session.py` (one-shot government analysis). These needed to be unified so a single Docker container could do both: analyze government decisions AND improve itself.
+
+**Decision**: Rename `self_improve.py` to `main_loop.py` and add a three-phase cycle:
+- **Phase A**: Check for new government decisions (from seed data, future: scrapers) and create `task:analysis` issues in the unified backlog
+- **Phase B**: Self-improvement — propose improvements, debate, and add accepted proposals to the backlog as before
+- **Phase C**: Pick from unified backlog (analysis tasks get priority) and route by task type: `task:analysis` runs the orchestrator pipeline, everything else runs pr_workflow
+
+Analysis tasks skip debate (analyzing real decisions is always the right thing to do). Both phases are independently skippable via `--skip-analysis` and `--skip-improve`. The `get_pending_decisions()` function loads from seed data now and is the integration point for scrapers in Phase 3.
+
+**Consequences**: A single process handles both the product (government analysis) and the meta-process (self-improvement). Docker env vars renamed from `SELF_IMPROVE_*` to `LOOP_*`. The `run_session.py` CLI remains available for one-off analysis outside the loop.

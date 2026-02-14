@@ -21,6 +21,15 @@
 - [x] Entrypoint script: validates env, clones repo, maps env vars to CLI flags
 - [x] `uv sync` in `_reexec()` for dependency updates between cycles
 
+## Phase 1.8: Unified Main Loop (DONE)
+- [x] Renamed `self_improve.py` → `main_loop.py`
+- [x] Three-phase cycle: decision checking → self-improvement → unified execution
+- [x] Task-type routing: `task:analysis` → orchestrator, `task:code-change` → pr_workflow
+- [x] Analysis tasks get execution priority in backlog
+- [x] `--skip-analysis` and `--skip-improve` flags for phase control
+- [x] Docker env vars renamed: `SELF_IMPROVE_*` → `LOOP_*`
+- [x] `get_pending_decisions()` as scraper integration point (currently reads seed data)
+
 ## Phase 2: First Real Run
 - [ ] Run the full pipeline against Claude API with seed decisions
 - [ ] Evaluate output quality — are assessments substantive?
@@ -33,6 +42,7 @@
 - [ ] Implement `gov_me_scraper.py` MCP server — scrape gov.me for real decisions
 - [ ] Implement `news_scraper.py` MCP server — scrape Montenegrin news for context
 - [ ] Parse real government session agendas and decisions
+- [ ] Wire scrapers into `get_pending_decisions()` in `main_loop.py` (integration point ready)
 - [ ] Build a decision pipeline: scrape → parse → analyze → output
 - [ ] Handle decision deduplication and change detection
 

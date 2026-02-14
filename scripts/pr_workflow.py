@@ -163,6 +163,22 @@ def merge_pr(pr_number: int) -> None:
     log.info("Merged PR #%d", pr_number)
 
 
+def _get_owner_repo() -> str:
+    """Get owner/repo for the current repository.
+
+    Returns the owner/repo string (e.g., "vindl/ai-government").
+    Raises ValueError if the repository cannot be determined.
+    """
+    try:
+        result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
+        owner_repo = result.stdout.strip()
+        if not owner_repo:
+            raise ValueError("Could not determine repository owner/repo: empty output from gh")
+        return owner_repo
+    except subprocess.CalledProcessError as e:
+        raise ValueError(f"Could not determine repository owner/repo: {e.stderr}") from e
+
+
 # ---------------------------------------------------------------------------
 # Role prompt loading
 # ---------------------------------------------------------------------------
@@ -202,6 +218,9 @@ Task: {task}
 
 def _build_coder_prompt_followup(task: str, pr_number: int) -> str:
     """Build the coder prompt for subsequent rounds (address review feedback)."""
+    # Get owner/repo for inline comment commands (fail fast if unavailable)
+    owner_repo = _get_owner_repo()
+
     return f"""You previously opened PR #{pr_number} for the following task:
 
 Task: {task}
@@ -209,39 +228,55 @@ Task: {task}
 The reviewer has requested changes. Do the following:
 
 1. Read the review comments: `gh pr view {pr_number} --comments`
-2. Also check inline review comments: `gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments`
-3. Address each piece of feedback by modifying the code.
-4. Run checks to make sure everything passes:
+2. Also check inline review comments: `gh api repos/{owner_repo}/pulls/{pr_number}/comments`
+3. For EACH piece of feedback, reply to the PR comment with your response.
+   Start every comment with "Written by Coder agent:".
+   For each item either:
+   - Acknowledge it's a good point and note you've fixed it
+   - Push back if you disagree, explaining why the current approach is correct
+   Use: `gh pr comment {pr_number} --body "Written by Coder agent: ..."`
+4. Make code changes only for feedback you agree with. Do NOT blindly accept all changes.
+5. Run checks to make sure everything passes:
    - `uv run ruff check src/ tests/`
    - `uv run mypy src/`
    - `uv run pytest`
-5. Fix any issues found by the checks.
-6. Stage and commit your changes with a concise message referencing the feedback.
-7. Push: `git push`
+6. Fix any issues found by the checks.
+7. Stage and commit your changes with a concise message referencing the feedback.
+8. Push: `git push`
 """
 
 
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
-    return f"""Review PR #{pr_number} and post your verdict as a PR comment.
+    # Get owner/repo for inline comment commands (fail fast if unavailable)
+    owner_repo = _get_owner_repo()
 
-YOUR #1 PRIORITY: You MUST end by running `gh pr comment` with your verdict.
-Nothing else matters if you don't post the comment. Do NOT use `gh pr review`.
+    return f"""Review PR #{pr_number} thoroughly. Start every comment with "Written by Reviewer agent:".
 
 Steps:
-1. `gh pr diff {pr_number}` — read the diff.
-2. Read any files needed for context (keep it brief, don't read everything).
+1. `gh pr diff {pr_number}` — read the full diff carefully.
+2. Read surrounding files for context where needed.
 3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
-4. Post your verdict comment — this is the MOST IMPORTANT step:
+4. **Optionally post inline comments** on specific lines with issues:
+   ```
+   gh api repos/{owner_repo}/pulls/{pr_number}/comments \\
+     -f body="Written by Reviewer agent: ..." \\
+     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \\
+     -f path="path/to/file.py" -F line=42 -f side="RIGHT"
+   ```
+   Use inline comments for genuine bugs, logic errors, or security issues.
+5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
-   If approved:
-   `gh pr comment {pr_number} --body "VERDICT: APPROVED — <one-line reason>"`
+   `gh pr comment {pr_number} --body "Written by Reviewer agent:\\n\\nVERDICT: ..."`
 
-   If changes needed:
-   `gh pr comment {pr_number} --body "VERDICT: CHANGES_REQUESTED — <specific feedback>"`
-
-The comment body MUST start with exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
-Do NOT approve if checks fail. Be pragmatic — focus on correctness, not style nitpicks.
+Verdict rules:
+- CHANGES_REQUESTED: only for **blocking issues** — bugs, security problems,
+  failing checks, or correctness errors. NOT for style preferences or nice-to-haves.
+- APPROVED: when checks pass and there are no blocking issues. You may include
+  non-blocking suggestions in an approved review.
+- Distinguish clearly between "must fix" (blocking) and "consider improving" (suggestion).
+- If checks pass and the code is correct, approve it. Don't block on polish.
+- The comment body MUST contain exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
 """
 
 

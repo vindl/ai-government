@@ -223,25 +223,37 @@ The reviewer has requested changes. Do the following:
 
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
-    return f"""Review PR #{pr_number} and post your verdict as a PR comment.
-
-YOUR #1 PRIORITY: You MUST end by running `gh pr comment` with your verdict.
-Nothing else matters if you don't post the comment. Do NOT use `gh pr review`.
+    return f"""Review PR #{pr_number} thoroughly. Be skeptical — your job is to find problems.
 
 Steps:
-1. `gh pr diff {pr_number}` — read the diff.
-2. Read any files needed for context (keep it brief, don't read everything).
+1. `gh pr diff {pr_number}` — read the full diff carefully.
+2. Read surrounding files for context where needed.
 3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
-4. Post your verdict comment — this is the MOST IMPORTANT step:
+4. **Post inline comments** on specific lines that need improvement:
+   ```
+   gh api repos/{{{{owner}}}}/{{{{repo}}}}/pulls/{pr_number}/comments \\
+     -f body="suggestion or issue" \\
+     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \\
+     -f path="path/to/file.py" \\
+     -F line=42 \\
+     -f side="RIGHT"
+   ```
+   Post inline comments for: logic issues, missing edge cases, unclear code,
+   potential bugs, better approaches, or concrete improvement suggestions.
+5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
-   If approved:
-   `gh pr comment {pr_number} --body "VERDICT: APPROVED — <one-line reason>"`
+   If changes needed (you found real issues):
+   `gh pr comment {pr_number} --body "VERDICT: CHANGES_REQUESTED — <summary of issues>"`
 
-   If changes needed:
-   `gh pr comment {pr_number} --body "VERDICT: CHANGES_REQUESTED — <specific feedback>"`
+   If approved (code is genuinely good after careful review):
+   `gh pr comment {pr_number} --body "VERDICT: APPROVED — <what you verified>"`
 
-The comment body MUST start with exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
-Do NOT approve if checks fail. Be pragmatic — focus on correctness, not style nitpicks.
+Rules:
+- Do NOT approve if checks fail.
+- Do NOT approve without reading the full diff and understanding what it does.
+- Requesting changes is normal — the coder expects it and will address your feedback.
+- A good review finds at least one improvement. If everything looks perfect, look harder.
+- The comment body MUST start with exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
 """
 
 

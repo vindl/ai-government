@@ -56,9 +56,9 @@
 
 **Context**: Need a specific government to mirror for concrete, testable output.
 
-**Decision**: Focus on Montenegro's government structure with 5 initial ministries: Finance, Justice, EU Integration, Health, Interior.
+**Decision**: Focus on Montenegro as the target government with 5 initial analytical domains: Finance, Justice, EU Integration, Health, Interior. These represent policy analysis areas, not a replication of Montenegro's 25-ministry organizational structure. The project mirrors government *function* (analyzing decisions across all policy domains), not its *org chart*.
 
-**Consequences**: Prompts and scrapers are Montenegro-specific. The architecture is general enough to adapt to other governments later.
+**Consequences**: Prompts and decision sources are Montenegro-specific. The architecture is general enough to adapt to other governments later. Future domain expansion should prioritize analytical coverage and consolidation over matching the bloated structure of Montenegro's actual government.
 
 ---
 

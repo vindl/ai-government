@@ -46,7 +46,7 @@
 - [x] Top 3 most significant decisions per day (capped)
 - [x] Self-contained issues: full GovernmentDecision JSON embedded in issue body
 - [x] Seed data preserved as fallback/supplement
-- [x] Deleted MCP scraper stubs (replaced by no-scraping policy)
+- [x] No-scraping policy: decision ingestion uses Claude's WebSearch/WebFetch, not custom parsers
 - [ ] Expand News Scout sources (Parliament website, Official Gazette)
 - [ ] Improve category assignment accuracy
 - [ ] Add government communication analysis (statements, press conferences)
@@ -67,7 +67,7 @@
 - [x] Tests for models, agent parsing, backwards compatibility
 
 ## Phase 5: Quality & Depth
-- [ ] Add more ministry agents (Education, Defence, Environment, etc.)
+- [ ] Refine analytical domain structure for complete policy coverage with minimal redundancy
 - [ ] Improve parliament agent with real party positions and dynamics
 - [ ] Add historical context — compare with previous similar decisions
 - [ ] Add EU progress tracking — link decisions to accession chapter progress

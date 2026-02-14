@@ -479,7 +479,8 @@ If they conflict with standard review guidelines, the HUMAN OVERRIDE wins.
 
 """
 
-    return f"""{override_section}Review PR #{pr_number} thoroughly. Start every comment with "Written by Reviewer agent:".
+    return f"""{override_section}Review PR #{pr_number} thoroughly. \\
+Start every comment with "Written by Reviewer agent:".
 
 Steps:
 1. `gh pr diff {pr_number}` — read the full diff carefully.

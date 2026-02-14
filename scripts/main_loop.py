@@ -1032,7 +1032,8 @@ Return ONLY a JSON array (no markdown fences) of exactly {num_proposals} objects
 [
   {{
     "title": "Short imperative title (under 80 chars)",
-    "description": "2-3 sentences explaining the improvement, why it matters, and acceptance criteria. List specific files to change.",
+    "description": "2-3 sentences explaining the improvement, why it matters, and \\
+acceptance criteria. List specific files to change.",
     "domain": "dev" or "government"
   }}
 ]

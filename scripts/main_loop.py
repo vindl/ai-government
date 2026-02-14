@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_COOLDOWN_SECONDS = 60
-DEFAULT_PROPOSALS_PER_CYCLE = 3
+DEFAULT_PROPOSALS_PER_CYCLE = 1
 DEFAULT_MAX_PR_ROUNDS = 0  # 0 = unlimited
 
 LABEL_PROPOSED = "self-improve:proposed"

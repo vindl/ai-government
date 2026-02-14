@@ -210,29 +210,55 @@ def get_pr_comments(pr_number: int) -> list[dict[str, str]]:
     return comments
 
 
-def get_human_override_text(pr_number: int) -> str:
-    """Extract HUMAN OVERRIDE text from PR comments, if present.
+def _extract_override_from_comments(comments: list[dict[str, str]], source_type: str, source_id: int) -> str:
+    """Extract HUMAN OVERRIDE text from a list of comments.
 
-    Scans all PR comments for 'HUMAN OVERRIDE' markers. Returns the full
-    text of the first matching comment (with the marker removed), or empty
-    string if no override is found.
+    Returns the text of the last matching comment (with marker removed),
+    or empty string if no override found. Logs a warning if multiple found.
 
-    Human overrides take absolute priority over all other guidance.
+    Args:
+        comments: List of comment dicts with 'author' and 'body' keys
+        source_type: Type of source (e.g., "PR", "issue") for logging
+        source_id: ID of the source for logging
     """
-    comments = get_pr_comments(pr_number)
+    override_text = ""
+    override_author = ""
+    override_count = 0
 
     for comment in comments:
         body = comment.get("body", "")
         if "HUMAN OVERRIDE" in body:
-            # Remove the marker and return the rest
+            override_count += 1
+            # Remove the marker and save the text
             override_text = body.replace("HUMAN OVERRIDE", "").strip()
-            log.info(
-                "Found HUMAN OVERRIDE in PR #%d by %s",
-                pr_number, comment.get("author", "unknown"),
-            )
-            return override_text
+            override_author = comment.get("author", "unknown")
 
-    return ""
+    if override_count > 0:
+        log.info(
+            "Found HUMAN OVERRIDE in %s #%d by %s",
+            source_type, source_id, override_author,
+        )
+        if override_count > 1:
+            log.warning(
+                "Found %d HUMAN OVERRIDE comments in %s #%d, using the last one",
+                override_count, source_type, source_id,
+            )
+
+    return override_text
+
+
+def get_human_override_text(pr_number: int) -> str:
+    """Extract HUMAN OVERRIDE text from PR comments, if present.
+
+    Scans all PR comments for 'HUMAN OVERRIDE' markers. Returns the full
+    text of the last matching comment (with the marker removed), or empty
+    string if no override is found.
+
+    If multiple overrides exist, the last one wins (by comment order).
+    Human overrides take absolute priority over all other guidance.
+    """
+    comments = get_pr_comments(pr_number)
+    return _extract_override_from_comments(comments, "PR", pr_number)
 
 
 def get_review_verdict_from_comments(pr_number: int) -> str:
@@ -317,15 +343,7 @@ def _build_coder_prompt_round1(task: str, *, issue_number: int | None = None) ->
     override_text = ""
     if issue_number is not None:
         comments = get_issue_comments(issue_number)
-        for comment in comments:
-            body = comment.get("body", "")
-            if "HUMAN OVERRIDE" in body:
-                override_text = body.replace("HUMAN OVERRIDE", "").strip()
-                log.info(
-                    "Found HUMAN OVERRIDE in issue #%d by %s",
-                    issue_number, comment.get("author", "unknown"),
-                )
-                break
+        override_text = _extract_override_from_comments(comments, "issue", issue_number)
 
     override_section = ""
     if override_text:
@@ -370,15 +388,7 @@ def _build_coder_prompt_followup(task: str, pr_number: int, *, issue_number: int
     # Also check issue comments if we have an issue number
     if not override_text and issue_number is not None:
         comments = get_issue_comments(issue_number)
-        for comment in comments:
-            body = comment.get("body", "")
-            if "HUMAN OVERRIDE" in body:
-                override_text = body.replace("HUMAN OVERRIDE", "").strip()
-                log.info(
-                    "Found HUMAN OVERRIDE in issue #%d by %s",
-                    issue_number, comment.get("author", "unknown"),
-                )
-                break
+        override_text = _extract_override_from_comments(comments, "issue", issue_number)
 
     override_section = ""
     if override_text:
@@ -431,15 +441,7 @@ def _build_reviewer_prompt(pr_number: int, *, issue_number: int | None = None) -
     # Also check issue comments if we have an issue number
     if not override_text and issue_number is not None:
         comments = get_issue_comments(issue_number)
-        for comment in comments:
-            body = comment.get("body", "")
-            if "HUMAN OVERRIDE" in body:
-                override_text = body.replace("HUMAN OVERRIDE", "").strip()
-                log.info(
-                    "Found HUMAN OVERRIDE in issue #%d by %s",
-                    issue_number, comment.get("author", "unknown"),
-                )
-                break
+        override_text = _extract_override_from_comments(comments, "issue", issue_number)
 
     override_section = ""
     if override_text:

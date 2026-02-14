@@ -32,6 +32,11 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 RUN npm install -g @anthropic-ai/claude-code
 
+# --- Entrypoint (must be world-accessible for UID override in compose) ---
+
+COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # --- Non-root user ---
 
 RUN groupadd --gid 1000 aigov \
@@ -40,9 +45,4 @@ RUN groupadd --gid 1000 aigov \
 USER aigov
 WORKDIR /home/aigov
 
-# --- Entrypoint (repo is cloned at runtime, not copied) ---
-
-COPY --chown=aigov:aigov scripts/docker-entrypoint.sh /home/aigov/docker-entrypoint.sh
-RUN chmod +x /home/aigov/docker-entrypoint.sh
-
-ENTRYPOINT ["/home/aigov/docker-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

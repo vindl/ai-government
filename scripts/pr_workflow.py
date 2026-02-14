@@ -278,6 +278,11 @@ Verdict rules:
 - Distinguish clearly between "must fix" (blocking) and "consider improving" (suggestion).
 - If checks pass and the code is correct, approve it. Don't block on polish.
 - The comment body MUST contain exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
+
+IMPORTANT — PR comment formatting:
+- Do NOT paste raw terminal output (test results, lint output, command logs) into PR comments.
+  Instead, summarize: "All checks passed (29 tests, lint clean, types clean)."
+- Keep the verdict comment concise and focused on your review findings.
 """
 
 

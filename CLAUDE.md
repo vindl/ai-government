@@ -51,7 +51,13 @@ uv run python scripts/pr_workflow.py "<task description>"  # PR workflow
 - The orchestrator dispatches to agents in parallel via `anyio.create_task_group()`
 - Output goes to `output/` directory (gitignored)
 
+## Constitution
+- **All agents are bound by `docs/CONSTITUTION.md`** — read it before doing any work
+- It defines the project's ethical framework: public loyalty, anti-corruption, transparency, fiscal responsibility, nonpartisanship
+- When in doubt about any decision, the constitution is the tiebreaker
+
 ## Documentation
+- `docs/CONSTITUTION.md` — binding ethical and operational principles for all agents
 - `docs/CONTEXT.md` — project background, goals, why Montenegro, agent roles
 - `docs/STATUS.md` — what's implemented, what's a stub, known gotchas
 - `docs/ROADMAP.md` — phased plan for what to build next

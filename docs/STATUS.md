@@ -57,6 +57,12 @@ The full repository scaffold is in place. All code passes linting, type checking
 ### Dev Fleet (`dev-fleet/`)
 - [x] 5 role prompts: coder, reviewer, tester, pm, devops
 - [x] `scripts/launch_dev_member.sh` — launches Claude Code with role prompt
+- [x] `scripts/pr_workflow.py` — automated PR-based coder-reviewer loop
+  - Coder agent implements on a branch, runs checks, opens a PR
+  - Reviewer agent reviews the diff, runs checks, approves or requests changes
+  - Loop iterates until approval (auto-merge) or max rounds reached
+  - Each agent gets fresh context per round (no session continuity)
+  - Configurable: `--max-rounds`, `--model`, `--branch`, `-v`
 
 ### Tests
 - [x] 16 tests passing
@@ -99,3 +105,5 @@ These files exist but have no real implementation yet:
 3. **Ruff's TCH (type-checking) rules aggressively move imports to `TYPE_CHECKING` blocks.** This is fine with `from __future__ import annotations` but be aware that runtime-needed imports (e.g., for dataclass defaults) must stay as regular imports. The orchestrator's `SessionResult` dataclass was affected — ruff moved its type imports but `from __future__ import annotations` makes this safe.
 
 4. **Line length set to 110** (not default 88) because prompt strings and Montenegrin text tend to be long. Prompt files (`src/ai_government/prompts/*.py`) have E501 disabled entirely.
+
+5. **Claude Code SDK nested session guard.** When running `claude_code_sdk.query()` from inside a Claude Code session (e.g., the PR workflow script launched by an agent), the child process inherits `CLAUDECODE=1` and refuses to start. Fix: pass `env={"CLAUDECODE": ""}` in `ClaudeCodeOptions` to clear the nesting guard. This is safe — each SDK call spawns an independent subprocess.

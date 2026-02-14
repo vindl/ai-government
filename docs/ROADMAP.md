@@ -10,6 +10,10 @@
 - [x] Seed data (3 realistic Montenegrin government decisions)
 - [x] Tests (16 passing), ruff, mypy all green
 
+## Phase 1.5: Dev Fleet Tooling (DONE)
+- [x] PR-based coder-reviewer workflow (`scripts/pr_workflow.py`)
+- [x] Documentation convention: always update docs/ when doing work
+
 ## Phase 2: First Real Run
 - [ ] Run the full pipeline against Claude API with seed decisions
 - [ ] Evaluate output quality — are assessments substantive?

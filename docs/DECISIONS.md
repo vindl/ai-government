@@ -59,3 +59,20 @@
 **Decision**: Focus on Montenegro's government structure with 5 initial ministries: Finance, Justice, EU Integration, Health, Interior.
 
 **Consequences**: Prompts and scrapers are Montenegro-specific. The architecture is general enough to adapt to other governments later.
+
+---
+
+## ADR-006: PR-Based Dev Workflow
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: Dev fleet work happened via interactive Claude Code sessions with no automated review loop. Needed a way for coder and reviewer agents to collaborate through structured PR-based iteration.
+
+**Decision**: Build `scripts/pr_workflow.py` — an automated loop where:
+- Coder and reviewer agents interact through GitHub PRs, not shared memory
+- Each agent invocation is a fresh Claude Code SDK subprocess (no session continuity)
+- State lives in GitHub (branch, PR, commits, review comments)
+- Reviewer cannot modify code (Write/Edit excluded from its allowed_tools)
+- A max rounds cap (default 3) prevents runaway loops
+
+**Consequences**: Work is fully traceable in GitHub history. Reviewer stays honest (read-only). Each round has fresh context, avoiding stale state. The workflow can run unattended but has a safety cap.

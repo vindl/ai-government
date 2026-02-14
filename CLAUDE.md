@@ -40,6 +40,7 @@ uv run ruff check src/ tests/  # lint
 uv run mypy src/           # type check
 uv run pytest              # test
 uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.json
+uv run python scripts/pr_workflow.py "<task description>"  # PR workflow
 ```
 
 ## Conventions
@@ -50,12 +51,29 @@ uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.
 - The orchestrator dispatches to agents in parallel via `anyio.create_task_group()`
 - Output goes to `output/` directory (gitignored)
 
+## Constitution
+- **All agents are bound by `docs/CONSTITUTION.md`** — read it before doing any work
+- It defines the project's ethical framework: public loyalty, anti-corruption, transparency, fiscal responsibility, nonpartisanship
+- When in doubt about any decision, the constitution is the tiebreaker
+
 ## Documentation
+- `docs/CONSTITUTION.md` — binding ethical and operational principles for all agents
 - `docs/CONTEXT.md` — project background, goals, why Montenegro, agent roles
 - `docs/STATUS.md` — what's implemented, what's a stub, known gotchas
 - `docs/ROADMAP.md` — phased plan for what to build next
 - `docs/DECISIONS.md` — architectural decision records (ADRs)
 - **Read `docs/STATUS.md` first when resuming work** — it has implementation details and known issues
+- **Always update docs/ when doing work** — every session should update relevant docs:
+  - `docs/STATUS.md` — update what's implemented, what changed, new gotchas
+  - `docs/DECISIONS.md` — add an ADR for any architectural or design decision
+  - `docs/ROADMAP.md` — check off completed items, add new items discovered
+
+## PR Workflow Operation
+- The PR workflow (`scripts/pr_workflow.py`) should be run from within the Claude Code session, not in a separate terminal
+- Launch it as a background task, monitor output, and fix errors in a loop
+- Success criteria: visible GitHub PR comments, coder responses to feedback, and ultimately PR merge or close
+- The reviewer agent uses `gh pr comment` (not `gh pr review`) with structured verdict markers (`VERDICT: APPROVED` or `VERDICT: CHANGES_REQUESTED`) because GitHub blocks self-reviews
+- If the reviewer fails to post a verdict comment, the prompt or max_turns may need adjustment
 
 ## Git
 - Do NOT include `Co-Authored-By` lines in commit messages

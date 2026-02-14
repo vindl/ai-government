@@ -1470,13 +1470,36 @@ async def run_one_cycle(
 
         # Ingest human suggestions and move them directly to backlog (no debate)
         human_issues = list_human_suggestions()
+        human_accepted = 0
         for h in human_issues:
             issue_num = h["number"]
+            # Check if already in backlog (avoid redundant API calls)
+            result = _run_gh([
+                "gh", "issue", "view", str(issue_num),
+                "--json", "labels", "-q", ".labels[].name",
+            ], check=False)
+            label_names = result.stdout.strip()
+            already_processed = (
+                LABEL_BACKLOG in label_names
+                or LABEL_IN_PROGRESS in label_names
+                or LABEL_DONE in label_names
+            )
+            if already_processed:
+                log.debug("Human suggestion #%d already processed, skipping", issue_num)
+                continue
             accept_issue(issue_num)
+            human_accepted += 1
             log.info("Human suggestion #%d moved to backlog (no debate)", issue_num)
 
+        # Only AI proposals go through debate
         all_proposals: list[dict[str, Any]] = ai_proposals
-        print(f"  {len(ai_proposals)} AI proposals + {len(human_issues)} human suggestions (moved to backlog)")
+        if human_accepted > 0:
+            print(
+                f"  {len(ai_proposals)} AI proposals (debating), "
+                f"{human_accepted} human suggestions (moved to backlog)"
+            )
+        else:
+            print(f"  {len(ai_proposals)} AI proposals (debating)")
 
         if all_proposals:
             print("  Debating proposals...")

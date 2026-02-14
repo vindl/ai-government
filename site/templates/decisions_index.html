@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Odluke — AI Vlada{% endblock %}
+
+{% block content %}
+<h1>Sve odluke</h1>
+<p>Kompletna lista analiziranih vladinih odluka.</p>
+
+{% if results %}
+<ul class="decision-feed">
+  {% for r in results %}
+  <li>
+    <h3><a href="{{ r.decision.id }}.html">{{ r.decision.title }}</a></h3>
+    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal">Kontraprijedlog dostupan</span>{% endif %}</div>
+    <p class="feed-summary">{{ r.decision.summary }}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Nema analiziranih odluka.</p>
+{% endif %}
+{% endblock %}

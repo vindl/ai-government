@@ -116,6 +116,16 @@ class SiteBuilder:
             path = decisions_dir / f"{result.decision.id}.html"
             path.write_text(html, encoding="utf-8")
 
+        # Decisions index page
+        sorted_results = sorted(results, key=lambda r: r.decision.date, reverse=True)
+        index_template = self.env.get_template("decisions_index.html")
+        html = index_template.render(
+            results=sorted_results,
+            css_path="../static/css/style.css",
+            base_path="../",
+        )
+        (decisions_dir / "index.html").write_text(html, encoding="utf-8")
+
     def _build_index(self, results: list[SessionResult]) -> None:
         # Sort by date descending
         sorted_results = sorted(results, key=lambda r: r.decision.date, reverse=True)

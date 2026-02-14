@@ -738,7 +738,10 @@ def mark_issue_failed(issue_number: int, reason: str) -> None:
 
 
 def get_failed_issue_titles() -> list[str]:
-    """Return titles of previously failed issues (for dedup)."""
+    """Return titles of previously failed issues (for dedup).
+
+    DEPRECATED: Use get_all_issue_titles() instead for comprehensive deduplication.
+    """
     result = _run_gh([
         "gh", "issue", "list",
         "--label", LABEL_FAILED,
@@ -748,6 +751,46 @@ def get_failed_issue_titles() -> list[str]:
     ])
     issues = json.loads(result.stdout) if result.stdout.strip() else []
     return [i["title"] for i in issues]
+
+
+def get_all_issue_titles() -> dict[str, list[str]]:
+    """Return all issue titles grouped by state for comprehensive deduplication.
+
+    Returns a dict with keys: 'open', 'closed', 'failed' for different context blocks.
+    - 'open': Currently open issues (backlog, in-progress, proposed)
+    - 'closed': Completed or rejected work
+    - 'failed': Previously failed attempts
+    """
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--state", "all",
+        "--json", "title,state,labels",
+        "--limit", "200",
+    ])
+    issues = json.loads(result.stdout) if result.stdout.strip() else []
+
+    open_titles: list[str] = []
+    closed_titles: list[str] = []
+    failed_titles: list[str] = []
+
+    for issue in issues:
+        title = issue.get("title", "")
+        state = issue.get("state", "").upper()
+        labels = [lbl.get("name", "") for lbl in issue.get("labels", [])]
+
+        # Categorize by state and labels
+        if LABEL_FAILED in labels:
+            failed_titles.append(title)
+        elif state == "OPEN":
+            open_titles.append(title)
+        else:  # CLOSED
+            closed_titles.append(title)
+
+    return {
+        "open": open_titles,
+        "closed": closed_titles,
+        "failed": failed_titles,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -925,13 +968,30 @@ async def step_propose(
     model: str,
 ) -> list[dict[str, str]]:
     """PM agent proposes improvements. Returns list of {title, description, domain}."""
-    failed_titles = get_failed_issue_titles()
-    failed_block = ""
-    if failed_titles:
-        titles_list = "\n".join(f"- {t}" for t in failed_titles)
-        failed_block = (
-            f"\n\nPreviously failed proposals (DO NOT re-propose these):\n{titles_list}"
+    all_titles = get_all_issue_titles()
+
+    # Build context blocks for different issue categories
+    context_blocks = []
+
+    if all_titles["open"]:
+        open_list = "\n".join(f"- {t}" for t in all_titles["open"])
+        context_blocks.append(
+            f"\n\n**Existing open issues** (DO NOT duplicate these):\n{open_list}"
         )
+
+    if all_titles["closed"]:
+        closed_list = "\n".join(f"- {t}" for t in all_titles["closed"])
+        context_blocks.append(
+            f"\n\n**Previously completed or rejected work** (DO NOT re-propose these):\n{closed_list}"
+        )
+
+    if all_titles["failed"]:
+        failed_list = "\n".join(f"- {t}" for t in all_titles["failed"])
+        context_blocks.append(
+            f"\n\n**Previously failed proposals** (DO NOT re-propose these):\n{failed_list}"
+        )
+
+    existing_issues_context = "".join(context_blocks)
 
     prompt = f"""You are the PM for the AI Government project. Propose exactly {num_proposals} improvements.
 
@@ -941,8 +1001,9 @@ Read these files for context:
 - docs/CONTEXT.md
 - Browse src/ and scripts/ to understand current implementation
 
-Also check existing GitHub Issues to avoid duplicates:
-- Run: gh issue list --state all --limit 50
+IMPORTANT: Before proposing, check the existing issues listed below to avoid duplicates.
+Do NOT propose anything that overlaps with existing open, closed, or failed issues.
+{existing_issues_context}
 
 Propose improvements across TWO domains:
 
@@ -957,7 +1018,6 @@ Consider:
 - What real-world data sources should we ingest?
 - Should the ministry structure match the actual government or propose a better one?
 - How can we improve based on feedback from previous outputs?
-{failed_block}
 
 Return ONLY a JSON array (no markdown fences) of exactly {num_proposals} objects:
 [

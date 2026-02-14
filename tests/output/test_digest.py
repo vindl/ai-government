@@ -255,4 +255,7 @@ class TestBuildDigests:
     def test_empty_results(self, tmp_path: Path) -> None:
         builder = SiteBuilder(tmp_path)
         builder._build_digests([])
-        assert not (tmp_path / "pregled").exists()
+        # Index page should still be created (shows empty state)
+        assert (tmp_path / "pregled" / "index.html").exists()
+        html = (tmp_path / "pregled" / "index.html").read_text()
+        assert "Nema dnevnih pregleda" in html

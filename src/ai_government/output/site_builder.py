@@ -271,8 +271,6 @@ class SiteBuilder:
     def _build_digests(self, results: list[SessionResult]) -> None:
         """Build daily digest pages and a digest index page."""
         grouped = self._group_results_by_date(results)
-        if not grouped:
-            return
 
         digest_template = self.env.get_template("digest.html")
         index_template = self.env.get_template("digest_index.html")
@@ -292,7 +290,7 @@ class SiteBuilder:
             )
             (day_dir / "index.html").write_text(html, encoding="utf-8")
 
-        # Digest index — most recent first
+        # Digest index — always render (shows empty state when no digests)
         digests.sort(key=lambda d: d["date"], reverse=True)
         pregled_dir = self.output_dir / "pregled"
         pregled_dir.mkdir(parents=True, exist_ok=True)

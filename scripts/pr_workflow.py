@@ -277,44 +277,52 @@ async def run_workflow(
     max_rounds: int = DEFAULT_MAX_ROUNDS,
     model: str = DEFAULT_MODEL,
     branch: str | None = None,
+    pr: int | None = None,
 ) -> None:
     """Run the full PR coder-reviewer workflow.
 
     Loops reviewer → coder until the reviewer approves, then merges.
     If max_rounds > 0, stops after that many rounds and leaves the PR open.
+    If pr is given, skips coder round 1 and reviews the existing PR.
     """
-    branch_name = branch or make_branch_name(task)
     rounds_label = "unlimited" if max_rounds == 0 else str(max_rounds)
 
-    # Ensure we're on the right branch
-    current = get_current_branch()
-    if current != branch_name:
-        create_branch(branch_name)
+    if pr is not None:
+        # --- Existing PR: skip coder round 1, go straight to review loop ---
+        pr_number = pr
+        branch_name = branch or get_current_branch()
+        print(f"Reviewing existing PR #{pr_number} on branch {branch_name}")
+    else:
+        # --- New task: coder implements and opens PR ---
+        branch_name = branch or make_branch_name(task)
 
-    # --- Round 1: Coder implements and opens PR ---
-    print(f"\n{'='*60}")
-    print(f"ROUND 1 (max: {rounds_label}): Coder implementing...")
-    print(f"{'='*60}\n")
+        current = get_current_branch()
+        if current != branch_name:
+            create_branch(branch_name)
 
-    coder_prompt = _build_coder_prompt_round1(task)
-    output, had_error = await run_coder(coder_prompt, model=model, branch=branch_name)
+        print(f"\n{'='*60}")
+        print(f"ROUND 1 (max: {rounds_label}): Coder implementing...")
+        print(f"{'='*60}\n")
 
-    if had_error:
-        print("ERROR: Coder agent failed in round 1. Aborting.")
-        sys.exit(1)
+        coder_prompt = _build_coder_prompt_round1(task)
+        output, had_error = await run_coder(coder_prompt, model=model, branch=branch_name)
 
-    print(f"\nCoder output:\n{output[:500]}{'...' if len(output) > 500 else ''}\n")
+        if had_error:
+            print("ERROR: Coder agent failed in round 1. Aborting.")
+            sys.exit(1)
 
-    # Find the PR
-    pr_number = get_pr_number_for_branch(branch_name)
-    if pr_number is None:
-        print("ERROR: No PR found after coder round. The coder may have failed to create one.")
-        sys.exit(1)
+        print(f"\nCoder output:\n{output[:500]}{'...' if len(output) > 500 else ''}\n")
 
-    print(f"PR #{pr_number} created on branch {branch_name}")
+        pr_number_result = get_pr_number_for_branch(branch_name)
+        if pr_number_result is None:
+            print("ERROR: No PR found after coder round. The coder may have failed to create one.")
+            sys.exit(1)
+
+        pr_number = pr_number_result
+        print(f"PR #{pr_number} created on branch {branch_name}")
 
     # --- Review loop: reviewer → (merge | coder fix) → repeat ---
-    round_num = 1
+    round_num = 0
     while True:
         round_num += 1
 
@@ -379,11 +387,18 @@ def main() -> None:
   uv run python scripts/pr_workflow.py "Add retry logic" --max-rounds 5  # safety cap
   uv run python scripts/pr_workflow.py "Fix bug" --model claude-opus-4-6 -v
   uv run python scripts/pr_workflow.py "Refactor" --branch ai-dev/my-branch
+  uv run python scripts/pr_workflow.py --pr 2 "Review constitution PR"  # existing PR
 """,
     )
     parser.add_argument(
         "task",
-        help="Description of the task for the coder to implement",
+        help="Description of the task (used in coder prompts for context)",
+    )
+    parser.add_argument(
+        "--pr",
+        type=int,
+        default=None,
+        help="Review an existing PR by number (skips coder round 1)",
     )
     parser.add_argument(
         "--max-rounds",
@@ -421,6 +436,7 @@ def main() -> None:
             max_rounds=args.max_rounds,
             model=args.model,
             branch=args.branch,
+            pr=args.pr,
         )
 
     try:

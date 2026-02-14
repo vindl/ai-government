@@ -1544,6 +1544,7 @@ async def run_one_cycle(
                 LABEL_BACKLOG in label_names
                 or LABEL_IN_PROGRESS in label_names
                 or LABEL_DONE in label_names
+                or LABEL_FAILED in label_names
             )
             if already_processed:
                 log.debug("Human suggestion #%d already processed, skipping", issue_num)

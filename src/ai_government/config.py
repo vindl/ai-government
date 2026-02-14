@@ -11,7 +11,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 SEED_DIR = DATA_DIR / "seed"
 
 # Model defaults
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = "claude-opus-4-6"
 MAX_TOKENS_PER_AGENT = 16384
 MAX_TOKENS_PER_SESSION = 200000
 

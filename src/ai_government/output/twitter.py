@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 SITE_BASE_URL = "https://vindl.github.io/ai-government"
 MAX_TWEET_LENGTH = 280
 DEFAULT_COOLDOWN_HOURS = 24
+MONTHLY_POST_LIMIT = 400  # X free tier allows 500/month; keep headroom
 STATE_FILE = Path("output/twitter_state.json")
 
 
@@ -27,6 +28,8 @@ class TwitterState(BaseModel):
 
     last_posted_at: datetime | None = None
     posted_decision_ids: list[str] = Field(default_factory=list)
+    monthly_post_count: int = 0
+    monthly_post_month: str = ""  # "YYYY-MM" for the tracked month
 
 
 def load_state(path: Path = STATE_FILE) -> TwitterState:
@@ -47,12 +50,38 @@ def save_state(state: TwitterState, path: Path = STATE_FILE) -> None:
     path.write_text(state.model_dump_json(indent=2), encoding="utf-8")
 
 
+def _current_month() -> str:
+    """Return current month as 'YYYY-MM'."""
+    return datetime.now(UTC).strftime("%Y-%m")
+
+
 def should_post(state: TwitterState, cooldown_hours: int = DEFAULT_COOLDOWN_HOURS) -> bool:
-    """Return True if enough time has passed since the last post."""
-    if state.last_posted_at is None:
-        return True
-    elapsed = datetime.now(UTC) - state.last_posted_at
-    return elapsed.total_seconds() >= cooldown_hours * 3600
+    """Return True if enough time has passed and monthly limit not reached."""
+    if state.last_posted_at is not None:
+        elapsed = datetime.now(UTC) - state.last_posted_at
+        if elapsed.total_seconds() < cooldown_hours * 3600:
+            return False
+
+    # Check monthly limit (reset counter if new month)
+    current = _current_month()
+    if state.monthly_post_month == current and state.monthly_post_count >= MONTHLY_POST_LIMIT:
+        log.warning(
+            "Monthly post limit reached (%d/%d) — skipping",
+            state.monthly_post_count,
+            MONTHLY_POST_LIMIT,
+        )
+        return False
+
+    return True
+
+
+def record_post(state: TwitterState) -> None:
+    """Increment the monthly post counter, resetting if new month."""
+    current = _current_month()
+    if state.monthly_post_month != current:
+        state.monthly_post_month = current
+        state.monthly_post_count = 0
+    state.monthly_post_count += 1
 
 
 def get_unposted_results(
@@ -62,6 +91,64 @@ def get_unposted_results(
     """Filter out results whose decision IDs have already been posted."""
     posted = set(state.posted_decision_ids)
     return [r for r in results if r.decision.id not in posted]
+
+
+def compose_analysis_tweet(result: SessionResult) -> str:
+    """Build a tweet for a single completed analysis."""
+    title = result.decision.title
+    score = result.critic_report.decision_score if result.critic_report else "?"
+    headline = result.critic_report.headline if result.critic_report else ""
+    cp_tag = " [+counter-proposal]" if result.counter_proposal else ""
+    link = f"{SITE_BASE_URL}/decisions/{result.decision.id}.html"
+
+    text = f"{title}: {score}/10{cp_tag}"
+    if headline:
+        text += f"\n\n{headline}"
+    text += f"\n\n{link}\n\n#AIGovernment #Montenegro"
+
+    if len(text) > MAX_TWEET_LENGTH:
+        # Trim headline to fit
+        overhead = len(text) - MAX_TWEET_LENGTH
+        if headline and len(headline) > overhead + 3:
+            headline = headline[: len(headline) - overhead - 3] + "..."
+            text = f"{title}: {score}/10{cp_tag}\n\n{headline}\n\n{link}\n\n#AIGovernment #Montenegro"
+        else:
+            text = f"{title}: {score}/10{cp_tag}\n\n{link}\n\n#AIGovernment #Montenegro"
+
+    return text[:MAX_TWEET_LENGTH]
+
+
+def try_post_analysis(result: SessionResult) -> bool:
+    """Post a tweet for a completed analysis, respecting monthly limits.
+
+    Returns True if posted, False otherwise. Non-fatal.
+    """
+    state = load_state()
+
+    # Check monthly limit only (no cooldown between analysis tweets)
+    current = _current_month()
+    if state.monthly_post_month == current and state.monthly_post_count >= MONTHLY_POST_LIMIT:
+        log.warning("Monthly post limit reached — skipping analysis tweet")
+        return False
+
+    # Skip if already posted for this decision
+    if result.decision.id in state.posted_decision_ids:
+        return False
+
+    text = compose_analysis_tweet(result)
+    if not text:
+        return False
+
+    log.info("Composed analysis tweet:\n%s", text)
+    tweet_id = post_tweet(text)
+    if tweet_id is None:
+        return False
+
+    state.last_posted_at = datetime.now(UTC)
+    state.posted_decision_ids.append(result.decision.id)
+    record_post(state)
+    save_state(state)
+    return True
 
 
 def compose_daily_tweet(results: list[SessionResult]) -> str:

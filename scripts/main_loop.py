@@ -544,6 +544,22 @@ def reject_issue(issue_number: int) -> None:
     _update_project_status(issue_number, "Rejected")
 
 
+def _issue_has_debate_comment(issue_number: int) -> bool:
+    """Check if an issue already has a debate comment."""
+    nwo = _get_repo_nwo()
+    result = _run_gh(
+        ["gh", "api", f"repos/{nwo}/issues/{issue_number}/comments"],
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        comments = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+    return any("AI Triage Debate" in c.get("body", "") for c in comments)
+
+
 def list_backlog_issues() -> list[dict[str, Any]]:
     """Return backlog issues, oldest first."""
     result = _run_gh([
@@ -1045,6 +1061,10 @@ async def step_debate(
             if not _is_issue_open(issue_number):
                 log.info("Skipping debate for #%d (already closed)", issue_number)
                 continue
+            # Skip if already debated
+            if _issue_has_debate_comment(issue_number):
+                log.info("Skipping debate for #%d (already has debate comment)", issue_number)
+                continue
 
         # Round 1: Advocate opens, Skeptic challenges
         advocate_arg = await _run_advocate(title, description, domain, model=model)
@@ -1448,20 +1468,15 @@ async def run_one_cycle(
                 log.exception("Propose step failed")
                 ai_proposals = []
 
-        # Ingest human suggestions (always processed, regardless of backlog)
+        # Ingest human suggestions and move them directly to backlog (no debate)
         human_issues = list_human_suggestions()
-        human_proposals = [
-            {
-                "title": h["title"],
-                "description": h.get("body", ""),
-                "domain": "human",
-                "issue_number": h["number"],
-            }
-            for h in human_issues
-        ]
+        for h in human_issues:
+            issue_num = h["number"]
+            accept_issue(issue_num)
+            log.info("Human suggestion #%d moved to backlog (no debate)", issue_num)
 
-        all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
-        print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
+        all_proposals: list[dict[str, Any]] = ai_proposals
+        print(f"  {len(ai_proposals)} AI proposals + {len(human_issues)} human suggestions (moved to backlog)")
 
         if all_proposals:
             print("  Debating proposals...")

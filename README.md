@@ -15,7 +15,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 Two agent fleets:
 
 - **Government Mirror** (Fleet 1): Python agents via Claude Code SDK — Finance, Justice, EU Integration, Health, Interior ministries + Parliament + Critic
-- **Dev Fleet** (Fleet 2): Specialized Claude Code instances (Coder, Reviewer, Tester, PM, DevOps) with role-specific prompts for building and maintaining the system
+- **Dev Fleet** (Fleet 2): Specialized Claude Code instances (Coder, Reviewer, PM) with role-specific prompts for building and maintaining the system
 
 ## Quick Start
 

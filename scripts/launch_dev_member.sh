@@ -2,7 +2,7 @@
 # Launch a Claude Code dev fleet member with role-specific prompt.
 #
 # Usage: ./scripts/launch_dev_member.sh <role>
-# Roles: coder, reviewer, tester, pm, devops
+# Roles: coder, reviewer, pm
 
 set -euo pipefail
 
@@ -13,7 +13,7 @@ ROLE="${1:-}"
 
 if [[ -z "$ROLE" ]]; then
     echo "Usage: $0 <role>"
-    echo "Available roles: coder, reviewer, tester, pm, devops"
+    echo "Available roles: coder, reviewer, pm"
     exit 1
 fi
 

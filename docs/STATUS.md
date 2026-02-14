@@ -55,9 +55,9 @@ The full repository scaffold is in place. All code passes linting, type checking
 
 ### Output Formatters (`src/ai_government/output/`)
 - [x] `scorecard.py` — full markdown scorecard with tables, scores, details
-- [x] `social_media.py` — Twitter/X thread formatter (280-char limit)
-- [x] `html.py` — Jinja2-based HTML scorecard renderer
+- [x] `html.py` — Jinja2 helper functions for verdict labels and CSS classes
 - [x] `site_builder.py` — full static site builder (index, scorecards, about, feed)
+- [x] `twitter.py` — X daily digest posting (OAuth 1.0a, 24h cooldown, Montenegrin)
 
 ### Static Site (`site/`)
 - [x] Jinja2 templates: base, scorecard, index, about, feed
@@ -203,7 +203,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 
 ## What Is a Stub / Placeholder
 
-No stubs remain. MCP scraper stubs (`gov_me_scraper.py`, `news_scraper.py`) were deleted — news ingestion uses the News Scout agent instead.
+No stubs remain. All early placeholder code has been removed.
 
 ## What Has NOT Been Tested
 

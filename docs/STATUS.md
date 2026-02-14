@@ -141,8 +141,26 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Grant `project` scope: `gh auth refresh -s project`
   - Configure board/table views in GitHub web UI after first run
 
+### Project Director (Phase D) & Telemetry
+- [x] `CycleTelemetry` and `CyclePhaseResult` Pydantic models (`src/ai_government/models/telemetry.py`)
+- [x] JSONL I/O: `append_telemetry()` and `load_telemetry()` with `last_n` support
+- [x] Telemetry persisted to `output/data/telemetry.jsonl` (already not gitignored)
+- [x] Every cycle instrumented: phase timing, success/failure, error capture, yield computation
+- [x] `dev-fleet/director/CLAUDE.md` role prompt — operational health focus, cycle yield north star
+- [x] `step_director()` — invokes Director agent with pre-fetched context, no tool access
+- [x] `_prefetch_director_context()` — assembles telemetry, issues, PRs, label distribution
+- [x] `create_director_issue()` — files issues with `director-suggestion` + `self-improve:backlog` labels
+- [x] 5-tier priority in `step_pick()`: analysis > human > strategy > director > FIFO
+- [x] Phase D runs every N cycles (configurable via `--director-interval`, default 5)
+- [x] Director hard-capped at 2 issues per review (enforced in code)
+- [x] Resilience Layer 1: top-level crash guard in `main()` — records partial telemetry on crash
+- [x] Resilience Layer 3: `_check_error_patterns()` — auto-files stability issues for recurring errors
+- [x] Telemetry committed and pushed in `_reexec()` before git pull
+- [x] `--director-interval` CLI arg + `LOOP_DIRECTOR_INTERVAL` Docker env var
+- [x] `strategy-suggestion` label reserved for future Strategic Director (#83)
+
 ### Tests
-- [x] 29 tests passing
+- [x] 38 tests passing
 - [x] `tests/models/test_decision.py` — model creation, validation, JSON roundtrip, seed data loading
 - [x] `tests/agents/test_base.py` — config, prompt building, response parsing (valid/invalid/surrounded), factory functions
 - [x] `tests/conftest.py` — shared fixtures with realistic Montenegrin data

@@ -248,3 +248,29 @@ All new model fields are optional (`None` default) for backwards compatibility w
 - Montenegrin community files — rejected: contributors/developers need English; only the public-facing site targets Montenegrin citizens
 
 **Consequences**: Clean separation between human conversation (Discussions) and agent workflow (Issues). The Issue tracker stays structured and machine-readable. Citizens get a dedicated space to suggest decisions and report errors without needing to understand the agent pipeline. No main loop code changes required.
+
+---
+
+## ADR-015: Project Director Agent for Operational Oversight
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The main loop runs autonomously but has no meta-level feedback mechanism. When systemic problems occur (recurring PR failures, wasted debates, stuck issues, reviewer bugs), no agent detects or corrects them — a human must monitor and file issues manually.
+
+**Decision**: Add a Project Director agent (Phase D) that periodically reviews cycle telemetry and files targeted process improvements:
+
+- **North star: Cycle Yield** — the fraction of cycles producing a merged PR, published analysis, or posted digest. Not gameable (filing more issues doesn't help), captures what matters (the system exists to produce output).
+- **Telemetry**: `CycleTelemetry` Pydantic model persisted as JSONL (`output/data/telemetry.jsonl`). Every cycle is instrumented with phase timing, success/failure, errors, and yield status.
+- **4-layer resilience**: (L1) never crash the loop — top-level crash guard writes partial telemetry; (L2) record all errors in telemetry; (L3) auto-file stability issues for recurring error patterns (mechanical, no LLM); (L4) Docker `restart: unless-stopped`.
+- **Director has NO tools** (`allowed_tools=[]`) — all context pre-fetched and injected into prompt. Prevents runaway commands.
+- **5-tier priority**: analysis > human > strategy (#83) > director > FIFO.
+- **Hard cap of 2 issues** per Director review, enforced in code regardless of agent output.
+- **Runs every N cycles** (default 5, configurable via `--director-interval`). Needs accumulated data.
+- **Agent tuning**: Director can file issues to adjust prompts of agents it manages (PM, Coder, Reviewer). Cannot modify its own prompt or higher-level agents.
+
+**Alternatives considered**:
+- Director with tool access — rejected: pre-fetching is safer and prevents unbounded exploration
+- Director every cycle — rejected: not enough data to spot patterns, unnecessary cost
+- Director as a separate process — rejected: tight integration with the main loop is simpler and ensures telemetry access
+
+**Consequences**: The system can detect and correct its own operational problems without human intervention. Telemetry provides visibility into loop health. The circuit breaker (Layer 3) catches recurring errors faster than waiting for the Director's periodic review. The `strategy-suggestion` label is reserved for the future Strategic Director (#83).

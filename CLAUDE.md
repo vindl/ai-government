@@ -49,7 +49,8 @@ uv run python scripts/main_loop.py                        # unified main loop (i
 uv run python scripts/main_loop.py --dry-run --max-cycles 1  # test ideation + triage only
 uv run python scripts/main_loop.py --max-cycles 3         # 3 cycles then stop
 uv run python scripts/main_loop.py --skip-improve         # analysis only
-uv run python scripts/main_loop.py --skip-analysis        # self-improvement only
+uv run python scripts/main_loop.py --skip-analysis          # self-improvement only
+uv run python scripts/main_loop.py --director-interval 1 --max-cycles 1  # test Director
 uv run python scripts/build_site.py                        # build static site to _site/
 uv run python scripts/build_site.py --output-dir /tmp/_site  # build to custom dir
 
@@ -68,6 +69,7 @@ docker compose logs -f ai-government                       # follow logs
 LOOP_DRY_RUN=true docker compose up                        # dry run
 LOOP_MAX_CYCLES=3 docker compose up                        # 3 cycles
 LOOP_SKIP_IMPROVE=true docker compose up                   # analysis only
+LOOP_DIRECTOR_INTERVAL=3 docker compose up                 # Director every 3 cycles
 docker compose down                                        # stop
 ```
 

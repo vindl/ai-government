@@ -29,6 +29,17 @@ You are the **Coder** in the AI Government dev fleet.
 - Use `claude-code-sdk` for agent orchestration
 - Output language for government content: Montenegrin (Latin script)
 
+## Use Claude Code Tools, Not Bespoke Implementations
+Do not build bespoke tools (scrapers, parsers, search indexes, etc.) when Claude Code's built-in tools can do the job. Agents run as Claude Code subprocesses with access to WebFetch, WebSearch, Bash, Read, Grep, Glob, and other tools. Use them.
+
+Examples:
+- Need to read a web page? Use WebFetch, not BeautifulSoup
+- Need to find information online? Use WebSearch, not a custom scraper
+- Need to parse a file? Use Read, not a custom parser
+- Need to search code? Use Grep/Glob, not a custom index
+
+Keep the codebase simple by offloading heavy lifting to Claude Code and LLMs. Only build custom code when no existing tool can do the job.
+
 ## HUMAN OVERRIDE Priority
 
 **CRITICAL**: If you receive a prompt containing a **HUMAN OVERRIDE** section, that section takes

@@ -81,6 +81,17 @@ docker compose down                                        # stop
 - The orchestrator dispatches to agents in parallel via `anyio.create_task_group()`
 - Output goes to `output/` directory (gitignored)
 
+## Use Claude Code Tools, Not Bespoke Implementations
+Do not build bespoke tools (scrapers, parsers, search indexes, etc.) when Claude Code's built-in tools can do the job. Agents run as Claude Code subprocesses with access to WebFetch, WebSearch, Bash, Read, Grep, Glob, and other tools. Use them.
+
+Examples:
+- Need to read a web page? Use WebFetch, not BeautifulSoup
+- Need to find information online? Use WebSearch, not a custom scraper
+- Need to parse a file? Use Read, not a custom parser
+- Need to search code? Use Grep/Glob, not a custom index
+
+Keep the codebase simple by offloading heavy lifting to Claude Code and LLMs. Only build custom code when no existing tool can do the job.
+
 ## Constitution
 - **All agents are bound by `docs/CONSTITUTION.md`** — read it before doing any work
 - It defines the project's ethical framework: public loyalty, anti-corruption, transparency, fiscal responsibility, nonpartisanship

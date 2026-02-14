@@ -224,8 +224,14 @@ The reviewer has requested changes. Do the following:
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
     # Get owner/repo for inline comment commands
-    result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
-    owner_repo = result.stdout.strip()
+    try:
+        result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
+        owner_repo = result.stdout.strip()
+        if not owner_repo:
+            raise ValueError("Empty owner/repo from gh repo view")
+    except (subprocess.CalledProcessError, ValueError):
+        # Fallback: agent will need to substitute manually if this fails
+        owner_repo = "{{owner}}/{{repo}}"
 
     return f"""Review PR #{pr_number} thoroughly. Be skeptical — your job is to find problems.
 
@@ -239,12 +245,12 @@ Steps:
      -f body="suggestion or issue" \\
      -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \\
      -f path="path/to/file.py" \\
-     -F line=42 \\
+     -F line=42 \\  # -F sends line number as integer, not string
      -f side="RIGHT"
    ```
    Post inline comments for: logic issues, missing edge cases, unclear code,
    potential bugs, better approaches, or concrete improvement suggestions.
-   If there are no line-specific issues, skip to step 5.
+   If there are no line-specific issues, skip this step. Always proceed to step 5.
 5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
    If changes needed (you found real issues):

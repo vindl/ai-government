@@ -32,6 +32,10 @@ venv/
 # Output
 output/*
 !output/.gitkeep
+!output/data/
+
+# Site build output
+_site/
 
 # OS
 .DS_Store

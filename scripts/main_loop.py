@@ -27,6 +27,7 @@ from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 from ai_government.config import SessionConfig
 from ai_government.orchestrator import Orchestrator
 from ai_government.output.scorecard import render_scorecard
+from ai_government.output.site_builder import save_result_json
 from ai_government.session import load_decisions
 
 if TYPE_CHECKING:
@@ -552,6 +553,11 @@ async def step_execute_analysis(
         scorecard = render_scorecard(results[0])
         _run_gh(["gh", "issue", "comment", str(issue_number),
                  "--body", f"## AI Cabinet Scorecard\n\n{scorecard}"])
+
+        # Serialize result to JSON for the static site builder
+        data_dir = Path(__file__).resolve().parent.parent / "output" / "data"
+        saved = save_result_json(results[0], data_dir)
+        log.info("Saved result JSON to %s", saved)
 
         mark_issue_done(issue_number)
         log.info("Analysis issue #%d completed successfully", issue_number)

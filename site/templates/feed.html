@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Novosti — AI Vlada{% endblock %}
+
+{% block content %}
+<h1>Novosti</h1>
+
+{% if announcements %}
+<ul class="announcements">
+  {% for ann in announcements %}
+  <li>
+    <span class="ann-date">{{ ann.date }}</span>
+    <h3>{{ ann.title }}</h3>
+    <div>{{ ann.html }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Nema novosti.</p>
+{% endif %}
+{% endblock %}

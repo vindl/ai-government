@@ -53,9 +53,22 @@ The full repository scaffold is in place. All code passes linting, type checking
 ### Output Formatters (`src/ai_government/output/`)
 - [x] `scorecard.py` — full markdown scorecard with tables, scores, details
 - [x] `social_media.py` — Twitter/X thread formatter (280-char limit)
+- [x] `html.py` — Jinja2-based HTML scorecard renderer
+- [x] `site_builder.py` — full static site builder (index, scorecards, about, feed)
+
+### Static Site (`site/`)
+- [x] Jinja2 templates: base, scorecard, index, about, feed
+- [x] Minimal responsive CSS (no frameworks)
+- [x] Montenegrin nav labels and site chrome
+- [x] About page renders `docs/CONSTITUTION.md`
+- [x] Feed page reads markdown announcements from `site/content/announcements/`
+- [x] `scripts/build_site.py` CLI — reads `output/data/*.json`, outputs `_site/`
+- [x] GitHub Actions deploy workflow (push to main triggers build + deploy to GitHub Pages)
+- [x] CI includes site build verification step
+- [x] Main loop serializes analysis results to `output/data/` for site builder
 
 ### Dev Fleet (`dev-fleet/`)
-- [x] 5 role prompts: coder, reviewer, tester, pm, devops
+- [x] 6 role prompts: coder, reviewer, tester, pm, devops, publisher
 - [x] `scripts/launch_dev_member.sh` — launches Claude Code with role prompt
 - [x] `scripts/pr_workflow.py` — automated PR-based coder-reviewer loop
   - Coder agent implements on a branch, runs checks, opens a PR
@@ -94,13 +107,14 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `tests/conftest.py` — shared fixtures with realistic Montenegrin data
 
 ### CI/CD
-- [x] `.github/workflows/ci.yml` — ruff + mypy + pytest on push/PR
+- [x] `.github/workflows/ci.yml` — ruff + mypy + pytest + site build verification on push/PR
 - [x] `.github/workflows/daily-session.yml` — scheduled daily run + manual trigger
+- [x] `.github/workflows/deploy-site.yml` — GitHub Pages deployment on push to main
 
 ### Docs
 - [x] `README.md` — project overview and quick start
 - [x] `docs/CONTEXT.md` — background, goals, agent roles
-- [x] `docs/DECISIONS.md` — 5 architectural decision records
+- [x] `docs/DECISIONS.md` — architectural decision records
 - [x] `docs/STATUS.md` — this file
 
 ## What Is a Stub / Placeholder

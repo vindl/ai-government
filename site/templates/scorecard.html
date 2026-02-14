@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}{{ result.decision.title }} — AI Vlada{% endblock %}
+
+{% block content %}
+<article class="scorecard">
+  <h1>{{ result.decision.title }}</h1>
+
+  <div class="decision-meta">
+    <span class="meta-item"><strong>Datum:</strong> {{ result.decision.date }}</span>
+    <span class="meta-item"><strong>Kategorija:</strong> {{ result.decision.category }}</span>
+    {% if result.decision.source_url %}
+    <span class="meta-item"><a href="{{ result.decision.source_url }}">Izvor</a></span>
+    {% endif %}
+  </div>
+
+  <blockquote class="decision-summary">{{ result.decision.summary }}</blockquote>
+
+  {% if result.critic_report %}
+  <section class="headline-section">
+    <h2>{{ result.critic_report.headline }}</h2>
+    <div class="scores">
+      <div class="score-item">
+        <span class="score-label">Ocjena odluke</span>
+        <span class="score-value">{{ result.critic_report.decision_score }}/10</span>
+        <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.decision_score * 10 }}%"></div></div>
+      </div>
+      <div class="score-item">
+        <span class="score-label">Kvalitet analize</span>
+        <span class="score-value">{{ result.critic_report.assessment_quality_score }}/10</span>
+        <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.assessment_quality_score * 10 }}%"></div></div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="ministry-overview">
+    <h2>Ocjene ministarstava</h2>
+    <div class="ministry-cards">
+      {% for a in result.assessments %}
+      <div class="ministry-card {{ a.verdict.value | verdict_css_class }}">
+        <h3>{{ a.ministry }}</h3>
+        <span class="verdict">{{ a.verdict.value | verdict_label }}</span>
+        <span class="card-score">{{ a.score }}/10</span>
+        <p>{{ a.summary }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="ministry-details">
+    <h2>Detaljne analize</h2>
+    {% for a in result.assessments %}
+    <div class="ministry-detail">
+      <h3>Ministarstvo {{ a.ministry }}</h3>
+      <div class="detail-meta">
+        <span class="{{ a.verdict.value | verdict_css_class }}">{{ a.verdict.value | verdict_label }}</span>
+        <span>{{ a.score }}/10</span>
+      </div>
+      <p>{{ a.summary }}</p>
+      {% if a.key_concerns %}
+      <h4>Kljucne zabrinutosti</h4>
+      <ul>
+        {% for concern in a.key_concerns %}
+        <li>{{ concern }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if a.recommendations %}
+      <h4>Preporuke</h4>
+      <ul>
+        {% for rec in a.recommendations %}
+        <li>{{ rec }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {% if result.debate %}
+  <section class="debate">
+    <h2>Parlamentarna debata</h2>
+    <div class="detail-meta">
+      <span class="{{ result.debate.overall_verdict.value | verdict_css_class }}">
+        {{ result.debate.overall_verdict.value | verdict_label }}
+      </span>
+    </div>
+
+    <h3>Konsenzus</h3>
+    <p>{{ result.debate.consensus_summary }}</p>
+
+    {% if result.debate.disagreements %}
+    <h3>Tacke neslaganja</h3>
+    <ul>
+      {% for d in result.debate.disagreements %}
+      <li>{{ d }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <h3>Transkript</h3>
+    <div class="transcript">{{ result.debate.debate_transcript }}</div>
+  </section>
+  {% endif %}
+
+  {% if result.critic_report %}
+  <section class="critic">
+    <h2>Nezavisna kriticka analiza</h2>
+    <p>{{ result.critic_report.overall_analysis }}</p>
+    {% if result.critic_report.blind_spots %}
+    <h3>Propusti</h3>
+    <ul>
+      {% for bs in result.critic_report.blind_spots %}
+      <li>{{ bs }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+</article>
+{% endblock %}

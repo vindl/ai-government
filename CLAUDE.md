@@ -5,7 +5,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 
 ## Architecture
 - **Government agents** (Fleet 1): Python + Claude Code SDK — ministry subagents that analyze decisions
-- **Dev fleet** (Fleet 2): Claude Code instances with role-specific prompts (coder, reviewer, tester, pm, devops)
+- **Dev fleet** (Fleet 2): Claude Code instances with role-specific prompts (coder, reviewer, tester, pm, devops, publisher)
 
 ## Tech Stack
 - Python 3.12+
@@ -13,6 +13,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 - Pydantic v2 for data models
 - anyio for async
 - httpx + BeautifulSoup4 for scraping
+- Jinja2 for HTML templating (static site)
 
 ## Code Style
 - Use `ruff` for linting (`ruff check src/ tests/`)
@@ -27,11 +28,13 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
   - `prompts/` — prompt templates (one per agent)
   - `models/` — Pydantic data models
   - `mcp_servers/` — MCP tool servers (scrapers)
-  - `output/` — output formatters (scorecard, social media)
+  - `output/` — output formatters (scorecard, social media, HTML, site builder)
+- `site/` — site source (templates, static assets, announcement content)
 - `tests/` — pytest tests
 - `dev-fleet/` — Claude Code role prompts
 - `data/seed/` — sample decision data
 - `scripts/` — CLI scripts
+- `output/data/` — serialized analysis results (committed, feeds the site builder)
 
 ## Running
 ```bash
@@ -46,6 +49,8 @@ uv run python scripts/main_loop.py --dry-run --max-cycles 1  # test ideation + t
 uv run python scripts/main_loop.py --max-cycles 3         # 3 cycles then stop
 uv run python scripts/main_loop.py --skip-improve         # analysis only
 uv run python scripts/main_loop.py --skip-analysis        # self-improvement only
+uv run python scripts/build_site.py                        # build static site to _site/
+uv run python scripts/build_site.py --output-dir /tmp/_site  # build to custom dir
 
 # Docker (isolated main loop)
 export GH_TOKEN="ghp_..."

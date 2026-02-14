@@ -47,9 +47,10 @@
 - [ ] Handle decision deduplication and change detection
 
 ## Phase 4: Output & Distribution
+- [x] Add a web-friendly HTML/static site output option (Jinja2 templates, site builder, GitHub Pages deploy)
+- [x] Publisher dev-fleet role for curating public content
 - [ ] Polish scorecard format for readability
 - [ ] Generate social media thread output automatically
-- [ ] Add a web-friendly HTML/static site output option
 - [ ] Set up automated posting (Twitter/X API integration)
 - [ ] Daily automated sessions via GitHub Actions cron
 

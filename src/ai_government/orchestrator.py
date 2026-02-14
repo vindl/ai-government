@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import anyio
+from pydantic import BaseModel, Field
 
 from ai_government.agents.critic import CriticAgent
 from ai_government.agents.ministry_eu import create_eu_agent
@@ -15,19 +15,18 @@ from ai_government.agents.ministry_interior import create_interior_agent
 from ai_government.agents.ministry_justice import create_justice_agent
 from ai_government.agents.parliament import ParliamentAgent
 from ai_government.config import SessionConfig
+from ai_government.models.assessment import Assessment, CriticReport, ParliamentDebate
+from ai_government.models.decision import GovernmentDecision
 
 if TYPE_CHECKING:
     from ai_government.agents.base import GovernmentAgent
-    from ai_government.models.assessment import Assessment, CriticReport, ParliamentDebate
-    from ai_government.models.decision import GovernmentDecision
 
 
-@dataclass
-class SessionResult:
+class SessionResult(BaseModel):
     """Complete result of a cabinet session for one decision."""
 
     decision: GovernmentDecision
-    assessments: list[Assessment] = field(default_factory=list)
+    assessments: list[Assessment] = Field(default_factory=list)
     debate: ParliamentDebate | None = None
     critic_report: CriticReport | None = None
 

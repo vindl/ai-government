@@ -204,6 +204,85 @@ def list_human_suggestions() -> list[dict[str, Any]]:
     return json.loads(result.stdout) if result.stdout.strip() else []
 
 
+def process_human_overrides() -> int:
+    """Find reopened rejected issues or issues with HUMAN OVERRIDE comments.
+
+    A human can override the AI triage by either:
+    1. Reopening a closed rejected issue (label: self-improve:rejected, state: open)
+    2. Adding a comment containing "HUMAN OVERRIDE" on any issue
+
+    Overridden issues are moved straight to backlog, skipping debate.
+    Returns the number of issues overridden.
+    """
+    count = 0
+
+    # Case 1: Reopened rejected issues (human reopened a closed+rejected issue)
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_REJECTED,
+        "--state", "open",
+        "--json", "number,title",
+        "--limit", "50",
+    ])
+    reopened = json.loads(result.stdout) if result.stdout.strip() else []
+    for issue in reopened:
+        n = issue["number"]
+        _run_gh(["gh", "issue", "edit", str(n),
+                 "--remove-label", LABEL_REJECTED,
+                 "--add-label", LABEL_BACKLOG])
+        _run_gh(["gh", "issue", "comment", str(n),
+                 "--body",
+                 "\U0001f916 **AI Triage:** Issue reopened by human — "
+                 "moved to backlog via human override."])
+        log.info("Human override (reopened): #%d %s", n, issue["title"])
+        count += 1
+
+    # Case 2: HUMAN OVERRIDE in comments on any open issue with proposed/rejected label
+    for label in (LABEL_PROPOSED, LABEL_REJECTED):
+        result = _run_gh([
+            "gh", "issue", "list",
+            "--label", label,
+            "--state", "all",
+            "--json", "number,title,comments",
+            "--limit", "50",
+        ], check=False)
+        if result.returncode != 0 or not result.stdout.strip():
+            continue
+        issues = json.loads(result.stdout)
+        for issue in issues:
+            comments = issue.get("comments", [])
+            has_override = any(
+                "HUMAN OVERRIDE" in c.get("body", "")
+                for c in comments
+            )
+            if not has_override:
+                continue
+            n = issue["number"]
+            # Check it's not already in backlog/in-progress/done
+            already = _run_gh([
+                "gh", "issue", "view", str(n),
+                "--json", "labels", "-q",
+                ".labels[].name",
+            ], check=False)
+            label_names = already.stdout.strip()
+            if LABEL_BACKLOG in label_names or LABEL_IN_PROGRESS in label_names:
+                continue
+            # Move to backlog
+            _run_gh(["gh", "issue", "edit", str(n),
+                     "--remove-label", label,
+                     "--add-label", LABEL_BACKLOG])
+            # Reopen if closed
+            _run_gh(["gh", "issue", "reopen", str(n)], check=False)
+            _run_gh(["gh", "issue", "comment", str(n),
+                     "--body",
+                     "\U0001f916 **AI Triage:** HUMAN OVERRIDE detected — "
+                     "moved to backlog."])
+            log.info("Human override (comment): #%d %s", n, issue["title"])
+            count += 1
+
+    return count
+
+
 def mark_issue_in_progress(issue_number: int) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_BACKLOG,
@@ -651,6 +730,11 @@ async def run_one_cycle(
     print(f"\n{'='*60}")
     print(f"SELF-IMPROVEMENT CYCLE {cycle}")
     print(f"{'='*60}\n")
+
+    # --- Step 0: Process human overrides ---
+    overrides = process_human_overrides()
+    if overrides:
+        print(f"  Processed {overrides} human override(s) → moved to backlog")
 
     # --- Step 1: Propose ---
     print("Step 1: Proposing improvements...")

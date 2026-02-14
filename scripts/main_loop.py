@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Autonomous self-improvement loop.
+"""Unified main loop for the AI Government project.
 
-Runs an indefinite cycle: propose improvements → debate/triage →
-backlog as GitHub Issues → pick a task → execute via PR workflow → repeat.
+Runs an indefinite cycle with three phases:
+  Phase A: Check for new government decisions → create analysis issues
+  Phase B: Self-improvement — propose improvements → debate/triage
+  Phase C: Pick from unified backlog → execute (routes by task type)
 """
 
 from __future__ import annotations
@@ -11,6 +13,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import time
@@ -21,8 +24,15 @@ import anyio
 import claude_code_sdk
 from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 
+from ai_government.config import SessionConfig
+from ai_government.orchestrator import Orchestrator
+from ai_government.output.scorecard import render_scorecard
+from ai_government.session import load_decisions
+
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
+
+    from ai_government.models.decision import GovernmentDecision
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -41,6 +51,8 @@ LABEL_IN_PROGRESS = "self-improve:in-progress"
 LABEL_DONE = "self-improve:done"
 LABEL_FAILED = "self-improve:failed"
 LABEL_HUMAN = "human-suggestion"
+LABEL_TASK_ANALYSIS = "task:analysis"
+LABEL_TASK_CODE = "task:code-change"
 
 ALL_LABELS: dict[str, str] = {
     LABEL_PROPOSED: "808080",    # gray
@@ -50,6 +62,8 @@ ALL_LABELS: dict[str, str] = {
     LABEL_DONE: "6f42c1",       # purple
     LABEL_FAILED: "d73a4a",     # red
     LABEL_HUMAN: "0075ca",      # blue
+    LABEL_TASK_ANALYSIS: "1d76db",  # light blue
+    LABEL_TASK_CODE: "5319e7",      # violet
 }
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
@@ -60,7 +74,9 @@ PROPOSE_MAX_TURNS = 10
 DEBATE_MAX_TURNS = 5
 PROPOSE_TOOLS = ["Bash", "Read", "Glob", "Grep"]
 
-log = logging.getLogger("self_improve")
+SEED_DECISIONS_PATH = PROJECT_ROOT / "data" / "seed" / "sample_decisions.json"
+
+log = logging.getLogger("main_loop")
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +200,7 @@ def list_backlog_issues() -> list[dict[str, Any]]:
         "gh", "issue", "list",
         "--label", LABEL_BACKLOG,
         "--state", "open",
-        "--json", "number,title,body,createdAt",
+        "--json", "number,title,body,labels,createdAt",
         "--limit", "50",
     ])
     issues: list[dict[str, Any]] = json.loads(result.stdout) if result.stdout.strip() else []
@@ -328,6 +344,150 @@ def _load_role_prompt(role: str) -> str:
         return path.read_text()
     log.warning("Role prompt not found: %s", path)
     return ""
+
+
+# ---------------------------------------------------------------------------
+# Phase A: Government decision analysis
+# ---------------------------------------------------------------------------
+
+
+def get_pending_decisions() -> list[GovernmentDecision]:
+    """Load decisions that need analysis.
+
+    Currently reads from seed data. This is the future integration point
+    for scrapers (gov.me, news sites).
+    """
+    if not SEED_DECISIONS_PATH.exists():
+        log.warning("No seed decisions file: %s", SEED_DECISIONS_PATH)
+        return []
+    return load_decisions(SEED_DECISIONS_PATH)
+
+
+def decision_already_tracked(decision_id: str) -> bool:
+    """Check if a GitHub Issue already exists for this decision."""
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_TASK_ANALYSIS,
+        "--state", "all",
+        "--search", decision_id,
+        "--json", "number",
+        "--limit", "5",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return False
+    issues = json.loads(result.stdout)
+    return len(issues) > 0
+
+
+def create_analysis_issue(decision: GovernmentDecision) -> int:
+    """Create a GitHub Issue for analyzing a government decision."""
+    title = f"Analyze: {decision.title[:60]}"
+    body = (
+        f"**Decision ID**: {decision.id}\n"
+        f"**Date**: {decision.date}\n"
+        f"**Category**: {decision.category}\n\n"
+        f"> {decision.summary}\n\n"
+        f"Run full AI cabinet analysis on this decision."
+    )
+    result = _run_gh([
+        "gh", "issue", "create",
+        "--title", title,
+        "--body", body,
+        "--label", f"{LABEL_BACKLOG},{LABEL_TASK_ANALYSIS}",
+    ])
+    url = result.stdout.strip()
+    return int(url.rstrip("/").split("/")[-1])
+
+
+def step_check_decisions() -> int:
+    """Check for new government decisions and create analysis issues.
+
+    Returns the number of new issues created.
+    """
+    decisions = get_pending_decisions()
+    if not decisions:
+        log.info("No pending decisions found")
+        return 0
+
+    created = 0
+    for decision in decisions:
+        if decision_already_tracked(decision.id):
+            log.debug("Decision %s already tracked", decision.id)
+            continue
+        issue_num = create_analysis_issue(decision)
+        log.info("Created analysis issue #%d for decision %s", issue_num, decision.id)
+        created += 1
+
+    return created
+
+
+async def step_execute_analysis(
+    issue: dict[str, Any],
+    *,
+    model: str,
+    dry_run: bool = False,
+) -> bool:
+    """Execute a government decision analysis. Returns True on success."""
+    issue_number = issue["number"]
+    title = issue["title"]
+    body = issue.get("body", "")
+
+    mark_issue_in_progress(issue_number)
+
+    if dry_run:
+        log.info("DRY RUN: would analyze issue #%d: %s", issue_number, title)
+        _run_gh(["gh", "issue", "edit", str(issue_number),
+                 "--remove-label", LABEL_IN_PROGRESS,
+                 "--add-label", LABEL_BACKLOG])
+        return True
+
+    # Extract decision ID from issue body
+    match = re.search(r"\*\*Decision ID\*\*:\s*(\S+)", body)
+    if not match:
+        reason = "Could not parse decision ID from issue body"
+        mark_issue_failed(issue_number, reason)
+        log.error("Issue #%d: %s", issue_number, reason)
+        return False
+
+    decision_id = match.group(1)
+
+    # Load the matching decision from seed data
+    all_decisions = get_pending_decisions()
+    decision = next((d for d in all_decisions if d.id == decision_id), None)
+    if decision is None:
+        reason = f"Decision {decision_id} not found in seed data"
+        mark_issue_failed(issue_number, reason)
+        log.error("Issue #%d: %s", issue_number, reason)
+        return False
+
+    try:
+        config = SessionConfig(model=model)
+        orchestrator = Orchestrator(config)
+        results = await orchestrator.run_session([decision])
+
+        if not results:
+            reason = "Orchestrator returned no results"
+            mark_issue_failed(issue_number, reason)
+            return False
+
+        # Post scorecard as issue comment
+        scorecard = render_scorecard(results[0])
+        _run_gh(["gh", "issue", "comment", str(issue_number),
+                 "--body", f"## AI Cabinet Scorecard\n\n{scorecard}"])
+
+        mark_issue_done(issue_number)
+        log.info("Analysis issue #%d completed successfully", issue_number)
+        return True
+    except Exception as exc:
+        reason = f"Analysis failed: {exc}"
+        mark_issue_failed(issue_number, reason)
+        log.exception("Issue #%d failed", issue_number)
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Phase B: Self-improvement (propose + debate)
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -667,12 +827,26 @@ When in doubt, accept.
 # ---------------------------------------------------------------------------
 
 
+def _issue_has_label(issue: dict[str, Any], label: str) -> bool:
+    """Check if an issue has a specific label."""
+    labels = issue.get("labels", [])
+    return any(lbl.get("name") == label for lbl in labels)
+
+
 def step_pick() -> dict[str, Any] | None:
-    """Pick the oldest backlog issue (FIFO)."""
+    """Pick the next backlog issue. Analysis tasks get priority, then FIFO."""
     issues = list_backlog_issues()
     if not issues:
         log.info("No backlog issues to pick")
         return None
+
+    # Prefer analysis tasks over code changes
+    for issue in issues:
+        if _issue_has_label(issue, LABEL_TASK_ANALYSIS):
+            log.info("Picked analysis issue #%d: %s", issue["number"], issue["title"])
+            return issue
+
+    # Fall back to FIFO
     picked = issues[0]
     log.info("Picked issue #%d: %s", picked["number"], picked["title"])
     return picked
@@ -690,7 +864,22 @@ async def step_execute(
     max_pr_rounds: int,
     dry_run: bool = False,
 ) -> bool:
-    """Execute the picked issue via pr_workflow. Returns True on success."""
+    """Route execution by task type. Returns True on success."""
+    if _issue_has_label(issue, LABEL_TASK_ANALYSIS):
+        return await step_execute_analysis(issue, model=model, dry_run=dry_run)
+    return await step_execute_code_change(
+        issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+    )
+
+
+async def step_execute_code_change(
+    issue: dict[str, Any],
+    *,
+    model: str,
+    max_pr_rounds: int,
+    dry_run: bool = False,
+) -> bool:
+    """Execute a code change issue via pr_workflow. Returns True on success."""
     issue_number = issue["number"]
     title = issue["title"]
     body = issue.get("body", "")
@@ -746,68 +935,82 @@ async def run_one_cycle(
     model: str = DEFAULT_MODEL,
     max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
     dry_run: bool = False,
+    skip_analysis: bool = False,
+    skip_improve: bool = False,
 ) -> None:
-    """Run a single self-improvement cycle."""
+    """Run a single main loop cycle with three phases."""
     ensure_labels_exist()
 
     print(f"\n{'='*60}")
-    print(f"SELF-IMPROVEMENT CYCLE {cycle}")
+    print(f"MAIN LOOP CYCLE {cycle}")
     print(f"{'='*60}\n")
 
     # --- Step 0: Process human overrides ---
     overrides = process_human_overrides()
     if overrides:
-        print(f"  Processed {overrides} human override(s) → moved to backlog")
+        print(f"  Processed {overrides} human override(s) -> moved to backlog")
 
-    # --- Step 1: Propose ---
-    print("Step 1: Proposing improvements...")
-    try:
-        ai_proposals = await step_propose(
-            num_proposals=proposals_per_cycle, model=model,
-        )
-    except Exception:
-        log.exception("Propose step failed")
-        ai_proposals = []
+    # --- Phase A: Check for new government decisions ---
+    if skip_analysis:
+        print("Phase A: Skipped (--skip-analysis)")
+    else:
+        print("Phase A: Checking for new government decisions...")
+        try:
+            new_issues = step_check_decisions()
+            print(f"  Created {new_issues} new analysis issue(s)")
+        except Exception:
+            log.exception("Phase A (decision check) failed")
 
-    # Ingest human suggestions
-    human_issues = list_human_suggestions()
-    human_proposals = [
-        {
-            "title": h["title"],
-            "description": h.get("body", ""),
-            "domain": "human",
-            "issue_number": h["number"],
-        }
-        for h in human_issues
-    ]
+    # --- Phase B: Self-improvement (propose + debate) ---
+    if skip_improve:
+        print("\nPhase B: Skipped (--skip-improve)")
+    else:
+        print("\nPhase B: Self-improvement — proposing and debating...")
+        try:
+            ai_proposals = await step_propose(
+                num_proposals=proposals_per_cycle, model=model,
+            )
+        except Exception:
+            log.exception("Propose step failed")
+            ai_proposals = []
 
-    all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
-    print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
+        # Ingest human suggestions
+        human_issues = list_human_suggestions()
+        human_proposals = [
+            {
+                "title": h["title"],
+                "description": h.get("body", ""),
+                "domain": "human",
+                "issue_number": h["number"],
+            }
+            for h in human_issues
+        ]
 
-    if not all_proposals:
-        print("  No proposals this cycle.")
-        return
+        all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
+        print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
 
-    # --- Step 2: Debate ---
-    print("\nStep 2: Debating proposals...")
-    try:
-        accepted, rejected = await step_debate(all_proposals, model=model)
-    except Exception:
-        log.exception("Debate step failed")
-        accepted, rejected = [], []
-    print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
+        if all_proposals:
+            print("  Debating proposals...")
+            try:
+                accepted, rejected = await step_debate(all_proposals, model=model)
+            except Exception:
+                log.exception("Debate step failed")
+                accepted, rejected = [], []
+            print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
+        else:
+            print("  No proposals this cycle.")
 
-    # --- Step 3: Pick ---
-    print("\nStep 3: Picking next task from backlog...")
+    # --- Phase C: Pick from unified backlog and execute ---
+    print("\nPhase C: Picking next task from backlog...")
     issue = step_pick()
     if issue is None:
         print("  Backlog empty.")
         return
 
-    print(f"  Picked: #{issue['number']} — {issue['title']}")
+    task_type = "analysis" if _issue_has_label(issue, LABEL_TASK_ANALYSIS) else "code-change"
+    print(f"  Picked [{task_type}]: #{issue['number']} — {issue['title']}")
 
-    # --- Step 4: Execute ---
-    print(f"\nStep 4: Executing issue #{issue['number']}...")
+    print(f"\n  Executing issue #{issue['number']}...")
     success = await step_execute(
         issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
     )
@@ -823,6 +1026,8 @@ def _reexec(
     model: str,
     max_pr_rounds: int,
     dry_run: bool,
+    skip_analysis: bool,
+    skip_improve: bool,
     verbose: bool,
 ) -> None:
     """Re-exec the script to pick up any code changes from disk.
@@ -858,6 +1063,10 @@ def _reexec(
         argv += ["--max-pr-rounds", str(max_pr_rounds)]
     if dry_run:
         argv += ["--dry-run"]
+    if skip_analysis:
+        argv += ["--skip-analysis"]
+    if skip_improve:
+        argv += ["--skip-improve"]
     if verbose:
         argv += ["--verbose"]
 
@@ -872,14 +1081,14 @@ def _reexec(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Autonomous self-improvement loop for the AI Government project.",
+        description="Unified main loop: analyze government decisions + self-improve.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
-  uv run python scripts/self_improve.py                          # run indefinitely
-  uv run python scripts/self_improve.py --dry-run --max-cycles 1 # test ideation + triage only
-  uv run python scripts/self_improve.py --max-cycles 3           # 3 cycles then stop
-  uv run python scripts/self_improve.py --cooldown 30 --proposals 5
-  uv run python scripts/self_improve.py --max-cycles 1 --max-pr-rounds 3
+  uv run python scripts/main_loop.py                          # run indefinitely
+  uv run python scripts/main_loop.py --dry-run --max-cycles 1 # test ideation + triage only
+  uv run python scripts/main_loop.py --max-cycles 3           # 3 cycles then stop
+  uv run python scripts/main_loop.py --skip-improve           # analysis only
+  uv run python scripts/main_loop.py --skip-analysis          # self-improvement only
 """,
     )
     parser.add_argument(
@@ -905,6 +1114,14 @@ def main() -> None:
     parser.add_argument(
         "--dry-run", action="store_true",
         help="Propose and debate only; skip execution",
+    )
+    parser.add_argument(
+        "--skip-analysis", action="store_true",
+        help="Skip Phase A (government decision checking)",
+    )
+    parser.add_argument(
+        "--skip-improve", action="store_true",
+        help="Skip Phase B (self-improvement proposals + debate)",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
@@ -938,12 +1155,14 @@ def main() -> None:
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
             dry_run=args.dry_run,
+            skip_analysis=args.skip_analysis,
+            skip_improve=args.skip_improve,
         )
 
     try:
         anyio.run(_run)
     except KeyboardInterrupt:
-        print("\nSelf-improvement loop interrupted.")
+        print("\nMain loop interrupted.")
         sys.exit(1)
 
     # Cooldown before next cycle
@@ -963,10 +1182,12 @@ def main() -> None:
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
             dry_run=args.dry_run,
+            skip_analysis=args.skip_analysis,
+            skip_improve=args.skip_improve,
             verbose=args.verbose,
         )
     else:
-        print("\nSelf-improvement loop finished.")
+        print("\nMain loop finished.")
 
 
 if __name__ == "__main__":

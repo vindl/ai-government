@@ -1,5 +1,5 @@
 services:
-  self-improve:
+  ai-government:
     build: .
     init: true
     user: "${UID:-1000}:${GID:-1000}"
@@ -7,13 +7,15 @@ services:
       - GH_TOKEN
       - REPO_URL=${REPO_URL:-https://github.com/vindl/ai-government.git}
       - REPO_BRANCH=${REPO_BRANCH:-main}
-      - SELF_IMPROVE_MAX_CYCLES
-      - SELF_IMPROVE_COOLDOWN
-      - SELF_IMPROVE_PROPOSALS
-      - SELF_IMPROVE_MODEL
-      - SELF_IMPROVE_MAX_PR_ROUNDS
-      - SELF_IMPROVE_DRY_RUN
-      - SELF_IMPROVE_VERBOSE
+      - LOOP_MAX_CYCLES
+      - LOOP_COOLDOWN
+      - LOOP_PROPOSALS
+      - LOOP_MODEL
+      - LOOP_MAX_PR_ROUNDS
+      - LOOP_DRY_RUN
+      - LOOP_SKIP_ANALYSIS
+      - LOOP_SKIP_IMPROVE
+      - LOOP_VERBOSE
     volumes:
       - ~/.claude:/home/aigov/.claude
     deploy:

@@ -63,15 +63,21 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Loop iterates until approval (auto-merge) or max rounds reached
   - Each agent gets fresh context per round (no session continuity)
   - Configurable: `--max-rounds`, `--model`, `--branch`, `-v`
-- [x] `scripts/self_improve.py` — autonomous self-improvement loop
-  - Indefinite cycle: propose → debate → backlog → pick → execute → repeat
+- [x] `scripts/main_loop.py` — unified main loop (analysis + self-improvement)
+  - Three-phase cycle:
+    - Phase A: Check for new government decisions → create analysis issues
+    - Phase B: Self-improvement — propose → debate → backlog
+    - Phase C: Pick from unified backlog → execute (routes by task type)
+  - `task:analysis` issues run the orchestrator pipeline (ministries + parliament + critic)
+  - `task:code-change` issues run pr_workflow (coder-reviewer loop)
+  - Analysis tasks get execution priority over code changes
   - PM agent proposes improvements across dev and government domains
   - Two-agent debate (PM advocate vs Reviewer skeptic) with deterministic judge
   - All proposals, debates, and verdicts tracked as GitHub Issues with labels
   - Human suggestions supported via `human-suggestion` label
-  - Execution uses pr_workflow directly (same process, no subprocess)
   - Failed tasks tracked and excluded from re-proposal
   - Configurable: `--max-cycles`, `--cooldown`, `--proposals`, `--dry-run`
+  - Phase skipping: `--skip-analysis`, `--skip-improve`
 
 ### Docker Support
 - [x] `Dockerfile` — Python 3.12-slim with Node.js 20, gh CLI, uv, Claude Code CLI

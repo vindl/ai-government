@@ -1901,35 +1901,36 @@ def _check_error_patterns() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Telemetry commit
+# Output data commit (telemetry, analysis results, overrides)
 # ---------------------------------------------------------------------------
 
 
-def _commit_telemetry() -> None:
-    """Commit and push telemetry file if it has changes. Non-fatal."""
+def _commit_output_data() -> None:
+    """Commit and push all output/data/ files (telemetry, results, overrides). Non-fatal."""
+    data_dir = PROJECT_ROOT / "output" / "data"
     try:
-        if not TELEMETRY_PATH.exists():
+        if not data_dir.exists():
             return
-        # Check for changes
+        # Check for any changed or untracked files in output/data/
         diff = _run_gh(
-            ["git", "diff", "--name-only", str(TELEMETRY_PATH)], check=False,
+            ["git", "diff", "--name-only", str(data_dir)], check=False,
         )
         untracked = _run_gh(
-            ["git", "ls-files", "--others", "--exclude-standard", str(TELEMETRY_PATH)],
+            ["git", "ls-files", "--others", "--exclude-standard", str(data_dir)],
             check=False,
         )
         has_changes = bool(diff.stdout.strip()) or bool(untracked.stdout.strip())
         if not has_changes:
             return
-        _run_gh(["git", "add", str(TELEMETRY_PATH)], check=False)
+        _run_gh(["git", "add", str(data_dir)], check=False)
         _run_gh(
-            ["git", "commit", "-m", "chore: update telemetry"],
+            ["git", "commit", "-m", "chore: update output data"],
             check=False,
         )
         _run_gh(["git", "push"], check=False)
-        log.info("Telemetry committed and pushed")
+        log.info("Output data committed and pushed")
     except Exception:
-        log.exception("Telemetry commit failed (non-fatal)")
+        log.exception("Output data commit failed (non-fatal)")
 
 
 # ---------------------------------------------------------------------------
@@ -2273,7 +2274,7 @@ def _reexec(
     invocation so that any modifications to this script (or pr_workflow,
     or anything else) are picked up automatically.
     """
-    _commit_telemetry()
+    _commit_output_data()
     _run_gh(["git", "checkout", "main"], check=False)
     _run_gh(["git", "pull", "--ff-only"], check=False)
 

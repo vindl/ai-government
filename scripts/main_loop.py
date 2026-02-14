@@ -190,6 +190,21 @@ def _is_privileged_user(username: str) -> bool:
     return data.get("permission", "") in PRIVILEGED_PERMISSIONS
 
 
+def _is_issue_open(issue_number: int) -> bool:
+    """Check if an issue is currently open."""
+    result = _run_gh(
+        ["gh", "issue", "view", str(issue_number), "--json", "state"],
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+    return data.get("state", "").upper() == "OPEN"
+
+
 def _ensure_labels() -> None:
     """Create all labels idempotently."""
     for label, color in ALL_LABELS.items():
@@ -1025,6 +1040,11 @@ async def step_debate(
                 domain=project_domain,
             )
             proposal["issue_number"] = issue_number
+        else:
+            # Verify existing issue is still open before debating
+            if not _is_issue_open(issue_number):
+                log.info("Skipping debate for #%d (already closed)", issue_number)
+                continue
 
         # Round 1: Advocate opens, Skeptic challenges
         advocate_arg = await _run_advocate(title, description, domain, model=model)

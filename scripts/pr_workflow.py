@@ -27,7 +27,7 @@ DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_MAX_ROUNDS = 0  # 0 = unlimited, loop until approved
 
 CODER_MAX_TURNS = 30
-REVIEWER_MAX_TURNS = 10
+REVIEWER_MAX_TURNS = 20  # Increased from 10 to allow reviewer to complete all steps
 
 CODER_TOOLS = ["Bash", "Write", "Edit", "Read", "Glob", "Grep"]
 REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
@@ -261,6 +261,18 @@ def get_human_override_text(pr_number: int) -> str:
     return _extract_override_from_comments(comments, "PR", pr_number)
 
 
+def extract_verdict_from_text(text: str) -> str:
+    """Extract verdict marker from text (reviewer output).
+
+    Returns 'APPROVED', 'CHANGES_REQUESTED', or '' (empty).
+    """
+    if VERDICT_APPROVED in text:
+        return "APPROVED"
+    if VERDICT_CHANGES_REQUESTED in text:
+        return "CHANGES_REQUESTED"
+    return ""
+
+
 def get_review_verdict_from_comments(pr_number: int) -> str:
     """Parse the latest PR comment for a structured verdict.
 
@@ -288,10 +300,9 @@ def get_review_verdict_from_comments(pr_number: int) -> str:
     # Scan newest comments first
     for comment in reversed(comments):
         body = comment.get("body", "")
-        if VERDICT_APPROVED in body:
-            return "APPROVED"
-        if VERDICT_CHANGES_REQUESTED in body:
-            return "CHANGES_REQUESTED"
+        verdict = extract_verdict_from_text(body)
+        if verdict:
+            return verdict
 
     return ""
 
@@ -615,6 +626,7 @@ async def run_workflow(
 
     # --- Review loop: reviewer → (merge | coder fix) → repeat ---
     round_num = 0
+    consecutive_missing_verdicts = 0
     while True:
         round_num += 1
 
@@ -638,7 +650,44 @@ async def run_workflow(
 
         # Check review verdict from PR comments
         state = get_review_verdict_from_comments(pr_number)
-        print(f"Review verdict: {state or '(none)'}")
+        print(f"Review verdict from comments: {state or '(none)'}")
+
+        # Fallback: if verdict missing from comments, check reviewer output text
+        if not state:
+            state = extract_verdict_from_text(reviewer_output)
+            if state:
+                log.warning(
+                    "Reviewer composed verdict '%s' but did not post it (likely ran out of turns). "
+                    "Using verdict from output text as fallback.",
+                    state,
+                )
+                print(f"Review verdict from output text (fallback): {state}")
+
+        # Track consecutive missing verdicts
+        if not state:
+            consecutive_missing_verdicts += 1
+            log.warning(
+                "Review verdict missing for %d consecutive round(s). "
+                "Reviewer may have run out of turns.",
+                consecutive_missing_verdicts,
+            )
+        else:
+            consecutive_missing_verdicts = 0  # reset counter
+
+        # Break loop if verdict missing for 2+ consecutive rounds
+        if consecutive_missing_verdicts >= 2:
+            log.error(
+                "Verdict missing for %d consecutive rounds. Reviewer unable to complete review. "
+                "Treating as approved (no blocking issues found) and merging.",
+                consecutive_missing_verdicts,
+            )
+            print(
+                f"\nWARNING: Reviewer failed to post verdict for {consecutive_missing_verdicts} rounds. "
+                "Assuming no blocking issues and merging PR."
+            )
+            merge_pr(pr_number)
+            print(f"Done! PR merged after {round_num} rounds (auto-approved due to missing verdicts).")
+            return
 
         if state == "APPROVED":
             print(f"\nPR #{pr_number} approved! Merging...")

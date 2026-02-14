@@ -96,3 +96,22 @@
 - **Configurable safety**: `--max-cycles`, `--cooldown`, `--dry-run`, `--max-pr-rounds`
 
 **Consequences**: The project can run unattended and continuously improve itself. All decisions are publicly traceable on GitHub (issues, comments, PRs). The debate mechanism prevents low-quality proposals from wasting execution time. Human suggestions are first-class citizens in the triage pipeline.
+
+---
+
+## ADR-008: Docker Isolation for Self-Improvement Loop
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The self-improvement loop runs with `bypassPermissions` and executes arbitrary commands via Claude Code SDK subprocesses. Running on the host machine exposes private data (SSH keys, `.netrc`, other repos) to the autonomous loop.
+
+**Decision**: Dockerize the self-improvement loop with these isolation properties:
+- Container only sees a fresh git clone (no host filesystem mount)
+- Only two host resources exposed: `GH_TOKEN` env var and `~/.claude` mount (for OAuth token refresh)
+- `init: true` (tini as PID 1) for proper signal handling with `os.execv`
+- `user: UID:GID` matching host user so Claude CLI can read/write `~/.claude`
+- Resource limits (4 CPUs, 8GB RAM) prevent runaway consumption
+- `on-failure:3` restart policy for crash recovery without infinite loops
+- `uv sync` added to `_reexec()` so dependency changes from merged PRs are installed before the next cycle
+
+**Consequences**: The autonomous loop is sandboxed — even with `bypassPermissions`, it cannot access host secrets, other repos, or system configuration. The trade-off is a heavier image (~1GB) due to Node.js and Claude Code CLI dependencies, and slightly slower startup from the fresh clone on each container start.

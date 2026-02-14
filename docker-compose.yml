@@ -1,0 +1,29 @@
+services:
+  self-improve:
+    build: .
+    init: true
+    user: "${UID:-1000}:${GID:-1000}"
+    environment:
+      - GH_TOKEN
+      - REPO_URL=${REPO_URL:-https://github.com/vindl/ai-government.git}
+      - REPO_BRANCH=${REPO_BRANCH:-main}
+      - SELF_IMPROVE_MAX_CYCLES
+      - SELF_IMPROVE_COOLDOWN
+      - SELF_IMPROVE_PROPOSALS
+      - SELF_IMPROVE_MODEL
+      - SELF_IMPROVE_MAX_PR_ROUNDS
+      - SELF_IMPROVE_DRY_RUN
+      - SELF_IMPROVE_VERBOSE
+    volumes:
+      - ~/.claude:/home/aigov/.claude
+    deploy:
+      resources:
+        limits:
+          cpus: "4"
+          memory: 8G
+    restart: on-failure:3
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"

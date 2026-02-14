@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
-DEFAULT_MAX_ROUNDS = 3
+DEFAULT_MAX_ROUNDS = 0  # 0 = unlimited, loop until approved
 
 CODER_MAX_TURNS = 30
 REVIEWER_MAX_TURNS = 15
@@ -278,17 +278,22 @@ async def run_workflow(
     model: str = DEFAULT_MODEL,
     branch: str | None = None,
 ) -> None:
-    """Run the full PR coder-reviewer workflow."""
+    """Run the full PR coder-reviewer workflow.
+
+    Loops reviewer → coder until the reviewer approves, then merges.
+    If max_rounds > 0, stops after that many rounds and leaves the PR open.
+    """
     branch_name = branch or make_branch_name(task)
+    rounds_label = "unlimited" if max_rounds == 0 else str(max_rounds)
 
     # Ensure we're on the right branch
     current = get_current_branch()
     if current != branch_name:
         create_branch(branch_name)
 
-    # Round 1: Coder implements and opens PR
+    # --- Round 1: Coder implements and opens PR ---
     print(f"\n{'='*60}")
-    print(f"ROUND 1 / {max_rounds}: Coder implementing...")
+    print(f"ROUND 1 (max: {rounds_label}): Coder implementing...")
     print(f"{'='*60}\n")
 
     coder_prompt = _build_coder_prompt_round1(task)
@@ -308,10 +313,19 @@ async def run_workflow(
 
     print(f"PR #{pr_number} created on branch {branch_name}")
 
-    # Review rounds
-    for round_num in range(2, max_rounds + 1):
+    # --- Review loop: reviewer → (merge | coder fix) → repeat ---
+    round_num = 1
+    while True:
+        round_num += 1
+
+        # Check safety cap
+        if max_rounds > 0 and round_num > max_rounds:
+            print(f"\nReached max rounds ({max_rounds}). PR #{pr_number} remains open.")
+            sys.exit(1)
+
+        # Reviewer reviews
         print(f"\n{'='*60}")
-        print(f"ROUND {round_num} / {max_rounds}: Reviewer reviewing PR #{pr_number}...")
+        print(f"ROUND {round_num} (max: {rounds_label}): Reviewer reviewing PR #{pr_number}...")
         print(f"{'='*60}\n")
 
         reviewer_output, had_error = await run_reviewer(pr_number, model=model)
@@ -329,7 +343,7 @@ async def run_workflow(
         if state == "APPROVED":
             print(f"\nPR #{pr_number} approved! Merging...")
             merge_pr(pr_number)
-            print("Done! PR merged successfully.")
+            print(f"Done! PR merged after {round_num} rounds.")
             return
 
         if state != "CHANGES_REQUESTED":
@@ -337,7 +351,7 @@ async def run_workflow(
 
         # Coder addresses feedback
         print(f"\n{'='*60}")
-        print(f"ROUND {round_num} / {max_rounds}: Coder addressing feedback...")
+        print(f"ROUND {round_num} (max: {rounds_label}): Coder addressing feedback...")
         print(f"{'='*60}\n")
 
         coder_prompt = _build_coder_prompt_followup(task, pr_number)
@@ -348,28 +362,6 @@ async def run_workflow(
             sys.exit(1)
 
         print(f"\nCoder output:\n{output[:500]}{'...' if len(output) > 500 else ''}\n")
-
-    # Final review after last coder round
-    print(f"\n{'='*60}")
-    print(f"FINAL REVIEW: Reviewer reviewing PR #{pr_number}...")
-    print(f"{'='*60}\n")
-
-    reviewer_output, had_error = await run_reviewer(pr_number, model=model)
-
-    if had_error:
-        print("ERROR: Reviewer agent failed in final review. Aborting.")
-        sys.exit(1)
-
-    state = get_pr_review_state(pr_number)
-    print(f"Final review state: {state or '(none)'}")
-
-    if state == "APPROVED":
-        print(f"\nPR #{pr_number} approved! Merging...")
-        merge_pr(pr_number)
-        print("Done! PR merged successfully.")
-    else:
-        print(f"\nPR #{pr_number} was NOT approved after {max_rounds} rounds.")
-        print("The PR remains open for manual intervention.")
 
 
 # ---------------------------------------------------------------------------
@@ -384,7 +376,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
   uv run python scripts/pr_workflow.py "Implement the gov.me scraper MCP server"
-  uv run python scripts/pr_workflow.py "Add retry logic" --max-rounds 5
+  uv run python scripts/pr_workflow.py "Add retry logic" --max-rounds 5  # safety cap
   uv run python scripts/pr_workflow.py "Fix bug" --model claude-opus-4-6 -v
   uv run python scripts/pr_workflow.py "Refactor" --branch ai-dev/my-branch
 """,
@@ -397,7 +389,7 @@ def main() -> None:
         "--max-rounds",
         type=int,
         default=DEFAULT_MAX_ROUNDS,
-        help=f"Maximum coder-reviewer rounds (default: {DEFAULT_MAX_ROUNDS})",
+        help=f"Maximum coder-reviewer rounds; 0 = unlimited (default: {DEFAULT_MAX_ROUNDS})",
     )
     parser.add_argument(
         "--model",

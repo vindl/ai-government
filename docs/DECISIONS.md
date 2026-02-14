@@ -227,3 +227,24 @@ All new model fields are optional (`None` default) for backwards compatibility w
 - Labels-only (status quo) — rejected: works for agents but poor human visibility
 
 **Consequences**: Humans get a kanban board and table view without changing agent behavior. The `project` OAuth scope must be granted to the token (`gh auth refresh -s project`). Board/table views are configured manually in the GitHub web UI (one-time setup). Slightly more API calls per label transition (~1-3 extra calls per status change), but all are non-blocking.
+
+---
+
+## ADR-014: Discussions as Human-Only Surface
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: GitHub Discussions and Wiki were enabled on the repo. The project needed to decide how (or whether) to use them alongside the existing agent-driven Issue tracker and GitHub Pages static site.
+
+**Decision**:
+- **Discussions: adopted as a human-only surface.** Four categories: Announcements (maintainer updates), Decision Suggestions (citizens propose decisions), Methodology (Q&A about scoring/agents), Corrections (report factual errors per Constitution Art. 24). No agent integration — the maintainer manually triages Discussions into Issues when appropriate.
+- **Wiki: disabled.** It duplicates `docs/` and the static site, is not version-controlled, and agents cannot maintain it programmatically.
+- **Language policy**: Backend, agents, docs, community files, and Discussion structure stay English. The static site (GitHub Pages) uses Montenegrin with proper diacritics (č, ć, š, ž, đ) and ijekavski dialect. User-generated content in Discussions may be in Montenegrin.
+- **Issue templates with contact_links** redirect conversational questions to Discussions, keeping the Issue tracker clean for the agent state machine.
+
+**Alternatives considered**:
+- Agent-managed Discussions (auto-post analyses, auto-respond) — rejected: Discussions are meant for human conversation; agent noise would discourage participation
+- Wiki for documentation — rejected: not version-controlled, duplicates existing docs, agents can't maintain it
+- Montenegrin community files — rejected: contributors/developers need English; only the public-facing site targets Montenegrin citizens
+
+**Consequences**: Clean separation between human conversation (Discussions) and agent workflow (Issues). The Issue tracker stays structured and machine-readable. Citizens get a dedicated space to suggest decisions and report errors without needing to understand the agent pipeline. No main loop code changes required.

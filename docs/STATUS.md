@@ -156,6 +156,19 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `docs/DECISIONS.md` — architectural decision records
 - [x] `docs/STATUS.md` — this file
 
+### Community Infrastructure
+- [x] `CONTRIBUTING.md` — contribution guide for citizens and developers
+- [x] `CODE_OF_CONDUCT.md` — references Constitution + Contributor Covenant
+- [x] `.github/ISSUE_TEMPLATE/config.yml` — contact links redirecting questions to Discussions
+- [x] `.github/ISSUE_TEMPLATE/decision-suggestion.yml` — structured decision submission template
+- [x] `.github/ISSUE_TEMPLATE/improvement-suggestion.yml` — project improvement template
+- [x] `.github/ISSUE_TEMPLATE/bug-report.yml` — standard bug report template
+- [x] GitHub Discussions — 4 categories: Announcements, Decision Suggestions, Methodology, Corrections
+- [x] Wiki disabled (duplicates `docs/` and static site)
+- [x] Site nav: "Diskusija" link to Discussions tab, proper diacritics on all nav items
+- [x] Scorecard: "Prijavite grešku" link to Corrections category
+- [x] Index: "Predložite odluku za analizu" CTA linking to Decision Suggestions
+
 ## What Is a Stub / Placeholder
 
 These files exist but have no real implementation yet:

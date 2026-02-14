@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question about methodology?
+    url: https://github.com/vindl/ai-government/discussions/categories/methodology
+    about: Ask about scoring, agent behavior, counter-proposals, or analytical methods.
+  - name: Suggest a decision for analysis
+    url: https://github.com/vindl/ai-government/discussions/categories/decision-suggestions
+    about: Suggest a government decision the AI Government should analyze.

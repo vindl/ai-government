@@ -1,0 +1,36 @@
+name: Decision Suggestion
+description: Submit a government decision for AI analysis
+labels: ["human-suggestion", "task:analysis"]
+body:
+  - type: input
+    id: title
+    attributes:
+      label: Decision Title
+      description: The official name or short description of the government decision.
+      placeholder: e.g. Uredba o izmjenama Zakona o porezu na dohodak
+    validations:
+      required: true
+  - type: input
+    id: date
+    attributes:
+      label: Decision Date
+      description: When was the decision made or published? (YYYY-MM-DD)
+      placeholder: "2026-01-15"
+    validations:
+      required: true
+  - type: input
+    id: source_url
+    attributes:
+      label: Source URL
+      description: Link to the official document, gazette entry, or news report.
+      placeholder: https://www.gov.me/...
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why is this decision important? What should the AI Government know when analyzing it?
+      placeholder: Briefly explain the significance, affected populations, or concerns.
+    validations:
+      required: false

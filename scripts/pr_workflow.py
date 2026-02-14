@@ -158,12 +158,8 @@ def get_review_verdict_from_comments(pr_number: int) -> str:
 
 
 def merge_pr(pr_number: int) -> None:
-    """Merge a PR using gh.
-
-    Uses --squash (merge commits are disabled on this repo) and --admin
-    to bypass branch protection (self-reviews aren't possible on GitHub).
-    """
-    _run_gh(["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch", "--admin"])
+    """Merge a PR using gh (squash merge)."""
+    _run_gh(["gh", "pr", "merge", str(pr_number), "--squash", "--delete-branch"])
     log.info("Merged PR #%d", pr_number)
 
 

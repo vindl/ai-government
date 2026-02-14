@@ -17,6 +17,8 @@ import re
 import subprocess
 import sys
 import time
+from collections import Counter
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +27,12 @@ import claude_code_sdk
 from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 
 from ai_government.config import SessionConfig
+from ai_government.models.telemetry import (
+    CyclePhaseResult,
+    CycleTelemetry,
+    append_telemetry,
+    load_telemetry,
+)
 from ai_government.orchestrator import Orchestrator
 from ai_government.output.scorecard import render_scorecard
 from ai_government.output.site_builder import load_results_from_dir, save_result_json
@@ -52,6 +60,10 @@ DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_COOLDOWN_SECONDS = 60
 DEFAULT_PROPOSALS_PER_CYCLE = 1
 DEFAULT_MAX_PR_ROUNDS = 0  # 0 = unlimited
+DEFAULT_DIRECTOR_INTERVAL = 5
+DIRECTOR_MAX_TURNS = 10
+ERROR_PATTERN_WINDOW = 5
+ERROR_PATTERN_THRESHOLD = 3
 
 LABEL_PROPOSED = "self-improve:proposed"
 LABEL_BACKLOG = "self-improve:backlog"
@@ -60,6 +72,8 @@ LABEL_IN_PROGRESS = "self-improve:in-progress"
 LABEL_DONE = "self-improve:done"
 LABEL_FAILED = "self-improve:failed"
 LABEL_HUMAN = "human-suggestion"
+LABEL_DIRECTOR = "director-suggestion"
+LABEL_STRATEGY = "strategy-suggestion"
 LABEL_TASK_ANALYSIS = "task:analysis"
 LABEL_TASK_CODE = "task:code-change"
 
@@ -71,6 +85,8 @@ ALL_LABELS: dict[str, str] = {
     LABEL_DONE: "6f42c1",       # purple
     LABEL_FAILED: "d73a4a",     # red
     LABEL_HUMAN: "0075ca",      # blue
+    LABEL_DIRECTOR: "d876e3",    # purple (sage)
+    LABEL_STRATEGY: "f9a825",    # amber (reserved for #83)
     LABEL_TASK_ANALYSIS: "1d76db",  # light blue
     LABEL_TASK_CODE: "5319e7",      # violet
 }
@@ -97,6 +113,7 @@ PROPOSE_TOOLS = ["Bash", "Read", "Glob", "Grep"]
 PRIVILEGED_PERMISSIONS = {"admin", "maintain"}
 
 SEED_DECISIONS_PATH = PROJECT_ROOT / "data" / "seed" / "sample_decisions.json"
+TELEMETRY_PATH = PROJECT_ROOT / "output" / "data" / "telemetry.jsonl"
 
 log = logging.getLogger("main_loop")
 
@@ -501,6 +518,21 @@ def create_proposal_issue(title: str, body: str, *, domain: str = "N/A") -> int:
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
     _add_to_project(issue_number, status="Proposed", task_type="Code Change", domain=domain)
+    return issue_number
+
+
+def create_director_issue(title: str, body: str) -> int:
+    """Create a GitHub Issue from the Project Director. Returns issue number."""
+    ai_body = f"Written by Project Director agent:\n\n{body}"
+    result = _run_gh([
+        "gh", "issue", "create",
+        "--title", title,
+        "--body", ai_body,
+        "--label", f"{LABEL_DIRECTOR},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+    ])
+    url = result.stdout.strip()
+    issue_number = int(url.rstrip("/").split("/")[-1])
+    _add_to_project(issue_number, status="Backlog", task_type="Code Change", domain="Dev")
     return issue_number
 
 
@@ -1340,17 +1372,34 @@ def _issue_has_label(issue: dict[str, Any], label: str) -> bool:
 
 
 def step_pick() -> dict[str, Any] | None:
-    """Pick the next backlog issue. Analysis tasks get priority, then FIFO."""
+    """Pick the next backlog issue using 5-tier priority.
+
+    Priority order:
+      1. Analysis tasks (task:analysis)
+      2. Human suggestions (human-suggestion)
+      3. Strategy suggestions (strategy-suggestion) — reserved for #83
+      4. Director suggestions (director-suggestion)
+      5. Regular FIFO (oldest first)
+    """
     issues = list_backlog_issues()
     if not issues:
         log.info("No backlog issues to pick")
         return None
 
-    # Prefer analysis tasks over code changes
-    for issue in issues:
-        if _issue_has_label(issue, LABEL_TASK_ANALYSIS):
-            log.info("Picked analysis issue #%d: %s", issue["number"], issue["title"])
-            return issue
+    priority_labels = [
+        LABEL_TASK_ANALYSIS,
+        LABEL_HUMAN,
+        LABEL_STRATEGY,
+        LABEL_DIRECTOR,
+    ]
+
+    for label in priority_labels:
+        for issue in issues:
+            if _issue_has_label(issue, label):
+                log.info(
+                    "Picked [%s] issue #%d: %s", label, issue["number"], issue["title"],
+                )
+                return issue
 
     # Fall back to FIFO
     picked = issues[0]
@@ -1430,6 +1479,228 @@ async def step_execute_code_change(
 
 
 # ---------------------------------------------------------------------------
+# Phase D: Project Director
+# ---------------------------------------------------------------------------
+
+
+def _prefetch_director_context(last_n_cycles: int) -> str:
+    """Pre-fetch all context the Director needs (it has no tool access)."""
+    sections: list[str] = []
+
+    # 1. Telemetry
+    entries = load_telemetry(TELEMETRY_PATH, last_n=last_n_cycles)
+    if entries:
+        telem_lines = [e.model_dump_json() for e in entries]
+        sections.append(
+            f"## Recent Telemetry (last {len(entries)} cycles)\n\n"
+            + "\n".join(telem_lines)
+        )
+
+        # Compute yield
+        yielded = sum(1 for e in entries if e.cycle_yielded)
+        total = len(entries)
+        pct = (yielded / total * 100) if total else 0
+        sections.append(
+            f"\n## Cycle Yield: {yielded}/{total} ({pct:.0f}%)\n"
+        )
+    else:
+        sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
+
+    # 2. Recent issues
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--state", "all",
+        "--json", "number,title,state,labels,createdAt",
+        "--limit", "30",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        sections.append(f"## Recent Issues (up to 30)\n\n{result.stdout.strip()}")
+
+    # 3. Recent PRs
+    result = _run_gh([
+        "gh", "pr", "list",
+        "--state", "all",
+        "--json", "number,title,state,createdAt,mergedAt,closedAt",
+        "--limit", "15",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        sections.append(f"## Recent PRs (up to 15)\n\n{result.stdout.strip()}")
+
+    # 4. Label distribution
+    label_result = _run_gh([
+        "gh", "issue", "list",
+        "--state", "open",
+        "--json", "labels",
+        "--limit", "100",
+    ], check=False)
+    if label_result.returncode == 0 and label_result.stdout.strip():
+        try:
+            issues = json.loads(label_result.stdout)
+            label_counts: Counter[str] = Counter()
+            for issue in issues:
+                for lbl in issue.get("labels", []):
+                    label_counts[lbl.get("name", "")] += 1
+            dist = "\n".join(f"  {k}: {v}" for k, v in label_counts.most_common())
+            sections.append(f"## Open Issue Label Distribution\n\n{dist}")
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    return "\n\n".join(sections)
+
+
+async def step_director(*, model: str, director_interval: int) -> list[int]:
+    """Run the Project Director agent. Returns list of created issue numbers."""
+    context = _prefetch_director_context(last_n_cycles=director_interval * 2)
+
+    system_prompt = _load_role_prompt("director")
+    prompt = f"""Review the operational data below and identify systemic problems.
+
+{context}
+
+Based on this data, output a JSON array of 0-2 issues to file.
+Each issue should target a root cause, not a symptom.
+If the system is healthy, output an empty array: []
+
+Format:
+[
+  {{"title": "Short imperative title", "description": "What to change, which file, and why"}}
+]
+"""
+
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=DIRECTOR_MAX_TURNS,
+        allowed_tools=[],
+    )
+
+    log.info("Running Project Director agent...")
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    output = await _collect_agent_output(stream)
+
+    issues_data = _parse_json_array(output)
+    issues_data = issues_data[:2]  # Hard cap
+
+    created: list[int] = []
+    for issue in issues_data:
+        title = issue.get("title", "")
+        description = issue.get("description", "")
+        if not title:
+            continue
+        num = create_director_issue(title, description)
+        log.info("Director filed issue #%d: %s", num, title)
+        created.append(num)
+
+    return created
+
+
+# ---------------------------------------------------------------------------
+# Resilience — Layer 3: error pattern detection (circuit breaker)
+# ---------------------------------------------------------------------------
+
+
+def _check_error_patterns() -> None:
+    """Scan recent telemetry for recurring errors and auto-file a stability issue.
+
+    This is a mechanical pattern detector — no LLM call, no cost, instant.
+    Max 1 auto-filed issue per invocation. Never crashes the loop.
+    """
+    try:
+        entries = load_telemetry(TELEMETRY_PATH, last_n=ERROR_PATTERN_WINDOW)
+        if len(entries) < ERROR_PATTERN_THRESHOLD:
+            return
+
+        # Collect all errors across recent cycles
+        pattern_counts: Counter[str] = Counter()
+        for entry in entries:
+            for err in entry.errors:
+                # Extract a stable pattern: first line (exception class + message prefix)
+                pattern = err.strip().split("\n")[0][:120]
+                if pattern:
+                    pattern_counts[pattern] += 1
+
+        # Find patterns that exceed threshold
+        for pattern, count in pattern_counts.most_common():
+            if count < ERROR_PATTERN_THRESHOLD:
+                break
+
+            # Deduplicate: check if an open stability issue already exists
+            result = _run_gh([
+                "gh", "issue", "list",
+                "--state", "open",
+                "--search", "stability:",
+                "--json", "number,title",
+                "--limit", "20",
+            ], check=False)
+            if result.returncode == 0 and result.stdout.strip():
+                existing = json.loads(result.stdout)
+                # Check if any existing stability issue covers this pattern
+                already_filed = any(
+                    pattern[:50] in issue.get("title", "")
+                    for issue in existing
+                )
+                if already_filed:
+                    log.debug("Stability issue already exists for: %s", pattern[:50])
+                    return
+
+            # File one stability issue
+            title = f"stability: {pattern[:70]}"
+            cycles_affected = [
+                str(e.cycle) for e in entries if any(pattern[:50] in err for err in e.errors)
+            ]
+            body = (
+                f"**Auto-filed by error pattern detector (Layer 3)**\n\n"
+                f"Recurring error detected in {count}/{len(entries)} "
+                f"of the last {len(entries)} cycles.\n\n"
+                f"**Pattern**: `{pattern}`\n\n"
+                f"**Affected cycles**: {', '.join(cycles_affected)}\n\n"
+                f"**Full errors from most recent occurrence**:\n```\n"
+                + "\n---\n".join(
+                    err for e in entries for err in e.errors if pattern[:50] in err
+                )[:2000]
+                + "\n```"
+            )
+            num = create_director_issue(title, body)
+            log.info("Auto-filed stability issue #%d: %s", num, title)
+            return  # Max 1 per invocation
+
+    except Exception:
+        log.exception("Error pattern check failed (non-fatal)")
+
+
+# ---------------------------------------------------------------------------
+# Telemetry commit
+# ---------------------------------------------------------------------------
+
+
+def _commit_telemetry() -> None:
+    """Commit and push telemetry file if it has changes. Non-fatal."""
+    try:
+        if not TELEMETRY_PATH.exists():
+            return
+        # Check for changes
+        diff = _run_gh(
+            ["git", "diff", "--name-only", str(TELEMETRY_PATH)], check=False,
+        )
+        untracked = _run_gh(
+            ["git", "ls-files", "--others", "--exclude-standard", str(TELEMETRY_PATH)],
+            check=False,
+        )
+        has_changes = bool(diff.stdout.strip()) or bool(untracked.stdout.strip())
+        if not has_changes:
+            return
+        _run_gh(["git", "add", str(TELEMETRY_PATH)], check=False)
+        _run_gh(
+            ["git", "commit", "-m", "chore: update telemetry"],
+            check=False,
+        )
+        _run_gh(["git", "push"], check=False)
+        log.info("Telemetry committed and pushed")
+    except Exception:
+        log.exception("Telemetry commit failed (non-fatal)")
+
+
+# ---------------------------------------------------------------------------
 # X daily digest
 # ---------------------------------------------------------------------------
 
@@ -1472,8 +1743,6 @@ def step_post_tweet() -> bool:
         return False
 
     # Update state
-    from datetime import UTC, datetime
-
     state.last_posted_at = datetime.now(UTC)
     state.posted_decision_ids.extend(r.decision.id for r in unposted[:3])
     save_state(state)
@@ -1491,11 +1760,19 @@ async def run_one_cycle(
     proposals_per_cycle: int = DEFAULT_PROPOSALS_PER_CYCLE,
     model: str = DEFAULT_MODEL,
     max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
+    director_interval: int = DEFAULT_DIRECTOR_INTERVAL,
     dry_run: bool = False,
     skip_analysis: bool = False,
     skip_improve: bool = False,
 ) -> None:
-    """Run a single main loop cycle with three phases."""
+    """Run a single main loop cycle with four phases."""
+    telemetry = CycleTelemetry(
+        cycle=cycle,
+        dry_run=dry_run,
+        skip_analysis=skip_analysis,
+        skip_improve=skip_improve,
+    )
+
     ensure_github_resources_exist()
 
     print(f"\n{'='*60}")
@@ -1506,37 +1783,58 @@ async def run_one_cycle(
     overrides = process_human_overrides()
     if overrides:
         print(f"  Processed {overrides} human override(s) -> moved to backlog")
+    telemetry.human_overrides = overrides
 
     # --- Phase A: Check for new government decisions ---
+    t0 = time.monotonic()
+    phase_a = CyclePhaseResult(phase="A")
     if skip_analysis:
         print("Phase A: Skipped (--skip-analysis)")
+        phase_a.detail = "skipped"
     else:
         print("Phase A: Checking for new government decisions...")
         try:
             new_issues = step_check_decisions()
             print(f"  Created {new_issues} new analysis issue(s)")
-        except Exception:
+            telemetry.decisions_found = new_issues
+            telemetry.analysis_issues_created = new_issues
+            phase_a.detail = f"created {new_issues} issues"
+        except Exception as exc:
             log.exception("Phase A (decision check) failed")
+            phase_a.success = False
+            phase_a.detail = str(exc)
+            telemetry.errors.append(f"Phase A: {exc}")
+    phase_a.duration_seconds = time.monotonic() - t0
+    telemetry.phases.append(phase_a)
 
     # --- Phase B: Self-improvement (propose + debate) ---
+    t0 = time.monotonic()
+    phase_b = CyclePhaseResult(phase="B")
     if skip_improve:
         print("\nPhase B: Skipped (--skip-improve)")
+        phase_b.detail = "skipped"
     else:
         print("\nPhase B: Self-improvement — proposing and debating...")
 
         # Check if backlog is empty — only generate AI proposals when backlog is drained
         backlog = list_backlog_issues()
         if backlog:
-            print(f"  AI proposals: Skipped (backlog has {len(backlog)} open issues — draining queue)")
-            ai_proposals = []
+            print(
+                f"  AI proposals: Skipped "
+                f"(backlog has {len(backlog)} open issues — draining queue)"
+            )
+            ai_proposals: list[dict[str, str]] = []
         else:
             try:
                 ai_proposals = await step_propose(
                     num_proposals=proposals_per_cycle, model=model,
                 )
-            except Exception:
+            except Exception as exc:
                 log.exception("Propose step failed")
                 ai_proposals = []
+                telemetry.errors.append(f"Phase B propose: {exc}")
+
+        telemetry.proposals_made = len(ai_proposals)
 
         # Ingest human suggestions and move them directly to backlog (no debate)
         human_issues = list_human_suggestions()
@@ -1562,8 +1860,10 @@ async def run_one_cycle(
             human_accepted += 1
             log.info("Human suggestion #%d moved to backlog (no debate)", issue_num)
 
+        telemetry.human_suggestions_ingested = human_accepted
+
         # Only AI proposals go through debate
-        all_proposals: list[dict[str, Any]] = ai_proposals
+        all_proposals: list[dict[str, Any]] = list(ai_proposals)
         if human_accepted > 0:
             print(
                 f"  {len(ai_proposals)} AI proposals (debating), "
@@ -1576,28 +1876,79 @@ async def run_one_cycle(
             print("  Debating proposals...")
             try:
                 accepted, rejected = await step_debate(all_proposals, model=model)
-            except Exception:
+            except Exception as exc:
                 log.exception("Debate step failed")
                 accepted, rejected = [], []
+                telemetry.errors.append(f"Phase B debate: {exc}")
+            telemetry.proposals_accepted = len(accepted)
+            telemetry.proposals_rejected = len(rejected)
             print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
+            phase_b.detail = f"{len(accepted)} accepted, {len(rejected)} rejected"
         else:
             print("  No proposals this cycle.")
+            phase_b.detail = "no proposals"
+    phase_b.duration_seconds = time.monotonic() - t0
+    telemetry.phases.append(phase_b)
 
     # --- Phase C: Pick from unified backlog and execute ---
+    t0 = time.monotonic()
+    phase_c = CyclePhaseResult(phase="C")
     print("\nPhase C: Picking next task from backlog...")
     issue = step_pick()
     if issue is None:
         print("  Backlog empty.")
-        return
+        phase_c.detail = "backlog empty"
+    else:
+        task_type = "analysis" if _issue_has_label(issue, LABEL_TASK_ANALYSIS) else "code-change"
+        print(f"  Picked [{task_type}]: #{issue['number']} — {issue['title']}")
+        telemetry.picked_issue_number = issue["number"]
+        telemetry.picked_issue_type = task_type
 
-    task_type = "analysis" if _issue_has_label(issue, LABEL_TASK_ANALYSIS) else "code-change"
-    print(f"  Picked [{task_type}]: #{issue['number']} — {issue['title']}")
+        print(f"\n  Executing issue #{issue['number']}...")
+        try:
+            success = await step_execute(
+                issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+            )
+        except Exception as exc:
+            log.exception("Phase C execution failed")
+            success = False
+            telemetry.errors.append(f"Phase C: {exc}")
+        telemetry.execution_success = success
+        phase_c.success = success
+        phase_c.detail = f"#{issue['number']} {'OK' if success else 'FAILED'}"
+        print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+    phase_c.duration_seconds = time.monotonic() - t0
+    telemetry.phases.append(phase_c)
 
-    print(f"\n  Executing issue #{issue['number']}...")
-    success = await step_execute(
-        issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+    # --- Phase D: Project Director ---
+    t0 = time.monotonic()
+    phase_d = CyclePhaseResult(phase="D")
+    should_run_director = (
+        director_interval > 0
+        and cycle % director_interval == 0
+        and len(load_telemetry(TELEMETRY_PATH)) >= director_interval
     )
-    print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+    if should_run_director:
+        if dry_run:
+            print("\nPhase D: Director — skipped (dry run)")
+            phase_d.detail = "skipped (dry run)"
+        else:
+            print("\nPhase D: Running Project Director...")
+            try:
+                filed = await step_director(model=model, director_interval=director_interval)
+                telemetry.director_ran = True
+                telemetry.director_issues_filed = len(filed)
+                phase_d.detail = f"filed {len(filed)} issues"
+                print(f"  Director filed {len(filed)} issue(s)")
+            except Exception as exc:
+                log.exception("Phase D (Director) failed (non-fatal)")
+                phase_d.success = False
+                phase_d.detail = str(exc)
+                telemetry.errors.append(f"Phase D: {exc}")
+    else:
+        phase_d.detail = "not scheduled"
+    phase_d.duration_seconds = time.monotonic() - t0
+    telemetry.phases.append(phase_d)
 
     # --- Post daily X digest (if due) ---
     if not dry_run:
@@ -1605,8 +1956,23 @@ async def run_one_cycle(
             posted = step_post_tweet()
             if posted:
                 print("  Posted daily X digest")
+                telemetry.tweet_posted = True
         except Exception:
             log.exception("X posting failed (non-fatal)")
+
+    # --- Finalize telemetry ---
+    telemetry.finished_at = datetime.now(UTC)
+    telemetry.duration_seconds = (
+        telemetry.finished_at - telemetry.started_at
+    ).total_seconds()
+
+    # Cycle yielded if: execution succeeded, analysis was published, or tweet posted
+    telemetry.cycle_yielded = bool(
+        telemetry.execution_success or telemetry.tweet_posted
+    )
+
+    append_telemetry(TELEMETRY_PATH, telemetry)
+    _check_error_patterns()
 
 
 def _reexec(
@@ -1617,6 +1983,7 @@ def _reexec(
     proposals: int,
     model: str,
     max_pr_rounds: int,
+    director_interval: int,
     dry_run: bool,
     skip_analysis: bool,
     skip_improve: bool,
@@ -1629,6 +1996,7 @@ def _reexec(
     invocation so that any modifications to this script (or pr_workflow,
     or anything else) are picked up automatically.
     """
+    _commit_telemetry()
     _run_gh(["git", "checkout", "main"], check=False)
     _run_gh(["git", "pull", "--ff-only"], check=False)
 
@@ -1653,6 +2021,8 @@ def _reexec(
         argv += ["--model", model]
     if max_pr_rounds != DEFAULT_MAX_PR_ROUNDS:
         argv += ["--max-pr-rounds", str(max_pr_rounds)]
+    if director_interval != DEFAULT_DIRECTOR_INTERVAL:
+        argv += ["--director-interval", str(director_interval)]
     if dry_run:
         argv += ["--dry-run"]
     if skip_analysis:
@@ -1676,11 +2046,12 @@ def main() -> None:
         description="Unified main loop: analyze government decisions + self-improve.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
-  uv run python scripts/main_loop.py                          # run indefinitely
-  uv run python scripts/main_loop.py --dry-run --max-cycles 1 # test ideation + triage only
-  uv run python scripts/main_loop.py --max-cycles 3           # 3 cycles then stop
-  uv run python scripts/main_loop.py --skip-improve           # analysis only
-  uv run python scripts/main_loop.py --skip-analysis          # self-improvement only
+  uv run python scripts/main_loop.py                                      # run indefinitely
+  uv run python scripts/main_loop.py --dry-run --max-cycles 1             # test ideation only
+  uv run python scripts/main_loop.py --max-cycles 3                       # 3 cycles then stop
+  uv run python scripts/main_loop.py --skip-improve                       # analysis only
+  uv run python scripts/main_loop.py --skip-analysis                      # self-improvement only
+  uv run python scripts/main_loop.py --director-interval 1 --max-cycles 1 # test Director
 """,
     )
     parser.add_argument(
@@ -1702,6 +2073,13 @@ def main() -> None:
     parser.add_argument(
         "--max-pr-rounds", type=int, default=DEFAULT_MAX_PR_ROUNDS,
         help=f"Max coder-reviewer rounds per PR; 0 = unlimited (default: {DEFAULT_MAX_PR_ROUNDS})",
+    )
+    parser.add_argument(
+        "--director-interval", type=int, default=DEFAULT_DIRECTOR_INTERVAL,
+        help=(
+            f"Run Project Director every N cycles; 0 = disabled "
+            f"(default: {DEFAULT_DIRECTOR_INTERVAL})"
+        ),
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -1746,6 +2124,7 @@ def main() -> None:
             proposals_per_cycle=args.proposals,
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
+            director_interval=args.director_interval,
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,
@@ -1756,6 +2135,21 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\nMain loop interrupted.")
         sys.exit(1)
+    except Exception as exc:
+        # Layer 1: never crash the loop — record the error and move on
+        log.exception("Cycle %d crashed at top level", cycle)
+        try:
+            partial = CycleTelemetry(
+                cycle=cycle,
+                finished_at=datetime.now(UTC),
+                errors=[f"Top-level crash: {exc}"],
+                dry_run=args.dry_run,
+                skip_analysis=args.skip_analysis,
+                skip_improve=args.skip_improve,
+            )
+            append_telemetry(TELEMETRY_PATH, partial)
+        except Exception:
+            log.exception("Failed to write crash telemetry")
 
     # Cooldown before next cycle
     remaining = 0 if args.max_cycles > 0 and cycle >= args.max_cycles else 1
@@ -1773,6 +2167,7 @@ def main() -> None:
             proposals=args.proposals,
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
+            director_interval=args.director_interval,
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,

@@ -223,15 +223,19 @@ The reviewer has requested changes. Do the following:
 
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
+    # Get owner/repo for inline comment commands
+    result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
+    owner_repo = result.stdout.strip()
+
     return f"""Review PR #{pr_number} thoroughly. Be skeptical — your job is to find problems.
 
 Steps:
 1. `gh pr diff {pr_number}` — read the full diff carefully.
 2. Read surrounding files for context where needed.
 3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
-4. **Post inline comments** on specific lines that need improvement:
+4. **Post inline comments** (if needed) on specific lines with issues:
    ```
-   gh api repos/{{{{owner}}}}/{{{{repo}}}}/pulls/{pr_number}/comments \\
+   gh api repos/{owner_repo}/pulls/{pr_number}/comments \\
      -f body="suggestion or issue" \\
      -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \\
      -f path="path/to/file.py" \\
@@ -240,6 +244,7 @@ Steps:
    ```
    Post inline comments for: logic issues, missing edge cases, unclear code,
    potential bugs, better approaches, or concrete improvement suggestions.
+   If there are no line-specific issues, skip to step 5.
 5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
    If changes needed (you found real issues):

@@ -38,8 +38,11 @@ REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
 # instead of an invalid or parent-session API key.
 SDK_ENV = {"CLAUDECODE": "", "ANTHROPIC_API_KEY": ""}
 
-# Set to True via -v flag; enables stderr passthrough from SDK subprocesses.
-VERBOSE = False
+# Verdict markers used by the reviewer agent in PR comments.
+# The workflow parses the latest comment for these instead of using
+# GitHub's reviewDecision (which blocks self-reviews).
+VERDICT_APPROVED = "VERDICT: APPROVED"
+VERDICT_CHANGES_REQUESTED = "VERDICT: CHANGES_REQUESTED"
 
 log = logging.getLogger("pr_workflow")
 
@@ -52,9 +55,6 @@ def _sdk_options(
     allowed_tools: list[str],
 ) -> ClaudeCodeOptions:
     """Build ClaudeCodeOptions with shared defaults."""
-    extra_args: dict[str, str | None] = {}
-    if VERBOSE:
-        extra_args["debug-to-stderr"] = None
     return ClaudeCodeOptions(
         system_prompt=system_prompt,
         model=model,
@@ -63,7 +63,6 @@ def _sdk_options(
         permission_mode="bypassPermissions",
         cwd=PROJECT_ROOT,
         env=SDK_ENV,
-        extra_args=extra_args,
     )
 
 
@@ -123,16 +122,39 @@ def get_pr_number_for_branch(branch: str) -> int | None:
         return None
 
 
-def get_pr_review_state(pr_number: int) -> str:
-    """Get the review decision for a PR.
+def get_review_verdict_from_comments(pr_number: int) -> str:
+    """Parse the latest PR comment for a structured verdict.
+
+    The reviewer agent posts comments containing 'VERDICT: APPROVED' or
+    'VERDICT: CHANGES_REQUESTED'. We scan comments in reverse order and
+    return the first verdict found.
 
     Returns 'APPROVED', 'CHANGES_REQUESTED', or '' (empty).
     """
+    import json as _json
+
     result = _run_gh(
-        ["gh", "pr", "view", str(pr_number), "--json", "reviewDecision", "-q", ".reviewDecision"],
+        ["gh", "pr", "view", str(pr_number), "--json", "comments", "-q", ".comments"],
         check=False,
     )
-    return result.stdout.strip()
+    if result.returncode != 0 or not result.stdout.strip():
+        return ""
+
+    try:
+        comments = _json.loads(result.stdout)
+    except _json.JSONDecodeError:
+        log.warning("Failed to parse PR comments JSON")
+        return ""
+
+    # Scan newest comments first
+    for comment in reversed(comments):
+        body = comment.get("body", "")
+        if VERDICT_APPROVED in body:
+            return "APPROVED"
+        if VERDICT_CHANGES_REQUESTED in body:
+            return "CHANGES_REQUESTED"
+
+    return ""
 
 
 def merge_pr(pr_number: int) -> None:
@@ -210,11 +232,26 @@ def _build_reviewer_prompt(pr_number: int) -> str:
    - `uv run mypy src/`
    - `uv run pytest`
 4. Evaluate the changes against the project conventions in CLAUDE.md.
-5. Submit your review:
-   - If the code is correct, clean, and follows conventions:
-     `gh pr review {pr_number} --approve --body "LGTM - <brief reason>"`
-   - If changes are needed:
-     `gh pr review {pr_number} --request-changes --body "<detailed feedback>"`
+5. Post your review as a PR comment using `gh pr comment`.
+   Your comment MUST start with a verdict line in one of these exact formats:
+
+   If the code is correct, clean, and follows conventions:
+   ```
+   gh pr comment {pr_number} --body "VERDICT: APPROVED
+
+   <brief reason why the code looks good>"
+   ```
+
+   If changes are needed:
+   ```
+   gh pr comment {pr_number} --body "VERDICT: CHANGES_REQUESTED
+
+   <detailed feedback on what needs to change>"
+   ```
+
+IMPORTANT: You MUST use `gh pr comment`, NOT `gh pr review`. The verdict line
+must appear exactly as shown (VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED)
+at the start of the comment body.
 
 Be thorough but pragmatic. Focus on correctness, type safety, and convention adherence.
 Do NOT approve if checks fail.
@@ -362,9 +399,9 @@ async def run_workflow(
 
         print(f"\nReviewer output:\n{reviewer_output[:500]}{'...' if len(reviewer_output) > 500 else ''}\n")
 
-        # Check review state
-        state = get_pr_review_state(pr_number)
-        print(f"Review state: {state or '(none)'}")
+        # Check review verdict from PR comments
+        state = get_review_verdict_from_comments(pr_number)
+        print(f"Review verdict: {state or '(none)'}")
 
         if state == "APPROVED":
             print(f"\nPR #{pr_number} approved! Merging...")
@@ -441,9 +478,6 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-
-    global VERBOSE  # noqa: PLW0603
-    VERBOSE = args.verbose
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

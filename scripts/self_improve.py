@@ -128,10 +128,11 @@ def ensure_labels_exist() -> None:
 
 def create_proposal_issue(title: str, body: str) -> int:
     """Create a GitHub Issue with the proposed label. Returns issue number."""
+    ai_body = f"\U0001f916 **AI-generated proposal**\n\n{body}"
     result = _run_gh([
         "gh", "issue", "create",
         "--title", title,
-        "--body", body,
+        "--body", ai_body,
         "--label", LABEL_PROPOSED,
     ])
     # gh issue create prints the URL; extract number from it
@@ -142,15 +143,21 @@ def create_proposal_issue(title: str, body: str) -> int:
 def post_debate_comment(
     issue_number: int,
     advocate_arg: str,
-    skeptic_arg: str,
+    skeptic_challenge: str,
+    advocate_rebuttal: str,
+    skeptic_verdict: str,
     verdict: str,
 ) -> None:
     """Post the full debate as a comment on the issue."""
     body = (
-        f"## Triage Debate\n\n"
-        f"### Advocate (PM)\n{advocate_arg}\n\n"
-        f"### Skeptic (Reviewer)\n{skeptic_arg}\n\n"
-        f"### Verdict: **{verdict}**"
+        f"## \U0001f916 AI Triage Debate\n\n"
+        f"### Round 1 — Opening\n\n"
+        f"**\U0001f916 AI Advocate (PM agent):**\n{advocate_arg}\n\n"
+        f"**\U0001f916 AI Skeptic (Reviewer agent):**\n{skeptic_challenge}\n\n"
+        f"### Round 2 — Rebuttal & Verdict\n\n"
+        f"**\U0001f916 AI Advocate rebuttal:**\n{advocate_rebuttal}\n\n"
+        f"**\U0001f916 AI Skeptic final verdict:**\n{skeptic_verdict}\n\n"
+        f"### Result: **{verdict}**"
     )
     _run_gh(["gh", "issue", "comment", str(issue_number), "--body", body])
 
@@ -168,7 +175,7 @@ def reject_issue(issue_number: int) -> None:
              "--remove-label", LABEL_PROPOSED,
              "--add-label", LABEL_REJECTED])
     _run_gh(["gh", "issue", "close", str(issue_number),
-             "--comment", "Rejected by triage debate."])
+             "--comment", "\U0001f916 **AI Triage:** Rejected by triage debate. See debate above."])
 
 
 def list_backlog_issues() -> list[dict[str, Any]]:
@@ -215,7 +222,7 @@ def mark_issue_failed(issue_number: int, reason: str) -> None:
              "--remove-label", LABEL_IN_PROGRESS,
              "--add-label", LABEL_FAILED])
     _run_gh(["gh", "issue", "comment", str(issue_number),
-             "--body", f"Execution failed: {reason}"])
+             "--body", f"\U0001f916 **AI Executor:** Execution failed: {reason}"])
 
 
 def get_failed_issue_titles() -> list[str]:
@@ -384,20 +391,33 @@ async def step_debate(
             )
             proposal["issue_number"] = issue_number
 
-        # Advocate (PM) argues for the proposal
+        # Round 1: Advocate opens, Skeptic challenges
         advocate_arg = await _run_advocate(title, description, domain, model=model)
+        skeptic_challenge = await _run_skeptic_challenge(
+            title, description, advocate_arg, model=model,
+        )
 
-        # Skeptic (Reviewer) challenges the proposal
-        skeptic_arg = await _run_skeptic(title, description, advocate_arg, model=model)
+        # Round 2: Advocate rebuts, Skeptic renders final verdict
+        advocate_rebuttal = await _run_advocate_rebuttal(
+            title, description, skeptic_challenge, model=model,
+        )
+        skeptic_verdict = await _run_skeptic_verdict(
+            title, description, advocate_rebuttal, model=model,
+        )
 
-        # Deterministic judge: check if skeptic rejected
-        verdict = "REJECTED" if "VERDICT: REJECT" in skeptic_arg else "ACCEPTED"
+        # Deterministic judge: check if skeptic rejected in final verdict
+        verdict = "REJECTED" if "VERDICT: REJECT" in skeptic_verdict else "ACCEPTED"
 
-        # Post debate as issue comment
-        post_debate_comment(issue_number, advocate_arg, skeptic_arg, verdict)
+        # Post full debate as issue comment
+        post_debate_comment(
+            issue_number, advocate_arg, skeptic_challenge,
+            advocate_rebuttal, skeptic_verdict, verdict,
+        )
 
         proposal["advocate_arg"] = advocate_arg
-        proposal["skeptic_arg"] = skeptic_arg
+        proposal["skeptic_challenge"] = skeptic_challenge
+        proposal["advocate_rebuttal"] = advocate_rebuttal
+        proposal["skeptic_verdict"] = skeptic_verdict
         proposal["verdict"] = verdict
 
         if verdict == "ACCEPTED":
@@ -419,7 +439,7 @@ async def _run_advocate(
     *,
     model: str,
 ) -> str:
-    """PM argues for the proposal (~200 words)."""
+    """Round 1: PM argues for the proposal (~200 words)."""
     prompt = f"""Argue in favor of this proposed improvement for the AI Government project.
 
 Title: {title}
@@ -440,14 +460,14 @@ Consider: impact, feasibility, alignment with project goals, and priority.
     return await _collect_agent_output(stream)
 
 
-async def _run_skeptic(
+async def _run_skeptic_challenge(
     title: str,
     description: str,
     advocate_arg: str,
     *,
     model: str,
 ) -> str:
-    """Reviewer challenges the proposal. Must include VERDICT: REJECT or not."""
+    """Round 1: Reviewer challenges the proposal. No verdict yet."""
     prompt = f"""Challenge this proposed improvement for the AI Government project.
 
 Title: {title}
@@ -456,15 +476,78 @@ Description: {description}
 The advocate argues:
 {advocate_arg}
 
-Respond with a critical assessment (~200 words). Consider:
+Respond with a critical assessment (~200 words). Raise your strongest concerns:
 - Is the scope too large or vague?
 - Are there higher-priority items?
 - Is it feasible with the current codebase?
 - Does it align with the project constitution and roadmap?
 
-End your response with EXACTLY one of:
-- "VERDICT: REJECT — <reason>" if you believe this should NOT be done now
-- "VERDICT: ACCEPT — <reason>" if you concede the advocate's argument is strong
+Do NOT give a verdict yet. Just raise your concerns so the advocate can respond.
+"""
+    system_prompt = _load_role_prompt("reviewer")
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=DEBATE_MAX_TURNS,
+        allowed_tools=[],
+    )
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    return await _collect_agent_output(stream)
+
+
+async def _run_advocate_rebuttal(
+    title: str,
+    description: str,
+    skeptic_challenge: str,
+    *,
+    model: str,
+) -> str:
+    """Round 2: PM rebuts the skeptic's concerns (~200 words)."""
+    prompt = f"""You previously argued for this improvement. The skeptic raised concerns.
+Respond to their specific objections.
+
+Title: {title}
+Description: {description}
+
+Skeptic's concerns:
+{skeptic_challenge}
+
+Write a concise rebuttal (~200 words). Address each concern directly.
+If the skeptic raised a valid point, acknowledge it and explain how it can be mitigated.
+If you can scope the proposal down to address feasibility concerns, do so.
+"""
+    system_prompt = _load_role_prompt("pm")
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=DEBATE_MAX_TURNS,
+        allowed_tools=[],
+    )
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    return await _collect_agent_output(stream)
+
+
+async def _run_skeptic_verdict(
+    title: str,
+    description: str,
+    advocate_rebuttal: str,
+    *,
+    model: str,
+) -> str:
+    """Round 2: Reviewer gives final verdict after hearing the rebuttal."""
+    prompt = f"""You previously raised concerns about this proposal. The advocate has responded.
+Now render your final verdict.
+
+Title: {title}
+Description: {description}
+
+Advocate's rebuttal:
+{advocate_rebuttal}
+
+Consider whether the advocate adequately addressed your concerns.
+Write a brief assessment (~100 words), then end with EXACTLY one of:
+- "VERDICT: REJECT — <reason>" if concerns remain unresolved
+- "VERDICT: ACCEPT — <reason>" if the rebuttal was convincing
 """
     system_prompt = _load_role_prompt("reviewer")
     opts = _sdk_options(

@@ -34,7 +34,9 @@ REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch
 # (Claude Code detects nested sessions via this env var).
-SDK_ENV = {"CLAUDECODE": ""}
+# Also clear ANTHROPIC_API_KEY so the subprocess uses OAuth (Max plan)
+# instead of an invalid or parent-session API key.
+SDK_ENV = {"CLAUDECODE": "", "ANTHROPIC_API_KEY": ""}
 
 # Set to True via -v flag; enables stderr passthrough from SDK subprocesses.
 VERBOSE = False

@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 import anyio
 import claude_code_sdk
 from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
+from pydantic import BaseModel, Field
 
 from ai_government.config import SessionConfig
 from ai_government.models.telemetry import (
@@ -106,6 +107,26 @@ TELEMETRY_PATH = PROJECT_ROOT / "output" / "data" / "telemetry.jsonl"
 
 log = logging.getLogger("main_loop")
 
+
+# ---------------------------------------------------------------------------
+# Agent output schemas (for structured validation)
+# ---------------------------------------------------------------------------
+
+
+class ProposalOutput(BaseModel):
+    """Validated output from PM agent."""
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1)
+    domain: str = Field(default="dev")
+
+
+class DirectorOutput(BaseModel):
+    """Validated output from Director agent."""
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1)
+
 _repo_nwo: str | None = None
 
 
@@ -121,6 +142,20 @@ def _sdk_options(
     max_turns: int,
     allowed_tools: list[str],
 ) -> ClaudeCodeOptions:
+    # Agents WITH tools: append to the default Claude Code prompt so they get
+    # built-in tool instructions, safety guards, and CLAUDE.md project context.
+    # Agents WITHOUT tools: replace the system prompt entirely (no point loading
+    # tool instructions they can't use).
+    if allowed_tools:
+        return ClaudeCodeOptions(
+            append_system_prompt=system_prompt,
+            model=model,
+            max_turns=max_turns,
+            allowed_tools=allowed_tools,
+            permission_mode="bypassPermissions",
+            cwd=PROJECT_ROOT,
+            env=SDK_ENV,
+        )
     return ClaudeCodeOptions(
         system_prompt=system_prompt,
         model=model,
@@ -246,7 +281,6 @@ def create_director_issue(title: str, body: str) -> int:
     ])
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
-    _add_to_project(issue_number, status="Backlog", task_type="Code Change", domain="Dev")
     return issue_number
 
 
@@ -789,14 +823,22 @@ acceptance criteria. List specific files to change.",
     stream = claude_code_sdk.query(prompt=prompt, options=opts)
     output = await _collect_agent_output(stream)
 
-    # Extract JSON from the output
-    proposals = _parse_json_array(output)
-    if not proposals:
+    # Extract and validate JSON from the output
+    raw = _parse_json_array(output)
+    if not raw:
         log.warning("PM agent returned no parseable proposals")
         return []
 
-    log.info("PM proposed %d improvements", len(proposals))
-    return proposals[:num_proposals]
+    proposals: list[dict[str, str]] = []
+    for item in raw[:num_proposals]:
+        try:
+            validated = ProposalOutput.model_validate(item)
+            proposals.append(validated.model_dump())
+        except Exception:
+            log.warning("Skipping invalid proposal: %s", item)
+
+    log.info("PM proposed %d valid improvements", len(proposals))
+    return proposals
 
 
 def _parse_json_array(text: str) -> list[dict[str, str]]:
@@ -1284,17 +1326,17 @@ Format:
     stream = claude_code_sdk.query(prompt=prompt, options=opts)
     output = await _collect_agent_output(stream)
 
-    issues_data = _parse_json_array(output)
-    issues_data = issues_data[:2]  # Hard cap
+    raw = _parse_json_array(output)
 
     created: list[int] = []
-    for issue in issues_data:
-        title = issue.get("title", "")
-        description = issue.get("description", "")
-        if not title:
+    for item in raw[:2]:  # Hard cap at 2
+        try:
+            validated = DirectorOutput.model_validate(item)
+        except Exception:
+            log.warning("Skipping invalid Director output: %s", item)
             continue
-        num = create_director_issue(title, description)
-        log.info("Director filed issue #%d: %s", num, title)
+        num = create_director_issue(validated.title, validated.description)
+        log.info("Director filed issue #%d: %s", num, validated.title)
         created.append(num)
 
     return created

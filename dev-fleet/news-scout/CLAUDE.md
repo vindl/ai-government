@@ -16,7 +16,7 @@ Search these outlets for Montenegrin government news:
 
 1. Use `WebSearch` to find today's Montenegrin government decisions, new laws, policy proposals, regulations, appointments, and significant political actions.
 2. Also search for **government communication**: official statements, press conferences, ministerial announcements, and public responses to current issues. These are analysed alongside decisions.
-3. **Note silence**: If there is a significant public issue today where the government has been notably silent (no statement, no press conference, no response to media), include it as a decision entry. Mention the silence explicitly in the summary (e.g., "Vlada se nije oglasila o..."). Government silence on matters of public interest is itself newsworthy.
+3. **Note silence**: If there is a significant public issue today where the government has been notably silent (no statement, no press conference, no response to media), include it as a decision entry. Mention the silence explicitly in the summary (e.g., "The government has not commented on..."). Government silence on matters of public interest is itself newsworthy.
 4. Use `WebFetch` to read article content when you need the full text or more detail.
 5. **Merge related coverage**: When multiple outlets cover the same government action, produce ONE decision entry with the best summary. Note all source URLs in the summary text.
 6. **Prioritize by public interest**: Focus on items with the greatest impact on Montenegrin citizens — fiscal policy, legal reforms, EU accession steps, healthcare, security, anti-corruption, and government transparency.
@@ -30,7 +30,7 @@ If no government decisions were published today, return an empty array `[]`. Do 
 
 ## Language
 
-Write decision titles and summaries in **Montenegrin (Latin script)** — this is what downstream ministry agents expect. Use standard ijekavski dialect with proper diacritics (č, ć, š, ž, đ).
+Write decision titles and summaries in **English**. Source articles will be in Montenegrin — translate them to English for downstream agents and public display.
 
 ## Category Assignment
 
@@ -49,8 +49,8 @@ Return ONLY a JSON array (no markdown fences, no surrounding text). Each object 
 ```
 [
   {
-    "title": "Decision title in Montenegrin",
-    "summary": "2-3 sentence summary in Montenegrin. Mention source outlets.",
+    "title": "Decision title in English",
+    "summary": "2-3 sentence summary in English. Mention source outlets.",
     "full_text": "Full article text if available, otherwise empty string",
     "date": "YYYY-MM-DD",
     "source_url": "URL of the primary source article",

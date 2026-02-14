@@ -29,5 +29,5 @@ Respond ONLY with a valid JSON object:
     "headline": "<punchy one-line headline for public consumption>"
 }
 
-Output language: Montenegrin (Latin script).
+Output language: English.
 """

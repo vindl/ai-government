@@ -27,5 +27,5 @@ Respond ONLY with a valid JSON object:
     "debate_transcript": "<structured debate transcript with ministry positions>"
 }
 
-Output language: Montenegrin (Latin script).
+Output language: English.
 """

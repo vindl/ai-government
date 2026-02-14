@@ -26,7 +26,7 @@ services:
         limits:
           cpus: "4"
           memory: 8G
-    restart: on-failure:3
+    restart: unless-stopped
     logging:
       driver: json-file
       options:

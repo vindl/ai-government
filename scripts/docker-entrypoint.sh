@@ -22,12 +22,20 @@ git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://git
 git config --global user.name "ai-government-bot"
 git config --global user.email "bot@ai-government.local"
 
-# --- Clone repo ---
+# --- Clone or update repo ---
 
 WORK_DIR="${HOME}/repo"
-echo "Cloning ${REPO_URL} (branch: ${REPO_BRANCH})..."
-git clone --branch "${REPO_BRANCH}" --single-branch "${REPO_URL}" "${WORK_DIR}"
-cd "${WORK_DIR}"
+if [[ -d "${WORK_DIR}/.git" ]]; then
+  echo "Repo already exists at ${WORK_DIR}, updating..."
+  cd "${WORK_DIR}"
+  git fetch origin
+  git checkout "${REPO_BRANCH}"
+  git reset --hard "origin/${REPO_BRANCH}"
+else
+  echo "Cloning ${REPO_URL} (branch: ${REPO_BRANCH})..."
+  git clone --branch "${REPO_BRANCH}" --single-branch "${REPO_URL}" "${WORK_DIR}"
+  cd "${WORK_DIR}"
+fi
 
 # --- Install dependencies ---
 

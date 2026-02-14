@@ -716,24 +716,25 @@ def process_human_overrides() -> int:
 def mark_issue_in_progress(issue_number: int) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_BACKLOG,
-             "--add-label", LABEL_IN_PROGRESS])
+             "--add-label", LABEL_IN_PROGRESS], check=False)
     _update_project_status(issue_number, "In Progress")
 
 
 def mark_issue_done(issue_number: int) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_IN_PROGRESS,
-             "--add-label", LABEL_DONE])
-    _run_gh(["gh", "issue", "close", str(issue_number)])
+             "--add-label", LABEL_DONE], check=False)
+    _run_gh(["gh", "issue", "close", str(issue_number)], check=False)
     _update_project_status(issue_number, "Done")
 
 
 def mark_issue_failed(issue_number: int, reason: str) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_IN_PROGRESS,
-             "--add-label", LABEL_FAILED])
+             "--add-label", LABEL_FAILED], check=False)
     _run_gh(["gh", "issue", "comment", str(issue_number),
-             "--body", f"Written by Executor agent: Execution failed: {reason}"])
+             "--body", f"Written by Executor agent: Execution failed: {reason}"],
+            check=False)
     _update_project_status(issue_number, "Failed")
 
 

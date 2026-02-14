@@ -36,7 +36,33 @@ REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
 # (Claude Code detects nested sessions via this env var).
 SDK_ENV = {"CLAUDECODE": ""}
 
+# Set to True via -v flag; enables stderr passthrough from SDK subprocesses.
+VERBOSE = False
+
 log = logging.getLogger("pr_workflow")
+
+
+def _sdk_options(
+    *,
+    system_prompt: str,
+    model: str,
+    max_turns: int,
+    allowed_tools: list[str],
+) -> ClaudeCodeOptions:
+    """Build ClaudeCodeOptions with shared defaults."""
+    extra_args: dict[str, str | None] = {}
+    if VERBOSE:
+        extra_args["debug-to-stderr"] = None
+    return ClaudeCodeOptions(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=max_turns,
+        allowed_tools=allowed_tools,
+        permission_mode="bypassPermissions",
+        cwd=PROJECT_ROOT,
+        env=SDK_ENV,
+        extra_args=extra_args,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -215,18 +241,13 @@ async def run_coder(
     system_prompt = _load_role_prompt("coder")
 
     try:
-        stream = claude_code_sdk.query(
-            prompt=prompt,
-            options=ClaudeCodeOptions(
-                system_prompt=system_prompt,
-                model=model,
-                max_turns=CODER_MAX_TURNS,
-                allowed_tools=CODER_TOOLS,
-                permission_mode="bypassPermissions",
-                cwd=PROJECT_ROOT,
-                env=SDK_ENV,
-            ),
+        opts = _sdk_options(
+            system_prompt=system_prompt,
+            model=model,
+            max_turns=CODER_MAX_TURNS,
+            allowed_tools=CODER_TOOLS,
         )
+        stream = claude_code_sdk.query(prompt=prompt, options=opts)
         output = await _collect_agent_output(stream)
         log.info("Coder finished. Output length: %d chars", len(output))
         return output, False
@@ -246,18 +267,13 @@ async def run_reviewer(
     prompt = _build_reviewer_prompt(pr_number)
 
     try:
-        stream = claude_code_sdk.query(
-            prompt=prompt,
-            options=ClaudeCodeOptions(
-                system_prompt=system_prompt,
-                model=model,
-                max_turns=REVIEWER_MAX_TURNS,
-                allowed_tools=REVIEWER_TOOLS,
-                permission_mode="bypassPermissions",
-                cwd=PROJECT_ROOT,
-                env=SDK_ENV,
-            ),
+        opts = _sdk_options(
+            system_prompt=system_prompt,
+            model=model,
+            max_turns=REVIEWER_MAX_TURNS,
+            allowed_tools=REVIEWER_TOOLS,
         )
+        stream = claude_code_sdk.query(prompt=prompt, options=opts)
         output = await _collect_agent_output(stream)
         log.info("Reviewer finished. Output length: %d chars", len(output))
         return output, False
@@ -423,6 +439,9 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    global VERBOSE  # noqa: PLW0603
+    VERBOSE = args.verbose
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

@@ -138,18 +138,10 @@ class SiteBuilder:
         (self.output_dir / "index.html").write_text(html, encoding="utf-8")
 
     def _build_about(self) -> None:
-        constitution_path = DOCS_DIR / "CONSTITUTION.md"
-        if constitution_path.exists():
-            constitution_md = constitution_path.read_text(encoding="utf-8")
-            constitution_html = Markup(md.markdown(constitution_md))
-        else:
-            constitution_html = Markup("<p>Ustav projekta nije pronadjen.</p>")
-
         about_dir = self.output_dir / "o-projektu"
         about_dir.mkdir(parents=True, exist_ok=True)
         template = self.env.get_template("about.html")
         html = template.render(
-            constitution_html=constitution_html,
             css_path="../static/css/style.css",
             base_path="../",
         )

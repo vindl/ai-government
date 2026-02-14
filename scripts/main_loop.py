@@ -85,14 +85,6 @@ STATUS_OPTIONS = ["Proposed", "Backlog", "In Progress", "Done", "Failed", "Rejec
 TASK_TYPE_OPTIONS = ["Code Change", "Analysis"]
 DOMAIN_OPTIONS = ["Dev", "Government", "Human", "N/A"]
 
-LABEL_TO_PROJECT_STATUS: dict[str, str] = {
-    LABEL_PROPOSED: "Proposed",
-    LABEL_BACKLOG: "Backlog",
-    LABEL_IN_PROGRESS: "In Progress",
-    LABEL_DONE: "Done",
-    LABEL_FAILED: "Failed",
-    LABEL_REJECTED: "Rejected",
-}
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
 # Also clear ANTHROPIC_API_KEY so the subprocess uses OAuth.
@@ -410,7 +402,7 @@ def _add_to_project(
             continue
         _run_gh([
             "gh", "project", "item-edit",
-            "--project-id", _project_id or "",
+            "--project-id", _project_id,
             "--id", item_id,
             "--field-id", field_id,
             "--single-select-option-id", option_id,

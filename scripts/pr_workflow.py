@@ -615,14 +615,18 @@ async def run_workflow(
         output, had_error = await run_coder(coder_prompt, model=model, branch=branch_name)
 
         if had_error:
-            print("ERROR: Coder agent failed in round 1. Aborting.")
+            log.error("Coder agent raised an exception in round 1. Aborting.")
             sys.exit(1)
 
         print(f"\nCoder output:\n{output[:500]}{'...' if len(output) > 500 else ''}\n")
 
         pr_number_result = get_pr_number_for_branch(branch_name)
         if pr_number_result is None:
-            print("ERROR: No PR found after coder round. The coder may have failed to create one.")
+            log.error(
+                "No PR found after coder round 1. Branch: %s\n"
+                "Coder output (%d chars):\n%s",
+                branch_name, len(output), output,
+            )
             sys.exit(1)
 
         pr_number = pr_number_result
@@ -711,7 +715,7 @@ async def run_workflow(
         output, had_error = await run_coder(coder_prompt, model=model, branch=branch_name)
 
         if had_error:
-            print(f"ERROR: Coder agent failed in round {round_num}. Aborting.")
+            log.error("Coder agent raised an exception in round %d. Aborting.", round_num)
             sys.exit(1)
 
         print(f"\nCoder output:\n{output[:500]}{'...' if len(output) > 500 else ''}\n")

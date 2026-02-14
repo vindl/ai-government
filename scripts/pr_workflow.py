@@ -259,7 +259,7 @@ Steps:
    Note: Use -F for line (sends as integer, not string).
    Post inline comments for: logic issues, missing edge cases, unclear code,
    potential bugs, better approaches, or concrete improvement suggestions.
-   If there are no line-specific issues, skip this step and proceed to step 5.
+   If there are no line-specific issues, proceed directly to step 5.
 5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
    If changes needed (you found real issues):

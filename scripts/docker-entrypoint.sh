@@ -92,6 +92,10 @@ if [[ -n "${LOOP_DIRECTOR_INTERVAL:-}" ]]; then
   ARGS+=(--director-interval "${LOOP_DIRECTOR_INTERVAL}")
 fi
 
+if [[ -n "${LOOP_STRATEGIC_DIRECTOR_INTERVAL:-}" ]]; then
+  ARGS+=(--strategic-director-interval "${LOOP_STRATEGIC_DIRECTOR_INTERVAL}")
+fi
+
 if [[ "${LOOP_VERBOSE:-false}" == "true" ]]; then
   ARGS+=(--verbose)
 fi

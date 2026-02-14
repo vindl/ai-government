@@ -49,7 +49,6 @@ uv run python scripts/main_loop.py --skip-analysis        # self-improvement onl
 
 # Docker (isolated main loop)
 export GH_TOKEN="ghp_..."
-export UID=$(id -u) GID=$(id -g)
 docker compose build                                       # build image
 docker compose up                                          # run indefinitely
 docker compose up -d                                       # detached

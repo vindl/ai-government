@@ -32,7 +32,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
 RUN npm install -g @anthropic-ai/claude-code
 
-# --- Entrypoint (must be world-accessible for UID override in compose) ---
+# --- Entrypoint ---
 
 COPY scripts/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh

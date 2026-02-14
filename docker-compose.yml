@@ -2,7 +2,6 @@ services:
   ai-government:
     build: .
     init: true
-    user: "${UID:-1000}:${GID:-1000}"
     environment:
       - GH_TOKEN
       - REPO_URL=${REPO_URL:-https://github.com/vindl/ai-government.git}

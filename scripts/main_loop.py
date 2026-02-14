@@ -1421,22 +1421,28 @@ def step_pick() -> dict[str, Any] | None:
     """Pick the next backlog issue using 5-tier priority.
 
     Priority order:
-      1. Human suggestions (human-suggestion)
+      1. Human suggestions (human-suggestion) — always highest priority
       2. Analysis tasks (task:analysis)
       3. Strategy suggestions (strategy-suggestion) — reserved for #83
       4. Director suggestions (director-suggestion)
       5. Regular FIFO (oldest first)
+
+    This ensures human feedback is acted on immediately rather than
+    waiting behind AI-generated proposals. Within each tier, picks
+    the oldest issue first (FIFO).
     """
     issues = list_backlog_issues()
     if not issues:
         log.info("No backlog issues to pick")
         return None
 
+    # Priority order: human suggestions first, then other categories.
+    # This ensures human feedback doesn't wait behind AI proposals.
     priority_labels = [
-        LABEL_HUMAN,
-        LABEL_TASK_ANALYSIS,
-        LABEL_STRATEGY,
-        LABEL_DIRECTOR,
+        LABEL_HUMAN,           # Tier 1: Human suggestions (highest priority)
+        LABEL_TASK_ANALYSIS,   # Tier 2: Government decision analysis
+        LABEL_STRATEGY,        # Tier 3: Strategic guidance (reserved)
+        LABEL_DIRECTOR,        # Tier 4: Director-identified issues
     ]
 
     for label in priority_labels:

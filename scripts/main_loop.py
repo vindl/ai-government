@@ -740,23 +740,9 @@ def _load_role_prompt(role: str) -> str:
 def get_pending_decisions() -> list[GovernmentDecision]:
     """Load decisions that need analysis.
 
-    First tries to fetch real government decisions from gov.me scraper.
-    Falls back to seed data if scraping fails.
+    Currently reads from seed data. This is the future integration point
+    for scrapers (gov.me, news sites).
     """
-    from ai_government.mcp_servers.gov_me_scraper import fetch_recent_sessions_sync
-
-    # Try fetching real government decisions
-    try:
-        decisions = fetch_recent_sessions_sync(max_results=20, days_back=30)
-        if decisions:
-            log.info("Fetched %d decisions from gov.me", len(decisions))
-            return decisions
-        log.warning("No decisions fetched from gov.me, falling back to seed data")
-    except Exception as e:
-        log.error("Failed to fetch decisions from gov.me: %s", e)
-        log.warning("Falling back to seed data")
-
-    # Fallback to seed data
     if not SEED_DECISIONS_PATH.exists():
         log.warning("No seed decisions file: %s", SEED_DECISIONS_PATH)
         return []

@@ -31,5 +31,5 @@ Respond ONLY with a valid JSON object:
     "risks_and_tradeoffs": ["<risk/tradeoff 1>", ...]
 }
 
-Output language: Montenegrin (Latin script).
+Output language: English.
 """

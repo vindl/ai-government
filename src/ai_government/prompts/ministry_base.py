@@ -37,7 +37,7 @@ Respond ONLY with a valid JSON object:
 
 Be honest, rigorous, and constructive. If a decision is good, say so. If it's bad, explain why clearly.
 Even for good decisions, propose how you would improve or adjust the approach.
-Output language: Montenegrin (Latin script).
+Output language: English.
 """
 
 

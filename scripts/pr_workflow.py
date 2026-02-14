@@ -229,14 +229,20 @@ The reviewer has requested changes. Do the following:
 
 1. Read the review comments: `gh pr view {pr_number} --comments`
 2. Also check inline review comments: `gh api repos/{owner_repo}/pulls/{pr_number}/comments`
-3. Address each piece of feedback by modifying the code.
-4. Run checks to make sure everything passes:
+3. For EACH piece of feedback, reply to the PR comment with your response.
+   Start every comment with "Written by Coder agent:".
+   For each item either:
+   - Acknowledge it's a good point and note you've fixed it
+   - Push back if you disagree, explaining why the current approach is correct
+   Use: `gh pr comment {pr_number} --body "Written by Coder agent: ..."`
+4. Make code changes only for feedback you agree with. Do NOT blindly accept all changes.
+5. Run checks to make sure everything passes:
    - `uv run ruff check src/ tests/`
    - `uv run mypy src/`
    - `uv run pytest`
-5. Fix any issues found by the checks.
-6. Stage and commit your changes with a concise message referencing the feedback.
-7. Push: `git push`
+6. Fix any issues found by the checks.
+7. Stage and commit your changes with a concise message referencing the feedback.
+8. Push: `git push`
 """
 
 
@@ -245,35 +251,32 @@ def _build_reviewer_prompt(pr_number: int) -> str:
     # Get owner/repo for inline comment commands (fail fast if unavailable)
     owner_repo = _get_owner_repo()
 
-    return f"""Review PR #{pr_number} thoroughly. Be skeptical — your job is to find problems.
+    return f"""Review PR #{pr_number} thoroughly. Start every comment with "Written by Reviewer agent:".
 
 Steps:
 1. `gh pr diff {pr_number}` — read the full diff carefully.
 2. Read surrounding files for context where needed.
 3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
-4. **Post inline comments** (if needed) on specific lines with issues:
+4. **Optionally post inline comments** on specific lines with issues:
    ```
-   gh api repos/{owner_repo}/pulls/{pr_number}/comments -f body="suggestion or issue" -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" -f path="path/to/file.py" -F line=42 -f side="RIGHT"
+   gh api repos/{owner_repo}/pulls/{pr_number}/comments \\
+     -f body="Written by Reviewer agent: ..." \\
+     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \\
+     -f path="path/to/file.py" -F line=42 -f side="RIGHT"
    ```
-   Note: Use -F for line (sends as integer, not string).
-   Post inline comments for: logic issues, missing edge cases, unclear code,
-   potential bugs, better approaches, or concrete improvement suggestions.
-   Only skip this step if after thorough review you genuinely found no line-specific issues worth commenting on.
+   Use inline comments for genuine bugs, logic errors, or security issues.
 5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
-   If changes needed (you found real issues):
-   `gh pr comment {pr_number} --body "VERDICT: CHANGES_REQUESTED — <summary of issues>"`
+   `gh pr comment {pr_number} --body "Written by Reviewer agent:\\n\\nVERDICT: ..."`
 
-   If approved (code is genuinely good after careful review):
-   `gh pr comment {pr_number} --body "VERDICT: APPROVED — <what you verified>"`
-
-Rules:
-- Do NOT approve if checks fail.
-- Do NOT approve without reading the full diff and understanding what it does.
-- Requesting changes is normal — the coder expects it and will address your feedback.
-- Be thorough: a good review finds genuine issues when they exist.
-- If the code is truly excellent after careful review, it's okay to approve.
-- The comment body MUST start with exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
+Verdict rules:
+- CHANGES_REQUESTED: only for **blocking issues** — bugs, security problems,
+  failing checks, or correctness errors. NOT for style preferences or nice-to-haves.
+- APPROVED: when checks pass and there are no blocking issues. You may include
+  non-blocking suggestions in an approved review.
+- Distinguish clearly between "must fix" (blocking) and "consider improving" (suggestion).
+- If checks pass and the code is correct, approve it. Don't block on polish.
+- The comment body MUST contain exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
 """
 
 

@@ -1020,11 +1020,19 @@ Consider:
 - Should the ministry structure match the actual government or propose a better one?
 - How can we improve based on feedback from previous outputs?
 
+**Issue scoping rules** — every proposal MUST be a single, well-scoped task:
+- A coder should be able to implement it in ONE session without extensive exploration.
+- List the specific files to change (or create) and what to do in each.
+- If a feature touches more than 5 files, break it into smaller issues.
+- Include concrete acceptance criteria a reviewer can verify.
+- Bad: "Improve language consistency across all agents"
+- Good: "Rename English ministry names to Montenegrin in src/ai_government/agents/ministry_*.py"
+
 Return ONLY a JSON array (no markdown fences) of exactly {num_proposals} objects:
 [
   {{
     "title": "Short imperative title (under 80 chars)",
-    "description": "2-3 sentences explaining the improvement, why it matters, and acceptance criteria",
+    "description": "2-3 sentences explaining the improvement, why it matters, and acceptance criteria. List specific files to change.",
     "domain": "dev" or "government"
   }}
 ]

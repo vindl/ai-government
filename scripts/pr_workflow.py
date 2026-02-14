@@ -26,8 +26,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_MAX_ROUNDS = 0  # 0 = unlimited, loop until approved
 
-CODER_MAX_TURNS = 30
-REVIEWER_MAX_TURNS = 20  # Increased from 10 to allow reviewer to complete all steps
+CODER_MAX_TURNS = 0  # 0 = unlimited; let the coder run until it finishes
+REVIEWER_MAX_TURNS = 0  # 0 = unlimited; let the reviewer complete all steps
 
 CODER_TOOLS = ["Bash", "Write", "Edit", "Read", "Glob", "Grep"]
 REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
@@ -373,18 +373,26 @@ task description below, the HUMAN OVERRIDE wins.
 
     return f"""{override_section}You have a task to implement. Do the following steps:
 
-1. Implement the task described below.
-2. Write unit tests for any new functionality. Follow existing patterns in `tests/`.
+1. Read the task below and do minimal exploration — just enough to understand the
+   code you need to change. Do NOT exhaustively read every related file. The reviewer
+   will catch anything you miss, and you can fix it in the next round.
+2. Implement the task. Start writing code quickly — don't spend most of your time
+   reading and planning.
+3. Write unit tests for any new functionality. Follow existing patterns in `tests/`.
    Tests should cover key behaviors, not just happy paths.
-3. Run checks to make sure everything passes:
-   - `uv run ruff check src/ tests/`
+4. Run checks to make sure everything passes:
+   - `uv run ruff check src/ tests/ scripts/`
    - `uv run mypy src/`
    - `uv run pytest`
-4. Fix any issues found by the checks.
-5. Stage and commit your changes with a concise commit message.
-6. Push the branch to the remote: `git push -u origin HEAD`
-7. Create a PR with `gh pr create`. Use a descriptive title. Start the PR body
+5. Fix any issues found by the checks.
+6. Stage and commit your changes with a concise commit message.
+7. Push the branch to the remote: `git push -u origin HEAD`
+8. Create a PR with `gh pr create`. Use a descriptive title. Start the PR body
    with "Written by Coder agent:" followed by a summary of what was implemented.
+
+IMPORTANT: Your primary goal is to produce a working PR. Do not get stuck exploring —
+if something is unclear, make a reasonable choice and move on. The reviewer will flag
+anything that needs changing.
 
 Task: {task}
 """

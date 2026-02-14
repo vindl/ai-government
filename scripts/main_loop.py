@@ -1079,15 +1079,14 @@ Do NOT propose anything that overlaps with existing open, closed, or failed issu
 Propose improvements across TWO domains:
 
 1. **Dev fleet & workflow**: tooling, CI, testing, code quality, developer experience
-2. **Government simulation**: new ministry agents, more realistic decision models,
-   improving news scout accuracy and expanding sources, matching structure to actual
-   Montenegrin government bodies, improving prompt quality, EU accession tracking,
-   Montenegrin language accuracy
+2. **Government simulation**: improving analytical domain coverage, more realistic decision
+   models, improving news scout accuracy and expanding sources, improving prompt quality,
+   EU accession tracking, Montenegrin language accuracy
 
 Consider:
-- How can we make the government mirror more realistic?
+- What analytical gaps exist in our current domain coverage?
 - What real-world data sources should we ingest?
-- Should the ministry structure match the actual government or propose a better one?
+- How can we consolidate or refine analytical domains for complete policy coverage?
 - How can we improve based on feedback from previous outputs?
 
 **Issue scoping rules** — every proposal MUST be a single, well-scoped task:

@@ -367,7 +367,7 @@ def _add_to_project(
     domain: str = "N/A",
 ) -> None:
     """Add an issue to the project board and set its fields."""
-    if _project_number is None:
+    if _project_number is None or _project_id is None:
         return
 
     owner = _get_owner()
@@ -432,6 +432,7 @@ def _update_project_status(issue_number: int, status: str) -> None:
     result = _run_gh([
         "gh", "project", "item-list", str(_project_number),
         "--owner", owner,
+        "--limit", "1000",
         "--format", "json",
     ], check=False)
     if result.returncode != 0:

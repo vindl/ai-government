@@ -274,3 +274,28 @@ All new model fields are optional (`None` default) for backwards compatibility w
 - Director as a separate process — rejected: tight integration with the main loop is simpler and ensures telemetry access
 
 **Consequences**: The system can detect and correct its own operational problems without human intervention. Telemetry provides visibility into loop health. The circuit breaker (Layer 3) catches recurring errors faster than waiting for the Director's periodic review. The `strategy-suggestion` label is reserved for the future Strategic Director (#83).
+
+---
+
+## ADR-016: News Scout Agent over Custom Scrapers
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: Phase 3 (Real Data Ingestion) called for MCP scraper servers (`gov_me_scraper.py`, `news_scraper.py`) to scrape gov.me and news outlets. Building and maintaining custom scrapers is fragile — sites change layouts, require auth handling, and need per-source parsing logic.
+
+**Decision**: Replace custom scrapers with a single News Scout agent that uses Claude's built-in `WebSearch` and `WebFetch` tools to discover and read news. Key design points:
+- **Agent-based, not script-based**: A Claude Code SDK agent with `WebSearch` + `WebFetch` discovers and parses news. No custom scraping code.
+- **Once per day**: State file (`output/news_scout_state.json`) tracks last fetch date. Skips if already fetched today.
+- **Capped at 3 decisions**: Prioritized by public interest to keep analysis costs manageable.
+- **Deterministic IDs**: `news-{date}-{sha256(title)[:8]}` prevents duplicate analysis issues.
+- **Self-contained issues**: Full `GovernmentDecision` JSON embedded in the GitHub issue body. Execution step parses directly from the issue.
+- **Seed data preserved**: Seed decisions still load as fallback/supplement.
+- **Non-fatal**: News scout failure doesn't crash the loop.
+- **No scraping policy**: MCP scraper stubs deleted. Explicit policy against scraping scripts in `mcp_servers/__init__.py` and `CLAUDE.md`.
+
+**Alternatives considered**:
+- Custom MCP scrapers per source — rejected: fragile, high maintenance, requires per-site HTML parsing
+- RSS/Atom feeds — rejected: not all Montenegrin sources have reliable feeds for government news
+- Third-party news APIs — rejected: limited coverage of Montenegrin government decisions
+
+**Consequences**: No scraping code to maintain. The agent adapts to site changes automatically. Trade-off is reliance on Claude's web search quality for Montenegrin sources and higher per-fetch cost (one agent invocation vs. deterministic HTTP requests). Capping at 3 decisions per day bounds the cost.

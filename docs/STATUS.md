@@ -189,12 +189,21 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Scorecard: "Prijavite grešku" link to Corrections category
 - [x] Index: "Predložite odluku za analizu" CTA linking to Decision Suggestions
 
+### News Scout (Phase A)
+- [x] `dev-fleet/news-scout/CLAUDE.md` — role prompt for the News Scout agent
+- [x] `step_fetch_news()` in main loop — invokes News Scout agent via Claude Code SDK
+- [x] `should_fetch_news()` — once-per-day gate using `output/news_scout_state.json`
+- [x] `_generate_decision_id()` — deterministic IDs: `news-{date}-{sha256(title)[:8]}`
+- [x] `create_analysis_issue()` embeds full `GovernmentDecision` JSON in issue body
+- [x] `step_execute_analysis()` parses embedded JSON (falls back to seed data lookup)
+- [x] Max 3 decisions per day (prioritized by public interest)
+- [x] Sources: Vijesti, RTCG, Pobjeda, gov.me, CDM, Portal Analitika
+- [x] No scraping scripts — News Scout uses `WebSearch` + `WebFetch` tools directly
+- [x] Non-fatal: failure logs error and falls back to seed data
+
 ## What Is a Stub / Placeholder
 
-These files exist but have no real implementation yet:
-
-- `src/ai_government/mcp_servers/gov_me_scraper.py` — TODO comment only, no scraping code
-- `src/ai_government/mcp_servers/news_scraper.py` — TODO comment only, no scraping code
+No stubs remain. MCP scraper stubs (`gov_me_scraper.py`, `news_scraper.py`) were deleted — news ingestion uses the News Scout agent instead.
 
 ## What Has NOT Been Tested
 

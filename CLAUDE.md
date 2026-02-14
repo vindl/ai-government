@@ -28,7 +28,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
   - `agents/` — agent implementations (inherit from `GovernmentAgent`)
   - `prompts/` — prompt templates (one per agent)
   - `models/` — Pydantic data models
-  - `mcp_servers/` — MCP tool servers (scrapers)
+  - `mcp_servers/` — MCP tool servers (reserved for future use)
   - `output/` — output formatters (scorecard, social media, HTML, site builder, X posting)
 - `site/` — site source (templates, static assets, announcement content)
 - `tests/` — pytest tests
@@ -104,6 +104,11 @@ docker compose down                                        # stop
 - Success criteria: visible GitHub PR comments, coder responses to feedback, and ultimately PR merge or close
 - The reviewer agent uses `gh pr comment` (not `gh pr review`) with structured verdict markers (`VERDICT: APPROVED` or `VERDICT: CHANGES_REQUESTED`) because GitHub blocks self-reviews
 - If the reviewer fails to post a verdict comment, the prompt or max_turns may need adjustment
+
+## News Ingestion
+- **No scraping scripts.** News ingestion is handled by the News Scout agent using Claude's `WebSearch` and `WebFetch` tools.
+- The News Scout runs once per day in Phase A of the main loop.
+- Max 3 decisions per day, prioritized by public interest.
 
 ## Git
 - Do NOT include `Co-Authored-By` lines in commit messages

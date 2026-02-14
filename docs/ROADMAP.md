@@ -39,12 +39,17 @@
 - [ ] Add cost tracking / token usage logging
 
 ## Phase 3: Real Data Ingestion
-- [ ] Implement `gov_me_scraper.py` MCP server — scrape gov.me for real decisions
-- [ ] Implement `news_scraper.py` MCP server — scrape Montenegrin news for context
-- [ ] Parse real government session agendas and decisions
-- [ ] Wire scrapers into `get_pending_decisions()` in `main_loop.py` (integration point ready)
-- [ ] Build a decision pipeline: scrape → parse → analyze → output
-- [ ] Handle decision deduplication and change detection
+- [x] Daily news ingestion via News Scout agent (WebSearch + WebFetch)
+- [x] News Scout role prompt (`dev-fleet/news-scout/CLAUDE.md`)
+- [x] Once-per-day fetch with state file (`output/news_scout_state.json`)
+- [x] Deterministic decision IDs for deduplication (`news-{date}-{hash}`)
+- [x] Top 3 most significant decisions per day (capped)
+- [x] Self-contained issues: full GovernmentDecision JSON embedded in issue body
+- [x] Seed data preserved as fallback/supplement
+- [x] Deleted MCP scraper stubs (replaced by no-scraping policy)
+- [ ] Expand News Scout sources (Parliament website, Official Gazette)
+- [ ] Improve category assignment accuracy
+- [ ] Add government communication analysis (statements, press conferences)
 
 ## Phase 4: Output & Distribution
 - [x] Add a web-friendly HTML/static site output option (Jinja2 templates, site builder, GitHub Pages deploy)

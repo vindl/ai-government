@@ -10,6 +10,8 @@ Runs an indefinite cycle with three phases:
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
+import hashlib
 import json
 import logging
 import os
@@ -105,6 +107,11 @@ PRIVILEGED_PERMISSIONS = {"admin", "maintain"}
 SEED_DECISIONS_PATH = PROJECT_ROOT / "data" / "seed" / "sample_decisions.json"
 TELEMETRY_PATH = PROJECT_ROOT / "output" / "data" / "telemetry.jsonl"
 
+NEWS_SCOUT_MAX_TURNS = 20
+NEWS_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
+NEWS_SCOUT_STATE_PATH = PROJECT_ROOT / "output" / "news_scout_state.json"
+NEWS_SCOUT_MAX_DECISIONS = 3
+
 log = logging.getLogger("main_loop")
 
 
@@ -126,6 +133,13 @@ class DirectorOutput(BaseModel):
 
     title: str = Field(min_length=1, max_length=120)
     description: str = Field(min_length=1)
+
+
+class NewsScoutState(BaseModel):
+    """Tracks when news was last fetched to enforce once-per-day."""
+
+    last_fetch_date: str = ""  # YYYY-MM-DD
+
 
 _repo_nwo: str | None = None
 
@@ -585,16 +599,91 @@ def _load_role_prompt(role: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def get_pending_decisions() -> list[GovernmentDecision]:
-    """Load decisions that need analysis.
+def should_fetch_news() -> bool:
+    """Return True if news has not been fetched today."""
+    today = _dt.date.today().isoformat()
+    if not NEWS_SCOUT_STATE_PATH.exists():
+        return True
+    try:
+        state = NewsScoutState.model_validate_json(NEWS_SCOUT_STATE_PATH.read_text())
+        return state.last_fetch_date != today
+    except Exception:
+        return True
 
-    Currently reads from seed data. This is the future integration point
-    for scrapers (gov.me, news sites).
+
+def _save_news_scout_state(date_str: str) -> None:
+    """Persist last fetch date to disk."""
+    NEWS_SCOUT_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    NEWS_SCOUT_STATE_PATH.write_text(
+        NewsScoutState(last_fetch_date=date_str).model_dump_json()
+    )
+
+
+def _generate_decision_id(title: str, date: _dt.date) -> str:
+    """Generate a deterministic ID from date + title hash."""
+    h = hashlib.sha256(title.encode()).hexdigest()[:8]
+    return f"news-{date.isoformat()}-{h}"
+
+
+async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
+    """Run the News Scout agent to discover today's government decisions.
+
+    Returns a list of GovernmentDecision objects (empty on failure).
+    Non-fatal — logs errors and returns empty list.
     """
-    if not SEED_DECISIONS_PATH.exists():
-        log.warning("No seed decisions file: %s", SEED_DECISIONS_PATH)
+    from ai_government.models.decision import GovernmentDecision
+
+    try:
+        system_prompt = _load_role_prompt("news-scout")
+        today = _dt.date.today()
+        prompt = system_prompt.replace("{today}", today.isoformat())
+        prompt += f"\n\nFind today's ({today.isoformat()}) Montenegrin government decisions."
+
+        opts = _sdk_options(
+            system_prompt=prompt,
+            model=model,
+            max_turns=NEWS_SCOUT_MAX_TURNS,
+            allowed_tools=NEWS_SCOUT_TOOLS,
+        )
+
+        log.info("Running News Scout agent for %s...", today.isoformat())
+        stream = claude_code_sdk.query(
+            prompt=f"Search for Montenegrin government decisions from {today.isoformat()}. "
+                   "Return a JSON array of the top 3 most significant decisions.",
+            options=opts,
+        )
+        output = await _collect_agent_output(stream)
+
+        raw = _parse_json_array(output)
+        if not raw:
+            log.info("News Scout returned no decisions for %s", today.isoformat())
+            return []
+
+        decisions: list[GovernmentDecision] = []
+        for item in raw[:NEWS_SCOUT_MAX_DECISIONS]:
+            try:
+                # Parse date — agent should return YYYY-MM-DD
+                item_date = _dt.date.fromisoformat(item.get("date", today.isoformat()))
+                decision_id = _generate_decision_id(item.get("title", ""), item_date)
+                decision = GovernmentDecision(
+                    id=decision_id,
+                    title=item.get("title", ""),
+                    summary=item.get("summary", ""),
+                    full_text=item.get("full_text", ""),
+                    date=item_date,
+                    source_url=item.get("source_url", ""),
+                    category=item.get("category", "general"),
+                    tags=item.get("tags", []),
+                )
+                decisions.append(decision)
+            except Exception:
+                log.warning("Skipping invalid news item: %s", item)
+
+        log.info("News Scout found %d decisions for %s", len(decisions), today.isoformat())
+        return decisions
+    except Exception:
+        log.exception("News Scout failed (non-fatal)")
         return []
-    return load_decisions(SEED_DECISIONS_PATH)
 
 
 def decision_already_tracked(decision_id: str) -> bool:
@@ -614,14 +703,21 @@ def decision_already_tracked(decision_id: str) -> bool:
 
 
 def create_analysis_issue(decision: GovernmentDecision) -> int:
-    """Create a GitHub Issue for analyzing a government decision."""
+    """Create a GitHub Issue for analyzing a government decision.
+
+    Embeds the full GovernmentDecision JSON in the issue body so the
+    execution step can parse it directly without re-loading from file.
+    """
     title = f"Analyze: {decision.title[:60]}"
+    decision_json = decision.model_dump_json(indent=2)
     body = (
         f"**Decision ID**: {decision.id}\n"
         f"**Date**: {decision.date}\n"
         f"**Category**: {decision.category}\n\n"
         f"> {decision.summary}\n\n"
-        f"Run full AI cabinet analysis on this decision."
+        f"Run full AI cabinet analysis on this decision.\n\n"
+        f"<details><summary>Decision JSON</summary>\n\n"
+        f"```json\n{decision_json}\n```\n</details>"
     )
     result = _run_gh([
         "gh", "issue", "create",
@@ -634,18 +730,35 @@ def create_analysis_issue(decision: GovernmentDecision) -> int:
     return issue_number
 
 
-def step_check_decisions() -> int:
+async def step_check_decisions(*, model: str) -> int:
     """Check for new government decisions and create analysis issues.
 
-    Returns the number of new issues created.
+    Combines news scout results with seed data. Returns the number of
+    new issues created.
     """
-    decisions = get_pending_decisions()
-    if not decisions:
+    all_decisions: list[GovernmentDecision] = []
+
+    # News scout: fetch today's decisions (once per day)
+    if should_fetch_news():
+        news = await step_fetch_news(model=model)
+        if news:
+            all_decisions.extend(news)
+            _save_news_scout_state(_dt.date.today().isoformat())
+            log.info("News Scout returned %d decisions", len(news))
+        else:
+            log.info("News Scout returned no decisions")
+
+    # Seed data: always load as fallback/supplement
+    if SEED_DECISIONS_PATH.exists():
+        seed = load_decisions(SEED_DECISIONS_PATH)
+        all_decisions.extend(seed)
+
+    if not all_decisions:
         log.info("No pending decisions found")
         return 0
 
     created = 0
-    for decision in decisions:
+    for decision in all_decisions:
         if decision_already_tracked(decision.id):
             log.debug("Decision %s already tracked", decision.id)
             continue
@@ -676,24 +789,38 @@ async def step_execute_analysis(
                  "--add-label", LABEL_BACKLOG])
         return True
 
-    # Extract decision ID from issue body
-    match = re.search(r"\*\*Decision ID\*\*:\s*(\S+)", body)
-    if not match:
-        reason = "Could not parse decision ID from issue body"
-        mark_issue_failed(issue_number, reason)
-        log.error("Issue #%d: %s", issue_number, reason)
-        return False
+    # Try to parse GovernmentDecision from embedded JSON in issue body
+    from ai_government.models.decision import GovernmentDecision
 
-    decision_id = match.group(1)
+    decision: GovernmentDecision | None = None
 
-    # Load the matching decision from seed data
-    all_decisions = get_pending_decisions()
-    decision = next((d for d in all_decisions if d.id == decision_id), None)
+    # New path: extract JSON from <details> block
+    json_match = re.search(r"```json\n(.*?)\n```", body, re.DOTALL)
+    if json_match:
+        try:
+            decision = GovernmentDecision.model_validate_json(json_match.group(1))
+            log.debug("Parsed decision from embedded JSON: %s", decision.id)
+        except Exception:
+            log.warning("Issue #%d: embedded JSON parse failed, falling back", issue_number)
+
+    # Fallback: extract decision ID and look up in seed data
     if decision is None:
-        reason = f"Decision {decision_id} not found in seed data"
-        mark_issue_failed(issue_number, reason)
-        log.error("Issue #%d: %s", issue_number, reason)
-        return False
+        id_match = re.search(r"\*\*Decision ID\*\*:\s*(\S+)", body)
+        if not id_match:
+            reason = "Could not parse decision from issue body"
+            mark_issue_failed(issue_number, reason)
+            log.error("Issue #%d: %s", issue_number, reason)
+            return False
+
+        decision_id = id_match.group(1)
+        if SEED_DECISIONS_PATH.exists():
+            seed = load_decisions(SEED_DECISIONS_PATH)
+            decision = next((d for d in seed if d.id == decision_id), None)
+        if decision is None:
+            reason = f"Decision {decision_id} not found"
+            mark_issue_failed(issue_number, reason)
+            log.error("Issue #%d: %s", issue_number, reason)
+            return False
 
     try:
         config = SessionConfig(model=model)
@@ -782,7 +909,7 @@ Propose improvements across TWO domains:
 
 1. **Dev fleet & workflow**: tooling, CI, testing, code quality, developer experience
 2. **Government simulation**: new ministry agents, more realistic decision models,
-   real-world data ingestion (gov.me scraper, news), matching structure to actual
+   improving news scout accuracy and expanding sources, matching structure to actual
    Montenegrin government bodies, improving prompt quality, EU accession tracking,
    Montenegrin language accuracy
 
@@ -1542,7 +1669,7 @@ async def run_one_cycle(
     else:
         print("Phase A: Checking for new government decisions...")
         try:
-            new_issues = step_check_decisions()
+            new_issues = await step_check_decisions(model=model)
             print(f"  Created {new_issues} new analysis issue(s)")
             telemetry.decisions_found = new_issues
             telemetry.analysis_issues_created = new_issues

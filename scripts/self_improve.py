@@ -1,0 +1,715 @@
+#!/usr/bin/env python3
+"""Autonomous self-improvement loop.
+
+Runs an indefinite cycle: propose improvements → debate/triage →
+backlog as GitHub Issues → pick a task → execute via PR workflow → repeat.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+import anyio
+import claude_code_sdk
+from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_COOLDOWN_SECONDS = 60
+DEFAULT_PROPOSALS_PER_CYCLE = 3
+DEFAULT_MAX_PR_ROUNDS = 0  # 0 = unlimited
+
+LABEL_PROPOSED = "self-improve:proposed"
+LABEL_BACKLOG = "self-improve:backlog"
+LABEL_REJECTED = "self-improve:rejected"
+LABEL_IN_PROGRESS = "self-improve:in-progress"
+LABEL_DONE = "self-improve:done"
+LABEL_FAILED = "self-improve:failed"
+LABEL_HUMAN = "human-suggestion"
+
+ALL_LABELS: dict[str, str] = {
+    LABEL_PROPOSED: "808080",    # gray
+    LABEL_BACKLOG: "0e8a16",     # green
+    LABEL_REJECTED: "e67e22",    # orange
+    LABEL_IN_PROGRESS: "fbca04",  # yellow
+    LABEL_DONE: "6f42c1",       # purple
+    LABEL_FAILED: "d73a4a",     # red
+    LABEL_HUMAN: "0075ca",      # blue
+}
+
+# Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
+# Also clear ANTHROPIC_API_KEY so the subprocess uses OAuth.
+SDK_ENV = {"CLAUDECODE": "", "ANTHROPIC_API_KEY": ""}
+
+PROPOSE_MAX_TURNS = 10
+DEBATE_MAX_TURNS = 5
+PROPOSE_TOOLS = ["Bash", "Read", "Glob", "Grep"]
+
+log = logging.getLogger("self_improve")
+
+
+# ---------------------------------------------------------------------------
+# SDK helpers
+# ---------------------------------------------------------------------------
+
+
+def _sdk_options(
+    *,
+    system_prompt: str,
+    model: str,
+    max_turns: int,
+    allowed_tools: list[str],
+) -> ClaudeCodeOptions:
+    return ClaudeCodeOptions(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=max_turns,
+        allowed_tools=allowed_tools,
+        permission_mode="bypassPermissions",
+        cwd=PROJECT_ROOT,
+        env=SDK_ENV,
+    )
+
+
+async def _collect_agent_output(
+    stream: AsyncIterator[claude_code_sdk.Message],
+) -> str:
+    text_parts: list[str] = []
+    async for message in stream:
+        if isinstance(message, AssistantMessage):
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    text_parts.append(block.text)
+    return "\n".join(text_parts)
+
+
+# ---------------------------------------------------------------------------
+# Git / GitHub helpers
+# ---------------------------------------------------------------------------
+
+
+def _run_gh(
+    args: list[str], *, check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    log.debug("Running: %s", " ".join(args))
+    result = subprocess.run(  # noqa: S603
+        args, capture_output=True, text=True, cwd=PROJECT_ROOT, check=False,
+    )
+    if check and result.returncode != 0:
+        log.error("Command failed: %s\nstderr: %s", " ".join(args), result.stderr.strip())
+        raise subprocess.CalledProcessError(result.returncode, args, result.stdout, result.stderr)
+    return result
+
+
+def ensure_labels_exist() -> None:
+    """Create all labels idempotently."""
+    for label, color in ALL_LABELS.items():
+        _run_gh(
+            ["gh", "label", "create", label, "--color", color, "--force"],
+            check=False,
+        )
+    log.info("Labels ensured")
+
+
+def create_proposal_issue(title: str, body: str) -> int:
+    """Create a GitHub Issue with the proposed label. Returns issue number."""
+    result = _run_gh([
+        "gh", "issue", "create",
+        "--title", title,
+        "--body", body,
+        "--label", LABEL_PROPOSED,
+    ])
+    # gh issue create prints the URL; extract number from it
+    url = result.stdout.strip()
+    return int(url.rstrip("/").split("/")[-1])
+
+
+def post_debate_comment(
+    issue_number: int,
+    advocate_arg: str,
+    skeptic_arg: str,
+    verdict: str,
+) -> None:
+    """Post the full debate as a comment on the issue."""
+    body = (
+        f"## Triage Debate\n\n"
+        f"### Advocate (PM)\n{advocate_arg}\n\n"
+        f"### Skeptic (Reviewer)\n{skeptic_arg}\n\n"
+        f"### Verdict: **{verdict}**"
+    )
+    _run_gh(["gh", "issue", "comment", str(issue_number), "--body", body])
+
+
+def accept_issue(issue_number: int) -> None:
+    """Move issue from proposed to backlog."""
+    _run_gh(["gh", "issue", "edit", str(issue_number),
+             "--remove-label", LABEL_PROPOSED,
+             "--add-label", LABEL_BACKLOG])
+
+
+def reject_issue(issue_number: int) -> None:
+    """Label as rejected and close."""
+    _run_gh(["gh", "issue", "edit", str(issue_number),
+             "--remove-label", LABEL_PROPOSED,
+             "--add-label", LABEL_REJECTED])
+    _run_gh(["gh", "issue", "close", str(issue_number),
+             "--comment", "Rejected by triage debate."])
+
+
+def list_backlog_issues() -> list[dict[str, Any]]:
+    """Return backlog issues, oldest first."""
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_BACKLOG,
+        "--state", "open",
+        "--json", "number,title,body,createdAt",
+        "--limit", "50",
+    ])
+    issues: list[dict[str, Any]] = json.loads(result.stdout) if result.stdout.strip() else []
+    issues.sort(key=lambda i: i.get("createdAt", ""))
+    return issues
+
+
+def list_human_suggestions() -> list[dict[str, Any]]:
+    """Return human-suggestion issues pending triage."""
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_HUMAN,
+        "--state", "open",
+        "--json", "number,title,body,createdAt",
+        "--limit", "50",
+    ])
+    return json.loads(result.stdout) if result.stdout.strip() else []
+
+
+def mark_issue_in_progress(issue_number: int) -> None:
+    _run_gh(["gh", "issue", "edit", str(issue_number),
+             "--remove-label", LABEL_BACKLOG,
+             "--add-label", LABEL_IN_PROGRESS])
+
+
+def mark_issue_done(issue_number: int) -> None:
+    _run_gh(["gh", "issue", "edit", str(issue_number),
+             "--remove-label", LABEL_IN_PROGRESS,
+             "--add-label", LABEL_DONE])
+    _run_gh(["gh", "issue", "close", str(issue_number)])
+
+
+def mark_issue_failed(issue_number: int, reason: str) -> None:
+    _run_gh(["gh", "issue", "edit", str(issue_number),
+             "--remove-label", LABEL_IN_PROGRESS,
+             "--add-label", LABEL_FAILED])
+    _run_gh(["gh", "issue", "comment", str(issue_number),
+             "--body", f"Execution failed: {reason}"])
+
+
+def get_failed_issue_titles() -> list[str]:
+    """Return titles of previously failed issues (for dedup)."""
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_FAILED,
+        "--state", "all",
+        "--json", "title",
+        "--limit", "100",
+    ])
+    issues = json.loads(result.stdout) if result.stdout.strip() else []
+    return [i["title"] for i in issues]
+
+
+# ---------------------------------------------------------------------------
+# Role prompt loading
+# ---------------------------------------------------------------------------
+
+
+def _load_role_prompt(role: str) -> str:
+    path = PROJECT_ROOT / "dev-fleet" / role / "CLAUDE.md"
+    if path.exists():
+        return path.read_text()
+    log.warning("Role prompt not found: %s", path)
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# Step 1: Propose
+# ---------------------------------------------------------------------------
+
+
+async def step_propose(
+    *,
+    num_proposals: int,
+    model: str,
+) -> list[dict[str, str]]:
+    """PM agent proposes improvements. Returns list of {title, description, domain}."""
+    failed_titles = get_failed_issue_titles()
+    failed_block = ""
+    if failed_titles:
+        titles_list = "\n".join(f"- {t}" for t in failed_titles)
+        failed_block = (
+            f"\n\nPreviously failed proposals (DO NOT re-propose these):\n{titles_list}"
+        )
+
+    prompt = f"""You are the PM for the AI Government project. Propose exactly {num_proposals} improvements.
+
+Read these files for context:
+- docs/STATUS.md
+- docs/ROADMAP.md
+- docs/CONTEXT.md
+- Browse src/ and scripts/ to understand current implementation
+
+Also check existing GitHub Issues to avoid duplicates:
+- Run: gh issue list --state all --limit 50
+
+Propose improvements across TWO domains:
+
+1. **Dev fleet & workflow**: tooling, CI, testing, code quality, developer experience
+2. **Government simulation**: new ministry agents, more realistic decision models,
+   real-world data ingestion (gov.me scraper, news), matching structure to actual
+   Montenegrin government bodies, improving prompt quality, EU accession tracking,
+   Montenegrin language accuracy
+
+Consider:
+- How can we make the government mirror more realistic?
+- What real-world data sources should we ingest?
+- Should the ministry structure match the actual government or propose a better one?
+- How can we improve based on feedback from previous outputs?
+{failed_block}
+
+Return ONLY a JSON array (no markdown fences) of exactly {num_proposals} objects:
+[
+  {{
+    "title": "Short imperative title (under 80 chars)",
+    "description": "2-3 sentences explaining the improvement, why it matters, and acceptance criteria",
+    "domain": "dev" or "government"
+  }}
+]
+"""
+
+    system_prompt = _load_role_prompt("pm")
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=PROPOSE_MAX_TURNS,
+        allowed_tools=PROPOSE_TOOLS,
+    )
+
+    log.info("Running PM agent to propose %d improvements...", num_proposals)
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    output = await _collect_agent_output(stream)
+
+    # Extract JSON from the output
+    proposals = _parse_json_array(output)
+    if not proposals:
+        log.warning("PM agent returned no parseable proposals")
+        return []
+
+    log.info("PM proposed %d improvements", len(proposals))
+    return proposals[:num_proposals]
+
+
+def _parse_json_array(text: str) -> list[dict[str, str]]:
+    """Extract a JSON array from agent output, tolerating surrounding text."""
+    # Try direct parse first
+    text = text.strip()
+    try:
+        result = json.loads(text)
+        if isinstance(result, list):
+            return result
+    except json.JSONDecodeError:
+        pass
+
+    # Find JSON array in the text
+    start = text.find("[")
+    if start == -1:
+        return []
+    # Find matching bracket
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "[":
+            depth += 1
+        elif text[i] == "]":
+            depth -= 1
+            if depth == 0:
+                try:
+                    result = json.loads(text[start : i + 1])
+                    if isinstance(result, list):
+                        return result
+                except json.JSONDecodeError:
+                    pass
+                break
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Step 2: Debate
+# ---------------------------------------------------------------------------
+
+
+async def step_debate(
+    proposals: list[dict[str, Any]],
+    *,
+    model: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Debate each proposal. Returns (accepted, rejected) with arguments attached."""
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+
+    for proposal in proposals:
+        title = proposal.get("title", "Untitled")
+        description = proposal.get("description", "")
+        domain = proposal.get("domain", "dev")
+        issue_number = proposal.get("issue_number")
+
+        log.info("Debating: %s", title)
+
+        # If this is an AI proposal (no existing issue), create one
+        if issue_number is None:
+            issue_number = create_proposal_issue(
+                title,
+                f"**Domain**: {domain}\n\n{description}",
+            )
+            proposal["issue_number"] = issue_number
+
+        # Advocate (PM) argues for the proposal
+        advocate_arg = await _run_advocate(title, description, domain, model=model)
+
+        # Skeptic (Reviewer) challenges the proposal
+        skeptic_arg = await _run_skeptic(title, description, advocate_arg, model=model)
+
+        # Deterministic judge: check if skeptic rejected
+        verdict = "REJECTED" if "VERDICT: REJECT" in skeptic_arg else "ACCEPTED"
+
+        # Post debate as issue comment
+        post_debate_comment(issue_number, advocate_arg, skeptic_arg, verdict)
+
+        proposal["advocate_arg"] = advocate_arg
+        proposal["skeptic_arg"] = skeptic_arg
+        proposal["verdict"] = verdict
+
+        if verdict == "ACCEPTED":
+            accept_issue(issue_number)
+            accepted.append(proposal)
+            log.info("ACCEPTED: %s (#%d)", title, issue_number)
+        else:
+            reject_issue(issue_number)
+            rejected.append(proposal)
+            log.info("REJECTED: %s (#%d)", title, issue_number)
+
+    return accepted, rejected
+
+
+async def _run_advocate(
+    title: str,
+    description: str,
+    domain: str,
+    *,
+    model: str,
+) -> str:
+    """PM argues for the proposal (~200 words)."""
+    prompt = f"""Argue in favor of this proposed improvement for the AI Government project.
+
+Title: {title}
+Description: {description}
+Domain: {domain}
+
+Write a concise argument (~200 words) for why this should be accepted.
+Consider: impact, feasibility, alignment with project goals, and priority.
+"""
+    system_prompt = _load_role_prompt("pm")
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=DEBATE_MAX_TURNS,
+        allowed_tools=[],
+    )
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    return await _collect_agent_output(stream)
+
+
+async def _run_skeptic(
+    title: str,
+    description: str,
+    advocate_arg: str,
+    *,
+    model: str,
+) -> str:
+    """Reviewer challenges the proposal. Must include VERDICT: REJECT or not."""
+    prompt = f"""Challenge this proposed improvement for the AI Government project.
+
+Title: {title}
+Description: {description}
+
+The advocate argues:
+{advocate_arg}
+
+Respond with a critical assessment (~200 words). Consider:
+- Is the scope too large or vague?
+- Are there higher-priority items?
+- Is it feasible with the current codebase?
+- Does it align with the project constitution and roadmap?
+
+End your response with EXACTLY one of:
+- "VERDICT: REJECT — <reason>" if you believe this should NOT be done now
+- "VERDICT: ACCEPT — <reason>" if you concede the advocate's argument is strong
+"""
+    system_prompt = _load_role_prompt("reviewer")
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=DEBATE_MAX_TURNS,
+        allowed_tools=[],
+    )
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    return await _collect_agent_output(stream)
+
+
+# ---------------------------------------------------------------------------
+# Step 3: Pick
+# ---------------------------------------------------------------------------
+
+
+def step_pick() -> dict[str, Any] | None:
+    """Pick the oldest backlog issue (FIFO)."""
+    issues = list_backlog_issues()
+    if not issues:
+        log.info("No backlog issues to pick")
+        return None
+    picked = issues[0]
+    log.info("Picked issue #%d: %s", picked["number"], picked["title"])
+    return picked
+
+
+# ---------------------------------------------------------------------------
+# Step 4: Execute
+# ---------------------------------------------------------------------------
+
+
+async def step_execute(
+    issue: dict[str, Any],
+    *,
+    model: str,
+    max_pr_rounds: int,
+    dry_run: bool = False,
+) -> bool:
+    """Execute the picked issue via pr_workflow. Returns True on success."""
+    issue_number = issue["number"]
+    title = issue["title"]
+    body = issue.get("body", "")
+    task = f"{title}\n\n{body}\n\nCloses #{issue_number}"
+
+    mark_issue_in_progress(issue_number)
+
+    if dry_run:
+        log.info("DRY RUN: would execute issue #%d: %s", issue_number, title)
+        # Undo in-progress label for dry run
+        _run_gh(["gh", "issue", "edit", str(issue_number),
+                 "--remove-label", LABEL_IN_PROGRESS,
+                 "--add-label", LABEL_BACKLOG])
+        return True
+
+    # Import pr_workflow to reuse its run_workflow function
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    from pr_workflow import run_workflow
+
+    # Make sure we're on main and up to date
+    _run_gh(["git", "checkout", "main"])
+    _run_gh(["git", "pull", "--ff-only"], check=False)
+
+    try:
+        await run_workflow(task, max_rounds=max_pr_rounds, model=model)
+        mark_issue_done(issue_number)
+        log.info("Issue #%d completed successfully", issue_number)
+        return True
+    except SystemExit as e:
+        reason = f"PR workflow exited with code {e.code}"
+        mark_issue_failed(issue_number, reason)
+        log.error("Issue #%d failed: %s", issue_number, reason)
+        return False
+    except Exception as exc:
+        reason = f"Unexpected error: {exc}"
+        mark_issue_failed(issue_number, reason)
+        log.exception("Issue #%d failed", issue_number)
+        return False
+    finally:
+        # Always return to main branch
+        _run_gh(["git", "checkout", "main"], check=False)
+
+
+# ---------------------------------------------------------------------------
+# Main loop
+# ---------------------------------------------------------------------------
+
+
+async def run_self_improve_loop(
+    *,
+    max_cycles: int = 0,
+    cooldown: int = DEFAULT_COOLDOWN_SECONDS,
+    proposals_per_cycle: int = DEFAULT_PROPOSALS_PER_CYCLE,
+    model: str = DEFAULT_MODEL,
+    max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
+    dry_run: bool = False,
+) -> None:
+    """Run the self-improvement loop."""
+    ensure_labels_exist()
+
+    cycle = 0
+    while True:
+        cycle += 1
+        if max_cycles > 0 and cycle > max_cycles:
+            log.info("Reached max cycles (%d). Stopping.", max_cycles)
+            break
+
+        print(f"\n{'='*60}")
+        print(f"SELF-IMPROVEMENT CYCLE {cycle}" + (f" / {max_cycles}" if max_cycles > 0 else ""))
+        print(f"{'='*60}\n")
+
+        # --- Step 1: Propose ---
+        print("Step 1: Proposing improvements...")
+        try:
+            ai_proposals = await step_propose(
+                num_proposals=proposals_per_cycle, model=model,
+            )
+        except Exception:
+            log.exception("Propose step failed")
+            ai_proposals = []
+
+        # Ingest human suggestions
+        human_issues = list_human_suggestions()
+        human_proposals = [
+            {
+                "title": h["title"],
+                "description": h.get("body", ""),
+                "domain": "human",
+                "issue_number": h["number"],
+            }
+            for h in human_issues
+        ]
+
+        all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
+        print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
+
+        if not all_proposals:
+            print("  No proposals this cycle. Sleeping...")
+            time.sleep(cooldown)
+            continue
+
+        # --- Step 2: Debate ---
+        print("\nStep 2: Debating proposals...")
+        try:
+            accepted, rejected = await step_debate(all_proposals, model=model)
+        except Exception:
+            log.exception("Debate step failed")
+            accepted, rejected = [], []
+        print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
+
+        # --- Step 3: Pick ---
+        print("\nStep 3: Picking next task from backlog...")
+        issue = step_pick()
+        if issue is None:
+            print("  Backlog empty. Sleeping...")
+            time.sleep(cooldown)
+            continue
+
+        print(f"  Picked: #{issue['number']} — {issue['title']}")
+
+        # --- Step 4: Execute ---
+        print(f"\nStep 4: Executing issue #{issue['number']}...")
+        success = await step_execute(
+            issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+        )
+        print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+
+        # Cooldown
+        if max_cycles == 0 or cycle < max_cycles:
+            print(f"\nCooling down for {cooldown}s...")
+            time.sleep(cooldown)
+
+    print("\nSelf-improvement loop finished.")
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Autonomous self-improvement loop for the AI Government project.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""examples:
+  uv run python scripts/self_improve.py                          # run indefinitely
+  uv run python scripts/self_improve.py --dry-run --max-cycles 1 # test ideation + triage only
+  uv run python scripts/self_improve.py --max-cycles 3           # 3 cycles then stop
+  uv run python scripts/self_improve.py --cooldown 30 --proposals 5
+  uv run python scripts/self_improve.py --max-cycles 1 --max-pr-rounds 3
+""",
+    )
+    parser.add_argument(
+        "--max-cycles", type=int, default=0,
+        help="Maximum cycles to run; 0 = unlimited (default: 0)",
+    )
+    parser.add_argument(
+        "--cooldown", type=int, default=DEFAULT_COOLDOWN_SECONDS,
+        help=f"Seconds between cycles (default: {DEFAULT_COOLDOWN_SECONDS})",
+    )
+    parser.add_argument(
+        "--proposals", type=int, default=DEFAULT_PROPOSALS_PER_CYCLE,
+        help=f"AI proposals per cycle (default: {DEFAULT_PROPOSALS_PER_CYCLE})",
+    )
+    parser.add_argument(
+        "--model", default=DEFAULT_MODEL,
+        help=f"Claude model to use (default: {DEFAULT_MODEL})",
+    )
+    parser.add_argument(
+        "--max-pr-rounds", type=int, default=DEFAULT_MAX_PR_ROUNDS,
+        help=f"Max coder-reviewer rounds per PR; 0 = unlimited (default: {DEFAULT_MAX_PR_ROUNDS})",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Propose and debate only; skip execution",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Enable verbose (debug) logging",
+    )
+
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+    async def _run() -> None:
+        await run_self_improve_loop(
+            max_cycles=args.max_cycles,
+            cooldown=args.cooldown,
+            proposals_per_cycle=args.proposals,
+            model=args.model,
+            max_pr_rounds=args.max_pr_rounds,
+            dry_run=args.dry_run,
+        )
+
+    try:
+        anyio.run(_run)
+    except KeyboardInterrupt:
+        print("\nSelf-improvement loop interrupted.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

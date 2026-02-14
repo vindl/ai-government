@@ -14,8 +14,9 @@ from ai_government.agents.ministry_health import create_health_agent
 from ai_government.agents.ministry_interior import create_interior_agent
 from ai_government.agents.ministry_justice import create_justice_agent
 from ai_government.agents.parliament import ParliamentAgent
+from ai_government.agents.synthesizer import SynthesizerAgent
 from ai_government.config import SessionConfig
-from ai_government.models.assessment import Assessment, CriticReport, ParliamentDebate
+from ai_government.models.assessment import Assessment, CounterProposal, CriticReport, ParliamentDebate
 from ai_government.models.decision import GovernmentDecision
 
 if TYPE_CHECKING:
@@ -29,6 +30,7 @@ class SessionResult(BaseModel):
     assessments: list[Assessment] = Field(default_factory=list)
     debate: ParliamentDebate | None = None
     critic_report: CriticReport | None = None
+    counter_proposal: CounterProposal | None = None
 
 
 class Orchestrator:
@@ -39,6 +41,7 @@ class Orchestrator:
         self.ministry_agents: list[GovernmentAgent] = self._create_ministry_agents()
         self.parliament = ParliamentAgent(self.config)
         self.critic = CriticAgent(self.config)
+        self.synthesizer = SynthesizerAgent(self.config)
 
     def _create_ministry_agents(self) -> list[GovernmentAgent]:
         return [
@@ -85,6 +88,11 @@ class Orchestrator:
 
             tg.start_soon(run_parliament)
             tg.start_soon(run_critic)
+
+        # Phase 3: Synthesize unified counter-proposal
+        result.counter_proposal = await self.synthesizer.synthesize(
+            decision, result.assessments
+        )
 
         return result
 

@@ -54,6 +54,14 @@
 - [x] Set up automated posting (X API integration via tweepy)
 - [ ] Daily automated sessions via GitHub Actions cron
 
+## Phase 4.5: Counter-Proposals (DONE)
+- [x] `MinistryCounterProposal` and `CounterProposal` Pydantic models
+- [x] Ministry prompts request domain-specific alternatives (same API call)
+- [x] `SynthesizerAgent` consolidates ministry inputs into unified counter-proposal
+- [x] Orchestrator Phase 3: synthesizer runs after parliament + critic
+- [x] Output renderers: markdown scorecard, HTML templates, CSS, social media, X digest
+- [x] Tests for models, agent parsing, backwards compatibility
+
 ## Phase 5: Quality & Depth
 - [ ] Add more ministry agents (Education, Defence, Environment, etc.)
 - [ ] Improve parliament agent with real party positions and dynamics

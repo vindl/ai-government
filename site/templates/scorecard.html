@@ -74,6 +74,25 @@
         {% endfor %}
       </ul>
       {% endif %}
+      {% if a.counter_proposal %}
+      <div class="counter-proposal-mini">
+        <h4>Kontraprijedlog: {{ a.counter_proposal.title }}</h4>
+        <p>{{ a.counter_proposal.summary }}</p>
+        {% if a.counter_proposal.key_changes %}
+        <ul>
+          {% for change in a.counter_proposal.key_changes %}
+          <li>{{ change }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if a.counter_proposal.expected_benefits %}
+        <p><strong>Ocekivane koristi:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
+        {% endif %}
+        {% if a.counter_proposal.estimated_feasibility %}
+        <p><strong>Izvodljivost:</strong> {{ a.counter_proposal.estimated_feasibility }}</p>
+        {% endif %}
+      </div>
+      {% endif %}
     </div>
     {% endfor %}
   </section>
@@ -113,6 +132,51 @@
     <ul>
       {% for bs in result.critic_report.blind_spots %}
       <li>{{ bs }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if result.counter_proposal %}
+  <section class="counter-proposal">
+    <h2>Kontraprijedlog AI Vlade</h2>
+    <h3>{{ result.counter_proposal.title }}</h3>
+    <p class="executive-summary"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
+    <div class="detailed-proposal">{{ result.counter_proposal.detailed_proposal }}</div>
+
+    {% if result.counter_proposal.key_differences %}
+    <h4>Kljucne razlike</h4>
+    <ul>
+      {% for diff in result.counter_proposal.key_differences %}
+      <li>{{ diff }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if result.counter_proposal.implementation_steps %}
+    <h4>Koraci implementacije</h4>
+    <ol>
+      {% for step in result.counter_proposal.implementation_steps %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if result.counter_proposal.risks_and_tradeoffs %}
+    <h4>Rizici i kompromisi</h4>
+    <ul>
+      {% for risk in result.counter_proposal.risks_and_tradeoffs %}
+      <li>{{ risk }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if result.counter_proposal.ministry_contributions %}
+    <h4>Doprinosi ministarstava</h4>
+    <ul>
+      {% for contrib in result.counter_proposal.ministry_contributions %}
+      <li>{{ contrib }}</li>
       {% endfor %}
     </ul>
     {% endif %}

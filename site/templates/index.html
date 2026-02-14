@@ -12,7 +12,7 @@
   {% for r in results %}
   <li>
     <h3><a href="odluke/{{ r.decision.id }}.html">{{ r.decision.title }}</a></h3>
-    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}</div>
+    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal">Kontraprijedlog dostupan</span>{% endif %}</div>
     <p class="feed-summary">{{ r.decision.summary }}</p>
   </li>
   {% endfor %}

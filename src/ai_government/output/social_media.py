@@ -56,6 +56,14 @@ def format_thread(result: SessionResult) -> list[str]:
             f"{cr.overall_analysis[:200]}"
         ))
 
+    # Counter-proposal
+    if result.counter_proposal:
+        cp = result.counter_proposal
+        tweets.append(_truncate(
+            f"Kontraprijedlog: {cp.title}\n\n"
+            f"{cp.executive_summary}"
+        ))
+
     # Final tweet
     tweets.append(_truncate(
         "Kompletna analiza: [link]\n\n"

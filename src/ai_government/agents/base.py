@@ -77,7 +77,10 @@ class GovernmentAgent:
             f'"decision_id": "{decision.id}", '
             f'"verdict": "strongly_positive|positive|neutral|negative|strongly_negative", '
             f'"score": 1-10, "summary": "...", "reasoning": "...", '
-            f'"key_concerns": ["..."], "recommendations": ["..."]}}'
+            f'"key_concerns": ["..."], "recommendations": ["..."], '
+            f'"counter_proposal": {{"title": "...", "summary": "...", '
+            f'"key_changes": ["..."], "expected_benefits": ["..."], '
+            f'"estimated_feasibility": "..."}}}}'
         )
 
     def _parse_response(self, response_text: str, decision_id: str) -> Assessment:

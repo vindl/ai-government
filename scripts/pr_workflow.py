@@ -202,6 +202,15 @@ Task: {task}
 
 def _build_coder_prompt_followup(task: str, pr_number: int) -> str:
     """Build the coder prompt for subsequent rounds (address review feedback)."""
+    # Get owner/repo for inline comment commands
+    owner_repo = "{{owner}}/{{repo}}"  # Default fallback
+    try:
+        result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
+        if result.stdout.strip():
+            owner_repo = result.stdout.strip()
+    except (subprocess.CalledProcessError, ValueError):
+        pass  # Use fallback
+
     return f"""You previously opened PR #{pr_number} for the following task:
 
 Task: {task}
@@ -209,7 +218,7 @@ Task: {task}
 The reviewer has requested changes. Do the following:
 
 1. Read the review comments: `gh pr view {pr_number} --comments`
-2. Also check inline review comments: `gh api repos/{{owner}}/{{repo}}/pulls/{pr_number}/comments`
+2. Also check inline review comments: `gh api repos/{owner_repo}/pulls/{pr_number}/comments`
 3. Address each piece of feedback by modifying the code.
 4. Run checks to make sure everything passes:
    - `uv run ruff check src/ tests/`
@@ -224,14 +233,13 @@ The reviewer has requested changes. Do the following:
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
     # Get owner/repo for inline comment commands
+    owner_repo = "{{owner}}/{{repo}}"  # Default fallback
     try:
         result = _run_gh(["gh", "repo", "view", "--json", "owner,name", "-q", ".owner.login + \"/\" + .name"])
-        owner_repo = result.stdout.strip()
-        if not owner_repo:
-            raise ValueError("Empty owner/repo from gh repo view")
+        if result.stdout.strip():
+            owner_repo = result.stdout.strip()
     except (subprocess.CalledProcessError, ValueError):
-        # Fallback: agent will need to substitute manually if this fails
-        owner_repo = "{{owner}}/{{repo}}"
+        pass  # Use fallback
 
     return f"""Review PR #{pr_number} thoroughly. Be skeptical — your job is to find problems.
 
@@ -241,16 +249,17 @@ Steps:
 3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
 4. **Post inline comments** (if needed) on specific lines with issues:
    ```
-   gh api repos/{owner_repo}/pulls/{pr_number}/comments \\
-     -f body="suggestion or issue" \\
-     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \\
-     -f path="path/to/file.py" \\
-     -F line=42 \\  # -F sends line number as integer, not string
+   gh api repos/{owner_repo}/pulls/{pr_number}/comments \
+     -f body="suggestion or issue" \
+     -f commit_id="$(gh pr view {pr_number} --json commits -q '.commits[-1].oid')" \
+     -f path="path/to/file.py" \
+     -F line=42 \
      -f side="RIGHT"
    ```
+   Note: Use -F for line (sends as integer, not string).
    Post inline comments for: logic issues, missing edge cases, unclear code,
    potential bugs, better approaches, or concrete improvement suggestions.
-   If there are no line-specific issues, skip this step. Always proceed to step 5.
+   If there are no line-specific issues, skip this step and proceed to step 5.
 5. **Post your verdict** as a PR comment (NOT `gh pr review`):
 
    If changes needed (you found real issues):

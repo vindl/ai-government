@@ -27,7 +27,15 @@ from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 from ai_government.config import SessionConfig
 from ai_government.orchestrator import Orchestrator
 from ai_government.output.scorecard import render_scorecard
-from ai_government.output.site_builder import save_result_json
+from ai_government.output.site_builder import load_results_from_dir, save_result_json
+from ai_government.output.twitter import (
+    compose_daily_tweet,
+    get_unposted_results,
+    load_state,
+    post_tweet,
+    save_state,
+    should_post,
+)
 from ai_government.session import load_decisions
 
 if TYPE_CHECKING:
@@ -1008,6 +1016,57 @@ async def step_execute_code_change(
 
 
 # ---------------------------------------------------------------------------
+# X daily digest
+# ---------------------------------------------------------------------------
+
+
+DATA_DIR = PROJECT_ROOT / "output" / "data"
+
+
+def step_post_tweet() -> bool:
+    """Post a daily digest to X if enough time has elapsed.
+
+    Returns True if a post was published, False otherwise.
+    Non-fatal: returns False on any error (missing creds, API failure, etc.).
+    """
+    state = load_state()
+
+    if not should_post(state):
+        log.debug("X post cooldown has not elapsed — skipping")
+        return False
+
+    if not DATA_DIR.exists():
+        log.debug("No data directory — skipping X post")
+        return False
+
+    results = load_results_from_dir(DATA_DIR)
+    unposted = get_unposted_results(results, state)
+
+    if not unposted:
+        log.debug("No unposted results — skipping X post")
+        return False
+
+    text = compose_daily_tweet(unposted)
+    if not text:
+        return False
+
+    log.info("Composed X post:\n%s", text)
+
+    tweet_id = post_tweet(text)
+    if tweet_id is None:
+        # Content was logged above — useful for dev when creds aren't set
+        return False
+
+    # Update state
+    from datetime import UTC, datetime
+
+    state.last_posted_at = datetime.now(UTC)
+    state.posted_decision_ids.extend(r.decision.id for r in unposted[:3])
+    save_state(state)
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -1099,6 +1158,15 @@ async def run_one_cycle(
         issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
     )
     print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+
+    # --- Post daily X digest (if due) ---
+    if not dry_run:
+        try:
+            posted = step_post_tweet()
+            if posted:
+                print("  Posted daily X digest")
+        except Exception:
+            log.exception("X posting failed (non-fatal)")
 
 
 def _reexec(

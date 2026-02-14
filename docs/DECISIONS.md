@@ -156,3 +156,25 @@
 Analysis tasks skip debate (analyzing real decisions is always the right thing to do). Both phases are independently skippable via `--skip-analysis` and `--skip-improve`. The `get_pending_decisions()` function loads from seed data now and is the integration point for scrapers in Phase 3.
 
 **Consequences**: A single process handles both the product (government analysis) and the meta-process (self-improvement). Docker env vars renamed from `SELF_IMPROVE_*` to `LOOP_*`. The `run_session.py` CLI remains available for one-off analysis outside the loop.
+
+---
+
+## ADR-011: X Daily Digest Over Per-Analysis Threads
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The project had a `social_media.py` formatter that produced multi-tweet threads per analysis, but nothing actually posted to X. The goal is automated X posting with minimal noise (1-2 posts/day max).
+
+**Decision**: Post a single daily digest tweet instead of per-analysis threads:
+- Template-based composition (no LLM call) — picks up to 3 most concerning results sorted by critic `decision_score` ascending
+- 24h cooldown between posts, enforced by a local state file (`output/twitter_state.json`)
+- Graceful degradation: if `TWITTER_*` env vars are unset, posting is silently skipped; the main loop never fails because of X
+- OAuth 1.0a via tweepy for posting (Bearer Token is app-only/read-only)
+- Post content is always logged to console, even when credentials aren't configured
+
+**Alternatives considered**:
+- Per-analysis thread posting — rejected: too noisy, user wants max 1-2 posts/day
+- LLM-generated tweet text — rejected: adds API cost, latency, and unpredictability for a deterministic formatting task
+- Checking X API for last post time — rejected: unnecessary API calls when a local state file suffices
+
+**Consequences**: Predictable, low-noise X presence. The existing `social_media.py` thread formatter remains available for future use (e.g., manual posting, other platforms). Dev environments work without X credentials.

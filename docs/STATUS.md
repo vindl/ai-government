@@ -100,6 +100,16 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Fresh clone at runtime (no host filesystem mount) for full isolation
 - [x] `uv sync` in `_reexec()` so new dependencies are installed after git pull
 
+### X Daily Digest (`src/ai_government/output/twitter.py`)
+- [x] `TwitterState` Pydantic model for tracking last post time and posted decision IDs
+- [x] `load_state()` / `save_state()` — persists to `output/twitter_state.json`
+- [x] `should_post()` — 24h cooldown between posts
+- [x] `get_unposted_results()` — filters already-posted decisions
+- [x] `compose_daily_tweet()` — template-based, picks up to 3 most concerning results, Montenegrin, 280 chars
+- [x] `post_tweet()` — posts via tweepy (X API v2, OAuth 1.0a), gracefully skips if creds not set
+- [x] `step_post_tweet()` in main loop — runs after each cycle, non-fatal, logs composed post content
+- [x] Docker env var passthrough for `TWITTER_*` credentials
+
 ### Tests
 - [x] 16 tests passing
 - [x] `tests/models/test_decision.py` — model creation, validation, JSON roundtrip, seed data loading

@@ -1,4 +1,4 @@
-"""Social media thread formatter (Twitter/X)."""
+"""Social media thread formatter (X / formerly Twitter)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _truncate(text: str, max_len: int = MAX_TWEET_LENGTH) -> str:
 
 
 def format_thread(result: SessionResult) -> list[str]:
-    """Format a session result as a Twitter/X thread."""
+    """Format a session result as an X thread."""
     d = result.decision
     tweets: list[str] = []
 

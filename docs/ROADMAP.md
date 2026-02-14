@@ -51,7 +51,7 @@
 - [x] Publisher dev-fleet role for curating public content
 - [ ] Polish scorecard format for readability
 - [ ] Generate social media thread output automatically
-- [ ] Set up automated posting (Twitter/X API integration)
+- [x] Set up automated posting (X API integration via tweepy)
 - [ ] Daily automated sessions via GitHub Actions cron
 
 ## Phase 5: Quality & Depth

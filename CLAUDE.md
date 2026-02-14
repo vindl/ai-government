@@ -14,6 +14,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 - anyio for async
 - httpx + BeautifulSoup4 for scraping
 - Jinja2 for HTML templating (static site)
+- tweepy for X (formerly Twitter) API integration
 
 ## Code Style
 - Use `ruff` for linting (`ruff check src/ tests/`)
@@ -28,7 +29,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
   - `prompts/` — prompt templates (one per agent)
   - `models/` — Pydantic data models
   - `mcp_servers/` — MCP tool servers (scrapers)
-  - `output/` — output formatters (scorecard, social media, HTML, site builder)
+  - `output/` — output formatters (scorecard, social media, HTML, site builder, X posting)
 - `site/` — site source (templates, static assets, announcement content)
 - `tests/` — pytest tests
 - `dev-fleet/` — Claude Code role prompts
@@ -54,6 +55,12 @@ uv run python scripts/build_site.py --output-dir /tmp/_site  # build to custom d
 
 # Docker (isolated main loop)
 export GH_TOKEN="ghp_..."
+# Optional: X daily digest posting (set all 4 to enable)
+# Env var names use TWITTER_ prefix because the X Developer Portal still uses it
+# export TWITTER_CONSUMER_KEY="..."
+# export TWITTER_CONSUMER_SECRET="..."
+# export TWITTER_ACCESS_TOKEN="..."
+# export TWITTER_ACCESS_TOKEN_SECRET="..."
 docker compose build                                       # build image
 docker compose up                                          # run indefinitely
 docker compose up -d                                       # detached

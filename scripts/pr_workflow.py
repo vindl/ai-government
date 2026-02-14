@@ -122,6 +122,119 @@ def get_pr_number_for_branch(branch: str) -> int | None:
         return None
 
 
+def get_issue_comments(issue_number: int) -> list[dict[str, str]]:
+    """Fetch all comments on an issue.
+
+    Returns a list of comment dicts with 'author' and 'body' keys.
+    Returns empty list on error.
+    """
+    import json as _json
+
+    # Get owner/repo for REST API calls
+    try:
+        owner_repo = _get_owner_repo()
+    except ValueError:
+        log.warning("Cannot fetch issue comments: unable to determine owner/repo")
+        return []
+
+    result = _run_gh(
+        ["gh", "api", f"repos/{owner_repo}/issues/{issue_number}/comments"],
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return []
+
+    try:
+        raw_comments = _json.loads(result.stdout)
+    except _json.JSONDecodeError:
+        log.warning("Failed to parse issue comments JSON")
+        return []
+
+    # Normalize to simple dict format
+    comments = []
+    for c in raw_comments:
+        author = c.get("user", {}).get("login", "")
+        body = c.get("body", "")
+        comments.append({"author": author, "body": body})
+
+    return comments
+
+
+def get_pr_comments(pr_number: int) -> list[dict[str, str]]:
+    """Fetch all comments on a PR.
+
+    Returns a list of comment dicts with 'author' and 'body' keys.
+    Returns empty list on error.
+    """
+    import json as _json
+
+    # Get owner/repo for REST API calls
+    try:
+        owner_repo = _get_owner_repo()
+    except ValueError:
+        log.warning("Cannot fetch PR comments: unable to determine owner/repo")
+        return []
+
+    result = _run_gh(
+        ["gh", "api", f"repos/{owner_repo}/pulls/{pr_number}/comments"],
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        return []
+
+    try:
+        raw_comments = _json.loads(result.stdout)
+    except _json.JSONDecodeError:
+        log.warning("Failed to parse PR comments JSON")
+        return []
+
+    # Also fetch issue comments (PR comments on the conversation tab)
+    issue_result = _run_gh(
+        ["gh", "api", f"repos/{owner_repo}/issues/{pr_number}/comments"],
+        check=False,
+    )
+    if issue_result.returncode == 0 and issue_result.stdout.strip():
+        try:
+            issue_comments = _json.loads(issue_result.stdout)
+            raw_comments.extend(issue_comments)
+        except _json.JSONDecodeError:
+            pass
+
+    # Normalize to simple dict format
+    comments = []
+    for c in raw_comments:
+        author = c.get("user", {}).get("login", "")
+        body = c.get("body", "")
+        comments.append({"author": author, "body": body})
+
+    return comments
+
+
+def get_human_override_text(pr_number: int) -> str:
+    """Extract HUMAN OVERRIDE text from PR comments, if present.
+
+    Scans all PR comments for 'HUMAN OVERRIDE' markers. Returns the full
+    text of the first matching comment (with the marker removed), or empty
+    string if no override is found.
+
+    Human overrides take absolute priority over all other guidance.
+    """
+    comments = get_pr_comments(pr_number)
+
+    for comment in comments:
+        body = comment.get("body", "")
+        if "HUMAN OVERRIDE" in body:
+            # Remove the marker and return the rest
+            override_text = body.replace("HUMAN OVERRIDE", "").strip()
+            log.info(
+                "Found HUMAN OVERRIDE in PR #%d by %s",
+                pr_number, comment.get("author", "unknown"),
+            )
+            return override_text
+
+    return ""
+
+
 def get_review_verdict_from_comments(pr_number: int) -> str:
     """Parse the latest PR comment for a structured verdict.
 
@@ -198,9 +311,38 @@ def _load_role_prompt(role: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _build_coder_prompt_round1(task: str) -> str:
+def _build_coder_prompt_round1(task: str, *, issue_number: int | None = None) -> str:
     """Build the coder prompt for the first round (implement + open PR)."""
-    return f"""You have a task to implement. Do the following steps:
+    # Check for HUMAN OVERRIDE in issue comments
+    override_text = ""
+    if issue_number is not None:
+        comments = get_issue_comments(issue_number)
+        for comment in comments:
+            body = comment.get("body", "")
+            if "HUMAN OVERRIDE" in body:
+                override_text = body.replace("HUMAN OVERRIDE", "").strip()
+                log.info(
+                    "Found HUMAN OVERRIDE in issue #%d by %s",
+                    issue_number, comment.get("author", "unknown"),
+                )
+                break
+
+    override_section = ""
+    if override_text:
+        override_section = f"""
+⚠️  **HUMAN OVERRIDE DETECTED** ⚠️
+The following instructions from a human take ABSOLUTE PRIORITY over everything else
+(including the original task description, AI debate conclusions, and any other guidance):
+
+{override_text}
+
+You MUST follow the HUMAN OVERRIDE instructions above. If they conflict with the
+task description below, the HUMAN OVERRIDE wins.
+---
+
+"""
+
+    return f"""{override_section}You have a task to implement. Do the following steps:
 
 1. Implement the task described below.
 2. Run checks to make sure everything passes:
@@ -217,12 +359,43 @@ Task: {task}
 """
 
 
-def _build_coder_prompt_followup(task: str, pr_number: int) -> str:
+def _build_coder_prompt_followup(task: str, pr_number: int, *, issue_number: int | None = None) -> str:
     """Build the coder prompt for subsequent rounds (address review feedback)."""
     # Get owner/repo for inline comment commands (fail fast if unavailable)
     owner_repo = _get_owner_repo()
 
-    return f"""You previously opened PR #{pr_number} for the following task:
+    # Check for HUMAN OVERRIDE in PR comments
+    override_text = get_human_override_text(pr_number)
+
+    # Also check issue comments if we have an issue number
+    if not override_text and issue_number is not None:
+        comments = get_issue_comments(issue_number)
+        for comment in comments:
+            body = comment.get("body", "")
+            if "HUMAN OVERRIDE" in body:
+                override_text = body.replace("HUMAN OVERRIDE", "").strip()
+                log.info(
+                    "Found HUMAN OVERRIDE in issue #%d by %s",
+                    issue_number, comment.get("author", "unknown"),
+                )
+                break
+
+    override_section = ""
+    if override_text:
+        override_section = f"""
+⚠️  **HUMAN OVERRIDE DETECTED** ⚠️
+The following instructions from a human take ABSOLUTE PRIORITY over everything else
+(including the task description, review feedback, and any other guidance):
+
+{override_text}
+
+You MUST follow the HUMAN OVERRIDE instructions above. If they conflict with the
+reviewer's feedback or the task description, the HUMAN OVERRIDE wins.
+---
+
+"""
+
+    return f"""{override_section}You previously opened PR #{pr_number} for the following task:
 
 Task: {task}
 
@@ -247,12 +420,43 @@ The reviewer has requested changes. Do the following:
 """
 
 
-def _build_reviewer_prompt(pr_number: int) -> str:
+def _build_reviewer_prompt(pr_number: int, *, issue_number: int | None = None) -> str:
     """Build the reviewer prompt."""
     # Get owner/repo for inline comment commands (fail fast if unavailable)
     owner_repo = _get_owner_repo()
 
-    return f"""Review PR #{pr_number} thoroughly. Start every comment with "Written by Reviewer agent:".
+    # Check for HUMAN OVERRIDE in PR comments
+    override_text = get_human_override_text(pr_number)
+
+    # Also check issue comments if we have an issue number
+    if not override_text and issue_number is not None:
+        comments = get_issue_comments(issue_number)
+        for comment in comments:
+            body = comment.get("body", "")
+            if "HUMAN OVERRIDE" in body:
+                override_text = body.replace("HUMAN OVERRIDE", "").strip()
+                log.info(
+                    "Found HUMAN OVERRIDE in issue #%d by %s",
+                    issue_number, comment.get("author", "unknown"),
+                )
+                break
+
+    override_section = ""
+    if override_text:
+        override_section = f"""
+⚠️  **HUMAN OVERRIDE DETECTED** ⚠️
+The following instructions from a human take ABSOLUTE PRIORITY over everything else
+(including standard review criteria, project conventions, and any other guidance):
+
+{override_text}
+
+You MUST follow the HUMAN OVERRIDE instructions above when conducting your review.
+If they conflict with standard review guidelines, the HUMAN OVERRIDE wins.
+---
+
+"""
+
+    return f"""{override_section}Review PR #{pr_number} thoroughly. Start every comment with "Written by Reviewer agent:".
 
 Steps:
 1. `gh pr diff {pr_number}` — read the full diff carefully.
@@ -327,11 +531,12 @@ async def run_reviewer(
     pr_number: int,
     *,
     model: str,
+    issue_number: int | None = None,
 ) -> tuple[str, bool]:
     """Run the reviewer agent. Returns (output_text, had_error)."""
     log.info("Running reviewer agent on PR #%d...", pr_number)
     system_prompt = _load_role_prompt("reviewer")
-    prompt = _build_reviewer_prompt(pr_number)
+    prompt = _build_reviewer_prompt(pr_number, issue_number=issue_number)
 
     try:
         opts = _sdk_options(
@@ -361,12 +566,14 @@ async def run_workflow(
     model: str = DEFAULT_MODEL,
     branch: str | None = None,
     pr: int | None = None,
+    issue: int | None = None,
 ) -> None:
     """Run the full PR coder-reviewer workflow.
 
     Loops reviewer → coder until the reviewer approves, then merges.
     If max_rounds > 0, stops after that many rounds and leaves the PR open.
     If pr is given, skips coder round 1 and reviews the existing PR.
+    If issue is given, checks for HUMAN OVERRIDE comments in that issue.
     """
     rounds_label = "unlimited" if max_rounds == 0 else str(max_rounds)
 
@@ -387,7 +594,7 @@ async def run_workflow(
         print(f"ROUND 1 (max: {rounds_label}): Coder implementing...")
         print(f"{'='*60}\n")
 
-        coder_prompt = _build_coder_prompt_round1(task)
+        coder_prompt = _build_coder_prompt_round1(task, issue_number=issue)
         output, had_error = await run_coder(coder_prompt, model=model, branch=branch_name)
 
         if had_error:
@@ -419,7 +626,7 @@ async def run_workflow(
         print(f"ROUND {round_num} (max: {rounds_label}): Reviewer reviewing PR #{pr_number}...")
         print(f"{'='*60}\n")
 
-        reviewer_output, had_error = await run_reviewer(pr_number, model=model)
+        reviewer_output, had_error = await run_reviewer(pr_number, model=model, issue_number=issue)
 
         if had_error:
             print(f"ERROR: Reviewer agent failed in round {round_num}. Aborting.")
@@ -445,7 +652,7 @@ async def run_workflow(
         print(f"ROUND {round_num} (max: {rounds_label}): Coder addressing feedback...")
         print(f"{'='*60}\n")
 
-        coder_prompt = _build_coder_prompt_followup(task, pr_number)
+        coder_prompt = _build_coder_prompt_followup(task, pr_number, issue_number=issue)
         output, had_error = await run_coder(coder_prompt, model=model, branch=branch_name)
 
         if had_error:
@@ -484,6 +691,12 @@ def main() -> None:
         help="Review an existing PR by number (skips coder round 1)",
     )
     parser.add_argument(
+        "--issue",
+        type=int,
+        default=None,
+        help="Issue number to check for HUMAN OVERRIDE comments",
+    )
+    parser.add_argument(
         "--max-rounds",
         type=int,
         default=DEFAULT_MAX_ROUNDS,
@@ -520,6 +733,7 @@ def main() -> None:
             model=args.model,
             branch=args.branch,
             pr=args.pr,
+            issue=args.issue,
         )
 
     try:

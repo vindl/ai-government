@@ -1,0 +1,32 @@
+[
+    {
+        "id": "gov-2025-001",
+        "title": "Predlog zakona o izmjenama i dopunama Zakona o porezu na dodatu vrijednost",
+        "summary": "Vlada predlaže izmjene Zakona o PDV-u kojima se snižena stopa PDV-a od 7% proširuje na osnovne prehrambene proizvode (hljeb, mlijeko, ulje, brašno) radi smanjenja životnih troškova građana. Procijenjeni fiskalni uticaj: smanjenje prihoda od ~15 miliona EUR godišnje.",
+        "full_text": "",
+        "date": "2025-12-15",
+        "source_url": "https://www.gov.me/clanak/sjednica-vlade-15-12-2025",
+        "category": "fiscal",
+        "tags": ["PDV", "porezi", "životni troškovi", "prehrambeni proizvodi"]
+    },
+    {
+        "id": "gov-2025-002",
+        "title": "Odluka o formiranju Radne grupe za digitalizaciju pravosuđa",
+        "summary": "Vlada formira međuresornu radnu grupu za digitalizaciju pravosudnog sistema, uključujući elektronsko podnošenje tužbi, digitalne sudske spise i video-konferencijske rasprave. Budžet: 3.2 miliona EUR iz IPA fondova. Rok: 18 mjeseci za prvu fazu.",
+        "full_text": "",
+        "date": "2025-12-20",
+        "source_url": "https://www.gov.me/clanak/sjednica-vlade-20-12-2025",
+        "category": "legal",
+        "tags": ["digitalizacija", "pravosuđe", "IPA fondovi", "e-pravda"]
+    },
+    {
+        "id": "gov-2025-003",
+        "title": "Strategija razvoja primarnog zdravstva 2026-2030",
+        "summary": "Vlada usvaja petogodišnju strategiju za jačanje primarne zdravstvene zaštite: otvaranje 12 novih ambulanti u ruralnim područjima, povećanje plata ljekara za 20%, uvođenje telemedicine, i program stipendiranja studenata medicine uz obavezu rada u Crnoj Gori minimum 5 godina.",
+        "full_text": "",
+        "date": "2026-01-10",
+        "source_url": "https://www.gov.me/clanak/sjednica-vlade-10-01-2026",
+        "category": "health",
+        "tags": ["zdravstvo", "primarna zaštita", "ruralna područja", "telemedicina"]
+    }
+]

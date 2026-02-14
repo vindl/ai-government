@@ -1,0 +1,46 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Assessment",
+    "description": "A ministry agent's assessment of a government decision",
+    "type": "object",
+    "required": ["ministry", "decision_id", "verdict", "score", "summary", "reasoning"],
+    "properties": {
+        "ministry": {
+            "type": "string",
+            "description": "Name of the assessing ministry"
+        },
+        "decision_id": {
+            "type": "string",
+            "description": "ID of the decision being assessed"
+        },
+        "verdict": {
+            "type": "string",
+            "enum": ["strongly_positive", "positive", "neutral", "negative", "strongly_negative"],
+            "description": "Overall verdict"
+        },
+        "score": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10,
+            "description": "Score from 1 (worst) to 10 (best)"
+        },
+        "summary": {
+            "type": "string",
+            "description": "One-paragraph summary of the assessment"
+        },
+        "reasoning": {
+            "type": "string",
+            "description": "Detailed reasoning behind the assessment"
+        },
+        "key_concerns": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Key concerns identified"
+        },
+        "recommendations": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Recommendations for improvement"
+        }
+    }
+}

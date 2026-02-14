@@ -5,7 +5,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 
 ## Architecture
 - **Government agents** (Fleet 1): Python + Claude Code SDK — ministry subagents that analyze decisions
-- **Dev fleet** (Fleet 2): Claude Code instances with role-specific prompts (coder, reviewer, tester, pm, devops, publisher)
+- **Dev fleet** (Fleet 2): Claude Code instances with role-specific prompts (coder, reviewer, pm)
 
 ## Tech Stack
 - Python 3.12+

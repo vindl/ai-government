@@ -205,3 +205,25 @@ All new model fields are optional (`None` default) for backwards compatibility w
 - Separate API call per ministry for counter-proposals — rejected: wasteful when the same context is already in the ministry analysis call
 
 **Consequences**: ~14% cost increase (8 vs 7 API calls). Per-ministry counter-proposals are essentially free (same call, ~15-20% more output tokens). The unified counter-proposal gives the project its identity as a parallel governing body, not just a critic.
+
+---
+
+## ADR-013: GitHub Projects as View Layer
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The main loop tracks issue workflow state via GitHub labels (`self-improve:proposed` → `backlog` → `in-progress` → `done/failed/rejected`). This works reliably for agents but provides no visual overview for humans. A kanban board would let maintainers see the pipeline at a glance.
+
+**Decision**: Add GitHub Projects integration as a **view layer** on top of the existing label system:
+- Single project ("AI Government Workflow") with a Status field mirroring label states, plus Task Type and Domain metadata fields
+- Labels remain the source of truth — agents read/write labels, project fields are updated as a side effect
+- All project API calls are non-fatal (`check=False`, wrapped in try/except) so failures never break the main loop
+- Project setup (create project, create fields, cache IDs) runs once per cycle in `ensure_github_resources_exist()`
+- Code-driven via `gh project` CLI commands — no GitHub Automations dependency
+
+**Alternatives considered**:
+- GitHub Automations (built-in project automations) — rejected: limited to label-to-status mapping, no custom field control, opaque to debugging
+- Separate tracking tool (Linear, Jira) — rejected: adds external dependency, GitHub Issues already used by agents
+- Labels-only (status quo) — rejected: works for agents but poor human visibility
+
+**Consequences**: Humans get a kanban board and table view without changing agent behavior. The `project` OAuth scope must be granted to the token (`gh auth refresh -s project`). Board/table views are configured manually in the GitHub web UI (one-time setup). Slightly more API calls per label transition (~1-3 extra calls per status change), but all are non-blocking.

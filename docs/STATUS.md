@@ -127,6 +127,18 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Social media thread includes counter-proposal tweet
 - [x] X daily digest includes `[+kontraprijedlog]` indicator
 
+### GitHub Projects Integration
+- [x] Single project "AI Government Workflow" auto-created via `gh project create`
+- [x] Custom fields: Status (Proposed/Backlog/In Progress/Done/Failed/Rejected), Task Type (Code Change/Analysis), Domain (Dev/Government/Human/N/A)
+- [x] Issues added to project on creation (`create_proposal_issue`, `create_analysis_issue`)
+- [x] Project Status field synced on every label transition (`accept_issue`, `reject_issue`, `mark_issue_in_progress`, `mark_issue_done`, `mark_issue_failed`, `process_human_overrides`)
+- [x] Non-fatal: all project calls use `check=False` and are wrapped so failures don't break the main loop
+- [x] Idempotent: project/field creation checks for existing resources before creating
+- [x] Cache per cycle: project number, GraphQL ID, field IDs, and option IDs fetched once in `_init_project()`
+- **One-time manual steps**:
+  - Grant `project` scope: `gh auth refresh -s project`
+  - Configure board/table views in GitHub web UI after first run
+
 ### Tests
 - [x] 29 tests passing
 - [x] `tests/models/test_decision.py` — model creation, validation, JSON roundtrip, seed data loading

@@ -75,17 +75,6 @@ ALL_LABELS: dict[str, str] = {
     LABEL_TASK_CODE: "5319e7",      # violet
 }
 
-# GitHub Projects
-PROJECT_TITLE = "AI Government Workflow"
-FIELD_STATUS = "Status"
-FIELD_TASK_TYPE = "Task Type"
-FIELD_DOMAIN = "Domain"
-
-STATUS_OPTIONS = ["Proposed", "Backlog", "In Progress", "Done", "Failed", "Rejected"]
-TASK_TYPE_OPTIONS = ["Code Change", "Analysis"]
-DOMAIN_OPTIONS = ["Dev", "Government", "Human", "N/A"]
-
-
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
 # Also clear ANTHROPIC_API_KEY so the subprocess uses OAuth.
 SDK_ENV = {"CLAUDECODE": "", "ANTHROPIC_API_KEY": ""}
@@ -101,12 +90,6 @@ SEED_DECISIONS_PATH = PROJECT_ROOT / "data" / "seed" / "sample_decisions.json"
 log = logging.getLogger("main_loop")
 
 _repo_nwo: str | None = None
-
-# GitHub Projects cache (populated once per cycle by _init_project)
-_project_number: int | None = None
-_project_id: str | None = None
-_field_ids: dict[str, str] = {}
-_field_option_ids: dict[str, dict[str, str]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -215,277 +198,9 @@ def _ensure_labels() -> None:
     log.info("Labels ensured")
 
 
-# ---------------------------------------------------------------------------
-# GitHub Projects helpers
-# ---------------------------------------------------------------------------
-
-
-def _get_owner() -> str:
-    """Return the repo owner (org or user) from the cached NWO."""
-    return _get_repo_nwo().split("/")[0]
-
-
-def ensure_project_exists() -> int:
-    """Find or create the GitHub Project. Returns project number."""
-    global _project_number  # noqa: PLW0603
-    if _project_number is not None:
-        return _project_number
-
-    owner = _get_owner()
-    result = _run_gh([
-        "gh", "project", "list",
-        "--owner", owner,
-        "--format", "json",
-    ], check=False)
-
-    if result.returncode == 0 and result.stdout.strip():
-        try:
-            data = json.loads(result.stdout)
-            projects = data.get("projects", data) if isinstance(data, dict) else data
-            for proj in projects:
-                if proj.get("title") == PROJECT_TITLE:
-                    _project_number = proj["number"]
-                    log.info("Found existing project #%d: %s", _project_number, PROJECT_TITLE)
-                    break
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    if _project_number is None:
-        result = _run_gh([
-            "gh", "project", "create",
-            "--owner", owner,
-            "--title", PROJECT_TITLE,
-            "--format", "json",
-        ])
-        data = json.loads(result.stdout)
-        _project_number = data["number"]
-        log.info("Created project #%d: %s", _project_number, PROJECT_TITLE)
-
-    # Link project to repo
-    _run_gh([
-        "gh", "project", "link", str(_project_number),
-        "--owner", owner,
-        "--repo", _get_repo_nwo(),
-    ], check=False)
-
-    return _project_number
-
-
-def ensure_project_fields() -> None:
-    """Create custom fields on the project if they don't exist."""
-    global _field_ids, _field_option_ids  # noqa: PLW0603
-    owner = _get_owner()
-    num = ensure_project_exists()
-
-    result = _run_gh([
-        "gh", "project", "field-list", str(num),
-        "--owner", owner,
-        "--format", "json",
-    ], check=False)
-
-    existing_fields: dict[str, dict[str, Any]] = {}
-    if result.returncode == 0 and result.stdout.strip():
-        try:
-            data = json.loads(result.stdout)
-            fields = data.get("fields", data) if isinstance(data, dict) else data
-            for f in fields:
-                existing_fields[f["name"]] = f
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    desired: dict[str, list[str]] = {
-        FIELD_STATUS: STATUS_OPTIONS,
-        FIELD_TASK_TYPE: TASK_TYPE_OPTIONS,
-        FIELD_DOMAIN: DOMAIN_OPTIONS,
-    }
-
-    for field_name, options in desired.items():
-        if field_name in existing_fields:
-            fld = existing_fields[field_name]
-            _field_ids[field_name] = fld["id"]
-            opt_map: dict[str, str] = {}
-            for opt in fld.get("options", []):
-                opt_map[opt["name"]] = opt["id"]
-            _field_option_ids[field_name] = opt_map
-        else:
-            cr = _run_gh([
-                "gh", "project", "field-create", str(num),
-                "--owner", owner,
-                "--name", field_name,
-                "--data-type", "SINGLE_SELECT",
-                "--single-select-options", ",".join(options),
-                "--format", "json",
-            ], check=False)
-            if cr.returncode != 0:
-                log.warning("Failed to create field %s: %s", field_name, cr.stderr.strip())
-                continue
-            # Re-fetch fields to get IDs for the newly created field
-            refetch = _run_gh([
-                "gh", "project", "field-list", str(num),
-                "--owner", owner,
-                "--format", "json",
-            ], check=False)
-            if refetch.returncode == 0 and refetch.stdout.strip():
-                try:
-                    rdata = json.loads(refetch.stdout)
-                    rfields = rdata.get("fields", rdata) if isinstance(rdata, dict) else rdata
-                    for rf in rfields:
-                        if rf["name"] == field_name:
-                            _field_ids[field_name] = rf["id"]
-                            opt_map = {}
-                            for opt in rf.get("options", []):
-                                opt_map[opt["name"]] = opt["id"]
-                            _field_option_ids[field_name] = opt_map
-                            break
-                except (json.JSONDecodeError, KeyError):
-                    pass
-
-    log.info("Project fields ensured: %s", list(_field_ids.keys()))
-
-
-def _init_project() -> None:
-    """Initialize project cache. Called once per cycle."""
-    global _project_id  # noqa: PLW0603
-    ensure_project_exists()
-    ensure_project_fields()
-
-    owner = _get_owner()
-    num = ensure_project_exists()
-    result = _run_gh([
-        "gh", "project", "view", str(num),
-        "--owner", owner,
-        "--format", "json",
-    ], check=False)
-    if result.returncode == 0 and result.stdout.strip():
-        try:
-            data = json.loads(result.stdout)
-            _project_id = data.get("id")
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-    log.info("Project initialized: number=%s id=%s", _project_number, _project_id)
-
-
-def _add_to_project(
-    issue_number: int,
-    *,
-    status: str,
-    task_type: str,
-    domain: str = "N/A",
-) -> None:
-    """Add an issue to the project board and set its fields."""
-    if _project_number is None or _project_id is None:
-        return
-
-    owner = _get_owner()
-    nwo = _get_repo_nwo()
-    issue_url = f"https://github.com/{nwo}/issues/{issue_number}"
-
-    # Add item to project
-    result = _run_gh([
-        "gh", "project", "item-add", str(_project_number),
-        "--owner", owner,
-        "--url", issue_url,
-        "--format", "json",
-    ], check=False)
-    if result.returncode != 0:
-        log.warning("Failed to add #%d to project: %s", issue_number, result.stderr.strip())
-        return
-
-    try:
-        item_data = json.loads(result.stdout)
-        item_id = item_data.get("id")
-    except (json.JSONDecodeError, KeyError):
-        log.warning("Could not parse item ID after adding #%d to project", issue_number)
-        return
-
-    if not item_id:
-        return
-
-    # Set field values
-    field_values = {
-        FIELD_STATUS: status,
-        FIELD_TASK_TYPE: task_type,
-        FIELD_DOMAIN: domain,
-    }
-
-    for field_name, value in field_values.items():
-        field_id = _field_ids.get(field_name)
-        option_id = _field_option_ids.get(field_name, {}).get(value)
-        if not field_id or not option_id:
-            log.debug("Skipping field %s=%s (missing IDs)", field_name, value)
-            continue
-        _run_gh([
-            "gh", "project", "item-edit",
-            "--project-id", _project_id,
-            "--id", item_id,
-            "--field-id", field_id,
-            "--single-select-option-id", option_id,
-        ], check=False)
-
-    log.debug("Added #%d to project: status=%s type=%s domain=%s", issue_number, status, task_type, domain)
-
-
-def _update_project_status(issue_number: int, status: str) -> None:
-    """Update the Status field of an issue already in the project."""
-    if _project_number is None or _project_id is None:
-        return
-
-    owner = _get_owner()
-    nwo = _get_repo_nwo()
-    issue_url = f"https://github.com/{nwo}/issues/{issue_number}"
-
-    # Find the item in the project
-    result = _run_gh([
-        "gh", "project", "item-list", str(_project_number),
-        "--owner", owner,
-        "--limit", "1000",
-        "--format", "json",
-    ], check=False)
-    if result.returncode != 0:
-        log.debug("Could not list project items: %s", result.stderr.strip())
-        return
-
-    item_id: str | None = None
-    try:
-        data = json.loads(result.stdout)
-        items = data.get("items", data) if isinstance(data, dict) else data
-        for item in items:
-            content = item.get("content", {})
-            if content.get("url") == issue_url or content.get("number") == issue_number:
-                item_id = item.get("id")
-                break
-    except (json.JSONDecodeError, KeyError):
-        pass
-
-    if not item_id:
-        log.debug("Issue #%d not found in project, skipping status update", issue_number)
-        return
-
-    field_id = _field_ids.get(FIELD_STATUS)
-    option_id = _field_option_ids.get(FIELD_STATUS, {}).get(status)
-    if not field_id or not option_id:
-        log.debug("Missing field/option IDs for status=%s", status)
-        return
-
-    _run_gh([
-        "gh", "project", "item-edit",
-        "--project-id", _project_id,
-        "--id", item_id,
-        "--field-id", field_id,
-        "--single-select-option-id", option_id,
-    ], check=False)
-
-    log.debug("Updated #%d project status to %s", issue_number, status)
-
-
 def ensure_github_resources_exist() -> None:
-    """Create labels and initialize the GitHub Project."""
+    """Create labels."""
     _ensure_labels()
-    try:
-        _init_project()
-    except Exception:
-        log.exception("GitHub Projects initialization failed (non-fatal)")
 
 
 def create_proposal_issue(title: str, body: str, *, domain: str = "N/A") -> int:
@@ -500,7 +215,6 @@ def create_proposal_issue(title: str, body: str, *, domain: str = "N/A") -> int:
     # gh issue create prints the URL; extract number from it
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
-    _add_to_project(issue_number, status="Proposed", task_type="Code Change", domain=domain)
     return issue_number
 
 
@@ -531,7 +245,6 @@ def accept_issue(issue_number: int) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_PROPOSED,
              "--add-label", LABEL_BACKLOG])
-    _update_project_status(issue_number, "Backlog")
 
 
 def reject_issue(issue_number: int) -> None:
@@ -541,7 +254,6 @@ def reject_issue(issue_number: int) -> None:
              "--add-label", LABEL_REJECTED])
     _run_gh(["gh", "issue", "close", str(issue_number),
              "--comment", "Written by Triage agent: Rejected by triage debate. See debate above."])
-    _update_project_status(issue_number, "Rejected")
 
 
 def _issue_has_debate_comment(issue_number: int) -> bool:
@@ -641,7 +353,6 @@ def process_human_overrides() -> int:
                  "--body",
                  f"Written by Triage agent: Issue reopened by @{actor_login} — "
                  "moved to backlog via human override."])
-        _update_project_status(n, "Backlog")
         log.info("Human override (reopened): #%d %s (by %s)", n, issue["title"], actor_login)
         count += 1
 
@@ -703,7 +414,6 @@ def process_human_overrides() -> int:
                      "--body",
                      f"Written by Triage agent: HUMAN OVERRIDE by @{override_user} — "
                      "moved to backlog."])
-            _update_project_status(n, "Backlog")
             log.info(
                 "Human override (comment): #%d %s (by %s)",
                 n, issue["title"], override_user,
@@ -717,7 +427,6 @@ def mark_issue_in_progress(issue_number: int) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_BACKLOG,
              "--add-label", LABEL_IN_PROGRESS], check=False)
-    _update_project_status(issue_number, "In Progress")
 
 
 def mark_issue_done(issue_number: int) -> None:
@@ -725,7 +434,6 @@ def mark_issue_done(issue_number: int) -> None:
              "--remove-label", LABEL_IN_PROGRESS,
              "--add-label", LABEL_DONE], check=False)
     _run_gh(["gh", "issue", "close", str(issue_number)], check=False)
-    _update_project_status(issue_number, "Done")
 
 
 def mark_issue_failed(issue_number: int, reason: str) -> None:
@@ -735,7 +443,6 @@ def mark_issue_failed(issue_number: int, reason: str) -> None:
     _run_gh(["gh", "issue", "comment", str(issue_number),
              "--body", f"Written by Executor agent: Execution failed: {reason}"],
             check=False)
-    _update_project_status(issue_number, "Failed")
 
 
 def get_failed_issue_titles() -> list[str]:
@@ -858,7 +565,6 @@ def create_analysis_issue(decision: GovernmentDecision) -> int:
     ])
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
-    _add_to_project(issue_number, status="Backlog", task_type="Analysis", domain="Government")
     return issue_number
 
 

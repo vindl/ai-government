@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Dnevni pregledi — AI Vlada{% endblock %}
+
+{% block content %}
+<h1>Dnevni pregledi</h1>
+<p>Pregled svih dnevnih analiza vladinih odluka.</p>
+
+{% if digests %}
+<ul class="digest-index-list">
+  {% for d in digests %}
+  <li>
+    <a href="{{ base_path }}pregled/{{ d.date }}/">
+      <span class="digest-date">{{ d.date }}</span>
+      <span class="digest-meta">{{ d.decision_count }} {{ "odluka" if d.decision_count == 1 else "odluke" if d.decision_count < 5 else "odluka" }} &middot; Prosječna ocjena: {{ d.avg_score }}/10</span>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Nema dnevnih pregleda.</p>
+{% endif %}
+{% endblock %}

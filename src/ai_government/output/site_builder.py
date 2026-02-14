@@ -13,6 +13,7 @@ import markdown as md
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 
+from ai_government.models.override import HumanOverride
 from ai_government.orchestrator import SessionResult
 from ai_government.output.html import _verdict_css_class, _verdict_label
 
@@ -40,10 +41,23 @@ def load_results_from_dir(data_dir: Path) -> list[SessionResult]:
     """Load serialized SessionResult JSON files from a directory."""
     results: list[SessionResult] = []
     for path in sorted(data_dir.glob("*.json")):
+        # Skip overrides.json (not a SessionResult)
+        if path.name == "overrides.json":
+            continue
         raw = json.loads(path.read_text(encoding="utf-8"))
         result = SessionResult.model_validate(raw)
         results.append(result)
     return results
+
+
+def load_overrides_from_file(data_dir: Path) -> list[HumanOverride]:
+    """Load human override records from overrides.json."""
+    overrides_path = data_dir / "overrides.json"
+    if not overrides_path.exists():
+        return []
+
+    raw_list = json.loads(overrides_path.read_text(encoding="utf-8"))
+    return [HumanOverride.model_validate(item) for item in raw_list]
 
 
 def save_result_json(result: SessionResult, output_dir: Path) -> Path:
@@ -85,7 +99,7 @@ class SiteBuilder:
         self.output_dir = output_dir
         self.env = _create_env()
 
-    def build(self, results: list[SessionResult]) -> None:
+    def build(self, results: list[SessionResult], data_dir: Path | None = None) -> None:
         """Build the full static site."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -95,6 +109,11 @@ class SiteBuilder:
         self._build_about()
         self._build_feed()
         self._build_digests(results)
+
+        # Build transparency page if data_dir is provided
+        if data_dir is not None:
+            overrides = load_overrides_from_file(data_dir)
+            self._build_transparency(overrides)
 
     def _copy_static(self) -> None:
         dest = self.output_dir / "static"
@@ -169,6 +188,19 @@ class SiteBuilder:
             base_path="../",
         )
         (feed_dir / "index.html").write_text(html, encoding="utf-8")
+
+    def _build_transparency(self, overrides: list[HumanOverride]) -> None:
+        """Build the human overrides transparency report page."""
+        transparency_dir = self.output_dir / "transparency"
+        transparency_dir.mkdir(parents=True, exist_ok=True)
+
+        template = self.env.get_template("transparency.html")
+        html = template.render(
+            overrides=overrides,
+            css_path="../static/css/style.css",
+            base_path="../",
+        )
+        (transparency_dir / "index.html").write_text(html, encoding="utf-8")
 
     # ------------------------------------------------------------------
     # Daily digests

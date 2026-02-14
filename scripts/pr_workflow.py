@@ -210,7 +210,8 @@ def _build_coder_prompt_round1(task: str) -> str:
 3. Fix any issues found by the checks.
 4. Stage and commit your changes with a concise commit message.
 5. Push the branch to the remote: `git push -u origin HEAD`
-6. Create a PR with `gh pr create --fill` (use a descriptive title and body).
+6. Create a PR with `gh pr create`. Use a descriptive title. Start the PR body
+   with "Written by Coder agent:" followed by a summary of what was implemented.
 
 Task: {task}
 """

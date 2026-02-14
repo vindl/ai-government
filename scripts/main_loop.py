@@ -74,9 +74,13 @@ PROPOSE_MAX_TURNS = 10
 DEBATE_MAX_TURNS = 5
 PROPOSE_TOOLS = ["Bash", "Read", "Glob", "Grep"]
 
+PRIVILEGED_PERMISSIONS = {"admin", "maintain"}
+
 SEED_DECISIONS_PATH = PROJECT_ROOT / "data" / "seed" / "sample_decisions.json"
 
 log = logging.getLogger("main_loop")
+
+_repo_nwo: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -130,6 +134,34 @@ def _run_gh(
         log.error("Command failed: %s\nstderr: %s", " ".join(args), result.stderr.strip())
         raise subprocess.CalledProcessError(result.returncode, args, result.stdout, result.stderr)
     return result
+
+
+def _get_repo_nwo() -> str:
+    """Return 'owner/repo' for the current repository, cached after first call."""
+    global _repo_nwo  # noqa: PLW0603
+    if _repo_nwo is None:
+        result = _run_gh([
+            "gh", "repo", "view", "--json", "owner,name",
+            "-q", '.owner.login + "/" + .name',
+        ])
+        _repo_nwo = result.stdout.strip()
+    return _repo_nwo
+
+
+def _is_privileged_user(username: str) -> bool:
+    """Check if *username* has admin or maintain permission on this repo."""
+    nwo = _get_repo_nwo()
+    result = _run_gh(
+        ["gh", "api", f"repos/{nwo}/collaborators/{username}/permission"],
+        check=False,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return False
+    return data.get("permission", "") in PRIVILEGED_PERMISSIONS
 
 
 def ensure_labels_exist() -> None:
@@ -233,6 +265,7 @@ def process_human_overrides() -> int:
     count = 0
 
     # Case 1: Reopened rejected issues (human reopened a closed+rejected issue)
+    nwo = _get_repo_nwo()
     result = _run_gh([
         "gh", "issue", "list",
         "--label", LABEL_REJECTED,
@@ -243,14 +276,38 @@ def process_human_overrides() -> int:
     reopened = json.loads(result.stdout) if result.stdout.strip() else []
     for issue in reopened:
         n = issue["number"]
+        # Find who reopened the issue
+        events_result = _run_gh(
+            ["gh", "api", f"repos/{nwo}/issues/{n}/events"],
+            check=False,
+        )
+        if events_result.returncode != 0:
+            log.warning("Could not fetch events for #%d, skipping", n)
+            continue
+        try:
+            events = json.loads(events_result.stdout)
+        except json.JSONDecodeError:
+            log.warning("Could not parse events for #%d, skipping", n)
+            continue
+        # Find the most recent "reopened" event
+        reopen_events = [e for e in events if e.get("event") == "reopened"]
+        if not reopen_events:
+            log.warning("No reopen event found for #%d, skipping", n)
+            continue
+        actor_login = reopen_events[-1].get("actor", {}).get("login", "")
+        if not _is_privileged_user(actor_login):
+            log.warning(
+                "Ignoring override on #%d by %s (not a repo admin)", n, actor_login,
+            )
+            continue
         _run_gh(["gh", "issue", "edit", str(n),
                  "--remove-label", LABEL_REJECTED,
                  "--add-label", LABEL_BACKLOG])
         _run_gh(["gh", "issue", "comment", str(n),
                  "--body",
-                 "Written by Triage agent: Issue reopened by human — "
+                 f"Written by Triage agent: Issue reopened by @{actor_login} — "
                  "moved to backlog via human override."])
-        log.info("Human override (reopened): #%d %s", n, issue["title"])
+        log.info("Human override (reopened): #%d %s (by %s)", n, issue["title"], actor_login)
         count += 1
 
     # Case 2: HUMAN OVERRIDE in comments on any open issue with proposed/rejected label
@@ -259,21 +316,39 @@ def process_human_overrides() -> int:
             "gh", "issue", "list",
             "--label", label,
             "--state", "all",
-            "--json", "number,title,comments",
+            "--json", "number,title",
             "--limit", "50",
         ], check=False)
         if result.returncode != 0 or not result.stdout.strip():
             continue
         issues = json.loads(result.stdout)
         for issue in issues:
-            comments = issue.get("comments", [])
-            has_override = any(
-                "HUMAN OVERRIDE" in c.get("body", "")
-                for c in comments
-            )
-            if not has_override:
-                continue
             n = issue["number"]
+            # Fetch comments via REST API to get per-comment author info
+            comments_result = _run_gh(
+                ["gh", "api", f"repos/{nwo}/issues/{n}/comments"],
+                check=False,
+            )
+            if comments_result.returncode != 0:
+                continue
+            try:
+                comments = json.loads(comments_result.stdout)
+            except json.JSONDecodeError:
+                continue
+            # Find a privileged HUMAN OVERRIDE comment
+            override_user = None
+            for c in comments:
+                if "HUMAN OVERRIDE" in c.get("body", ""):
+                    commenter = c.get("user", {}).get("login", "")
+                    if _is_privileged_user(commenter):
+                        override_user = commenter
+                        break
+                    log.warning(
+                        "Ignoring override on #%d by %s (not a repo admin)",
+                        n, commenter,
+                    )
+            if override_user is None:
+                continue
             # Check it's not already in backlog/in-progress/done
             already = _run_gh([
                 "gh", "issue", "view", str(n),
@@ -291,9 +366,12 @@ def process_human_overrides() -> int:
             _run_gh(["gh", "issue", "reopen", str(n)], check=False)
             _run_gh(["gh", "issue", "comment", str(n),
                      "--body",
-                     "Written by Triage agent: HUMAN OVERRIDE detected — "
+                     f"Written by Triage agent: HUMAN OVERRIDE by @{override_user} — "
                      "moved to backlog."])
-            log.info("Human override (comment): #%d %s", n, issue["title"])
+            log.info(
+                "Human override (comment): #%d %s (by %s)",
+                n, issue["title"], override_user,
+            )
             count += 1
 
     return count

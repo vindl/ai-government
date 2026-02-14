@@ -27,7 +27,7 @@ DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 DEFAULT_MAX_ROUNDS = 0  # 0 = unlimited, loop until approved
 
 CODER_MAX_TURNS = 30
-REVIEWER_MAX_TURNS = 15
+REVIEWER_MAX_TURNS = 10
 
 CODER_TOOLS = ["Bash", "Write", "Edit", "Read", "Glob", "Grep"]
 REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
@@ -223,38 +223,25 @@ The reviewer has requested changes. Do the following:
 
 def _build_reviewer_prompt(pr_number: int) -> str:
     """Build the reviewer prompt."""
-    return f"""You need to review PR #{pr_number}. Do the following:
+    return f"""Review PR #{pr_number} and post your verdict as a PR comment.
 
-1. Read the PR diff: `gh pr diff {pr_number}`
-2. Read any files that need more context to understand the changes.
-3. Run the project checks yourself:
-   - `uv run ruff check src/ tests/`
-   - `uv run mypy src/`
-   - `uv run pytest`
-4. Evaluate the changes against the project conventions in CLAUDE.md.
-5. Post your review as a PR comment using `gh pr comment`.
-   Your comment MUST start with a verdict line in one of these exact formats:
+YOUR #1 PRIORITY: You MUST end by running `gh pr comment` with your verdict.
+Nothing else matters if you don't post the comment. Do NOT use `gh pr review`.
 
-   If the code is correct, clean, and follows conventions:
-   ```
-   gh pr comment {pr_number} --body "VERDICT: APPROVED
+Steps:
+1. `gh pr diff {pr_number}` — read the diff.
+2. Read any files needed for context (keep it brief, don't read everything).
+3. Run checks: `uv run ruff check src/ tests/ && uv run mypy src/ && uv run pytest`
+4. Post your verdict comment — this is the MOST IMPORTANT step:
 
-   <brief reason why the code looks good>"
-   ```
+   If approved:
+   `gh pr comment {pr_number} --body "VERDICT: APPROVED — <one-line reason>"`
 
-   If changes are needed:
-   ```
-   gh pr comment {pr_number} --body "VERDICT: CHANGES_REQUESTED
+   If changes needed:
+   `gh pr comment {pr_number} --body "VERDICT: CHANGES_REQUESTED — <specific feedback>"`
 
-   <detailed feedback on what needs to change>"
-   ```
-
-IMPORTANT: You MUST use `gh pr comment`, NOT `gh pr review`. The verdict line
-must appear exactly as shown (VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED)
-at the start of the comment body.
-
-Be thorough but pragmatic. Focus on correctness, type safety, and convention adherence.
-Do NOT approve if checks fail.
+The comment body MUST start with exactly VERDICT: APPROVED or VERDICT: CHANGES_REQUESTED.
+Do NOT approve if checks fail. Be pragmatic — focus on correctness, not style nitpicks.
 """
 
 

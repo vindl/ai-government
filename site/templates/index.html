@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}AI Vlada Crne Gore{% endblock %}
+
+{% block content %}
+<h1>AI Vlada Crne Gore</h1>
+<p>Nezavisna AI analiza vladinih odluka u javnom interesu.</p>
+
+<h2>Posljednje odluke</h2>
+{% if results %}
+<ul class="decision-feed">
+  {% for r in results %}
+  <li>
+    <h3><a href="odluke/{{ r.decision.id }}.html">{{ r.decision.title }}</a></h3>
+    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}</div>
+    <p class="feed-summary">{{ r.decision.summary }}</p>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p>Nema analiziranih odluka.</p>
+{% endif %}
+{% endblock %}

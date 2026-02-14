@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="sr-Latn-ME">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}AI Vlada Crne Gore{% endblock %}</title>
+  <link rel="stylesheet" href="{{ css_path | default('/static/css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="{{ base_path | default('/') }}" class="site-title">AI Vlada</a>
+      <ul>
+        <li><a href="{{ base_path | default('/') }}">Pocetna</a></li>
+        <li><a href="{{ base_path | default('/') }}odluke/">Odluke</a></li>
+        <li><a href="{{ base_path | default('/') }}o-projektu/">O projektu</a></li>
+        <li><a href="{{ base_path | default('/') }}novosti/">Novosti</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer>
+    <p>AI Vlada Crne Gore &mdash; Nezavisna AI analiza vladinih odluka u javnom interesu.</p>
+    <p>Izvorni kod: <a href="https://github.com/vindl/ai-government">github.com/vindl/ai-government</a></p>
+  </footer>
+</body>
+</html>

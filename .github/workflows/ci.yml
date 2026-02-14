@@ -29,3 +29,6 @@ jobs:
 
       - name: Run tests
         run: uv run pytest -v
+
+      - name: Verify site build
+        run: uv run python scripts/build_site.py --output-dir /tmp/_site

@@ -118,6 +118,30 @@
 
 ---
 
+## ADR-010: GitHub Pages Static Site with Jinja2
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The project produces AI cabinet analyses but has no public-facing output. The roadmap (Phase 4) calls for web-friendly HTML/static site output.
+
+**Decision**: Build a static site using Jinja2 templates (no SSG framework):
+- Templates live in `site/templates/`, static assets in `site/static/`, announcements in `site/content/`
+- `SiteBuilder` class assembles scorecards, index, about (renders Constitution), and feed pages
+- `scripts/build_site.py` CLI reads serialized results from `output/data/*.json`
+- GitHub Actions deploys to GitHub Pages on push to main
+- `SessionResult` converted from `@dataclass` to Pydantic `BaseModel` to enable `.model_dump_json()`
+- Main loop serializes results to `output/data/` after each analysis
+- Site chrome in Montenegrin (nav labels, headings, footer)
+
+**Alternatives considered**:
+- SSG frameworks (Hugo, Jekyll, MkDocs) — rejected: adds tooling dependency, site has <100 pages, Jinja2 is already Python-native
+- SPA (React/Vue) — rejected: unnecessary complexity for a content site
+- Server-rendered — rejected: hosting cost, GitHub Pages is free and fits the use case
+
+**Consequences**: Zero new tooling beyond Jinja2 (already a Python dependency). Full rebuild per deploy (fine for small site). Incremental builds can be added later if needed. The `output/data/` directory is committed to git so the deploy workflow can read it.
+
+---
+
 ## ADR-009: Unified Main Loop
 **Date**: 2026-02-14
 **Status**: Accepted

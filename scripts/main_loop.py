@@ -1412,40 +1412,45 @@ async def run_one_cycle(
     if skip_improve:
         print("\nPhase B: Skipped (--skip-improve)")
     else:
-        print("\nPhase B: Self-improvement — proposing and debating...")
-        try:
-            ai_proposals = await step_propose(
-                num_proposals=proposals_per_cycle, model=model,
-            )
-        except Exception:
-            log.exception("Propose step failed")
-            ai_proposals = []
-
-        # Ingest human suggestions
-        human_issues = list_human_suggestions()
-        human_proposals = [
-            {
-                "title": h["title"],
-                "description": h.get("body", ""),
-                "domain": "human",
-                "issue_number": h["number"],
-            }
-            for h in human_issues
-        ]
-
-        all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
-        print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
-
-        if all_proposals:
-            print("  Debating proposals...")
-            try:
-                accepted, rejected = await step_debate(all_proposals, model=model)
-            except Exception:
-                log.exception("Debate step failed")
-                accepted, rejected = [], []
-            print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
+        # Check if backlog is empty — only propose new work when backlog is drained
+        backlog = list_backlog_issues()
+        if backlog:
+            print(f"\nPhase B: Skipped (backlog has {len(backlog)} open issues — draining queue)")
         else:
-            print("  No proposals this cycle.")
+            print("\nPhase B: Self-improvement — proposing and debating...")
+            try:
+                ai_proposals = await step_propose(
+                    num_proposals=proposals_per_cycle, model=model,
+                )
+            except Exception:
+                log.exception("Propose step failed")
+                ai_proposals = []
+
+            # Ingest human suggestions
+            human_issues = list_human_suggestions()
+            human_proposals = [
+                {
+                    "title": h["title"],
+                    "description": h.get("body", ""),
+                    "domain": "human",
+                    "issue_number": h["number"],
+                }
+                for h in human_issues
+            ]
+
+            all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
+            print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
+
+            if all_proposals:
+                print("  Debating proposals...")
+                try:
+                    accepted, rejected = await step_debate(all_proposals, model=model)
+                except Exception:
+                    log.exception("Debate step failed")
+                    accepted, rejected = [], []
+                print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
+            else:
+                print("  No proposals this cycle.")
 
     # --- Phase C: Pick from unified backlog and execute ---
     print("\nPhase C: Picking next task from backlog...")

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -553,91 +554,118 @@ async def step_execute(
 # ---------------------------------------------------------------------------
 
 
-async def run_self_improve_loop(
+async def run_one_cycle(
     *,
-    max_cycles: int = 0,
-    cooldown: int = DEFAULT_COOLDOWN_SECONDS,
+    cycle: int,
     proposals_per_cycle: int = DEFAULT_PROPOSALS_PER_CYCLE,
     model: str = DEFAULT_MODEL,
     max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
     dry_run: bool = False,
 ) -> None:
-    """Run the self-improvement loop."""
+    """Run a single self-improvement cycle."""
     ensure_labels_exist()
 
-    cycle = 0
-    while True:
-        cycle += 1
-        if max_cycles > 0 and cycle > max_cycles:
-            log.info("Reached max cycles (%d). Stopping.", max_cycles)
-            break
+    print(f"\n{'='*60}")
+    print(f"SELF-IMPROVEMENT CYCLE {cycle}")
+    print(f"{'='*60}\n")
 
-        print(f"\n{'='*60}")
-        print(f"SELF-IMPROVEMENT CYCLE {cycle}" + (f" / {max_cycles}" if max_cycles > 0 else ""))
-        print(f"{'='*60}\n")
-
-        # --- Step 1: Propose ---
-        print("Step 1: Proposing improvements...")
-        try:
-            ai_proposals = await step_propose(
-                num_proposals=proposals_per_cycle, model=model,
-            )
-        except Exception:
-            log.exception("Propose step failed")
-            ai_proposals = []
-
-        # Ingest human suggestions
-        human_issues = list_human_suggestions()
-        human_proposals = [
-            {
-                "title": h["title"],
-                "description": h.get("body", ""),
-                "domain": "human",
-                "issue_number": h["number"],
-            }
-            for h in human_issues
-        ]
-
-        all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
-        print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
-
-        if not all_proposals:
-            print("  No proposals this cycle. Sleeping...")
-            time.sleep(cooldown)
-            continue
-
-        # --- Step 2: Debate ---
-        print("\nStep 2: Debating proposals...")
-        try:
-            accepted, rejected = await step_debate(all_proposals, model=model)
-        except Exception:
-            log.exception("Debate step failed")
-            accepted, rejected = [], []
-        print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
-
-        # --- Step 3: Pick ---
-        print("\nStep 3: Picking next task from backlog...")
-        issue = step_pick()
-        if issue is None:
-            print("  Backlog empty. Sleeping...")
-            time.sleep(cooldown)
-            continue
-
-        print(f"  Picked: #{issue['number']} — {issue['title']}")
-
-        # --- Step 4: Execute ---
-        print(f"\nStep 4: Executing issue #{issue['number']}...")
-        success = await step_execute(
-            issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+    # --- Step 1: Propose ---
+    print("Step 1: Proposing improvements...")
+    try:
+        ai_proposals = await step_propose(
+            num_proposals=proposals_per_cycle, model=model,
         )
-        print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+    except Exception:
+        log.exception("Propose step failed")
+        ai_proposals = []
 
-        # Cooldown
-        if max_cycles == 0 or cycle < max_cycles:
-            print(f"\nCooling down for {cooldown}s...")
-            time.sleep(cooldown)
+    # Ingest human suggestions
+    human_issues = list_human_suggestions()
+    human_proposals = [
+        {
+            "title": h["title"],
+            "description": h.get("body", ""),
+            "domain": "human",
+            "issue_number": h["number"],
+        }
+        for h in human_issues
+    ]
 
-    print("\nSelf-improvement loop finished.")
+    all_proposals: list[dict[str, Any]] = ai_proposals + human_proposals
+    print(f"  {len(ai_proposals)} AI proposals + {len(human_proposals)} human suggestions")
+
+    if not all_proposals:
+        print("  No proposals this cycle.")
+        return
+
+    # --- Step 2: Debate ---
+    print("\nStep 2: Debating proposals...")
+    try:
+        accepted, rejected = await step_debate(all_proposals, model=model)
+    except Exception:
+        log.exception("Debate step failed")
+        accepted, rejected = [], []
+    print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
+
+    # --- Step 3: Pick ---
+    print("\nStep 3: Picking next task from backlog...")
+    issue = step_pick()
+    if issue is None:
+        print("  Backlog empty.")
+        return
+
+    print(f"  Picked: #{issue['number']} — {issue['title']}")
+
+    # --- Step 4: Execute ---
+    print(f"\nStep 4: Executing issue #{issue['number']}...")
+    success = await step_execute(
+        issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+    )
+    print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+
+
+def _reexec(
+    *,
+    cycle_offset: int,
+    max_cycles: int,
+    cooldown: int,
+    proposals: int,
+    model: str,
+    max_pr_rounds: int,
+    dry_run: bool,
+    verbose: bool,
+) -> None:
+    """Re-exec the script to pick up any code changes from disk.
+
+    After each cycle, execution merges PRs back to main. This function
+    pulls latest, then replaces the current process with a fresh
+    invocation so that any modifications to this script (or pr_workflow,
+    or anything else) are picked up automatically.
+    """
+    _run_gh(["git", "checkout", "main"], check=False)
+    _run_gh(["git", "pull", "--ff-only"], check=False)
+
+    argv: list[str] = [
+        sys.executable, str(Path(__file__).resolve()),
+        "--_cycle-offset", str(cycle_offset),
+    ]
+    if max_cycles > 0:
+        argv += ["--max-cycles", str(max_cycles)]
+    if cooldown != DEFAULT_COOLDOWN_SECONDS:
+        argv += ["--cooldown", str(cooldown)]
+    if proposals != DEFAULT_PROPOSALS_PER_CYCLE:
+        argv += ["--proposals", str(proposals)]
+    if model != DEFAULT_MODEL:
+        argv += ["--model", model]
+    if max_pr_rounds != DEFAULT_MAX_PR_ROUNDS:
+        argv += ["--max-pr-rounds", str(max_pr_rounds)]
+    if dry_run:
+        argv += ["--dry-run"]
+    if verbose:
+        argv += ["--verbose"]
+
+    print(f"\n--- Re-execing to pick up latest code (cycle offset {cycle_offset}) ---\n")
+    os.execv(sys.executable, argv)
 
 
 # ---------------------------------------------------------------------------
@@ -685,6 +713,11 @@ def main() -> None:
         "-v", "--verbose", action="store_true",
         help="Enable verbose (debug) logging",
     )
+    # Internal arg: tracks completed cycles across re-execs
+    parser.add_argument(
+        "--_cycle-offset", type=int, default=0, dest="cycle_offset",
+        help=argparse.SUPPRESS,
+    )
 
     args = parser.parse_args()
 
@@ -694,10 +727,16 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
 
+    cycle = args.cycle_offset + 1
+
+    # Check if we've exceeded max_cycles (across re-execs)
+    if args.max_cycles > 0 and cycle > args.max_cycles:
+        print(f"Reached max cycles ({args.max_cycles}). Stopping.")
+        return
+
     async def _run() -> None:
-        await run_self_improve_loop(
-            max_cycles=args.max_cycles,
-            cooldown=args.cooldown,
+        await run_one_cycle(
+            cycle=cycle,
             proposals_per_cycle=args.proposals,
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
@@ -709,6 +748,28 @@ def main() -> None:
     except KeyboardInterrupt:
         print("\nSelf-improvement loop interrupted.")
         sys.exit(1)
+
+    # Cooldown before next cycle
+    remaining = 0 if args.max_cycles > 0 and cycle >= args.max_cycles else 1
+    if remaining:
+        print(f"\nCooling down for {args.cooldown}s...")
+        time.sleep(args.cooldown)
+
+        # Re-exec: pull latest code from main and restart the process.
+        # This means if this script was modified during the cycle,
+        # the next cycle runs the new version.
+        _reexec(
+            cycle_offset=cycle,
+            max_cycles=args.max_cycles,
+            cooldown=args.cooldown,
+            proposals=args.proposals,
+            model=args.model,
+            max_pr_rounds=args.max_pr_rounds,
+            dry_run=args.dry_run,
+            verbose=args.verbose,
+        )
+    else:
+        print("\nSelf-improvement loop finished.")
 
 
 if __name__ == "__main__":

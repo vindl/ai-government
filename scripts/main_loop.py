@@ -772,8 +772,31 @@ def _load_role_prompt(role: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def _count_pending_analysis_issues() -> int:
+    """Count open issues with the task:analysis label."""
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_TASK_ANALYSIS,
+        "--state", "open",
+        "--json", "number",
+        "--limit", "50",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    return len(json.loads(result.stdout))
+
+
 def should_fetch_news() -> bool:
-    """Return True if news has not been fetched today."""
+    """Return True if news has not been fetched today and analysis backlog has room."""
+    # Skip if we already have enough analysis issues queued
+    pending = _count_pending_analysis_issues()
+    if pending >= NEWS_SCOUT_MAX_DECISIONS:
+        log.info(
+            "Skipping News Scout: %d analysis issues already queued (max %d)",
+            pending, NEWS_SCOUT_MAX_DECISIONS,
+        )
+        return False
+
     today = _dt.date.today().isoformat()
     if not NEWS_SCOUT_STATE_PATH.exists():
         return True

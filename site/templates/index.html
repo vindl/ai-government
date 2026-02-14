@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}AI Vlada Crne Gore{% endblock %}
+{% block title %}AI Government of Montenegro{% endblock %}
 
 {% block content %}
-<h1>AI Vlada Crne Gore</h1>
-<p>Nezavisna AI analiza vladinih odluka u javnom interesu.</p>
+<h1>AI Government of Montenegro</h1>
+<p>Independent AI analysis of government decisions in the public interest.</p>
 
-<h2>Posljednje odluke</h2>
+<h2>Latest Decisions</h2>
 {% if results %}
 <ul class="decision-feed">
   {% for r in results %}
   <li>
-    <h3><a href="odluke/{{ r.decision.id }}.html">{{ r.decision.title }}</a></h3>
-    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal">Kontraprijedlog dostupan</span>{% endif %}</div>
+    <h3><a href="decisions/{{ r.decision.id }}.html">{{ r.decision.title }}</a></h3>
+    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal">Counter-proposal available</span>{% endif %}</div>
     <p class="feed-summary">{{ r.decision.summary }}</p>
   </li>
   {% endfor %}
 </ul>
 {% else %}
-<p>Nema analiziranih odluka.</p>
+<p>No decisions analyzed yet.</p>
 {% endif %}
 
 <div class="decision-cta">
-  <p><a href="https://github.com/vindl/ai-government/discussions/categories/decision-suggestions">Predložite odluku za analizu</a></p>
+  <p><a href="https://github.com/vindl/ai-government/discussions/categories/decision-suggestions">Suggest a decision for analysis</a></p>
 </div>
 {% endblock %}

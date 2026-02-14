@@ -116,23 +116,23 @@ def sample_assessment_with_counter_proposal(
 def sample_counter_proposal() -> CounterProposal:
     return CounterProposal(
         decision_id="test-001",
-        title="Progresivna PDV reforma",
+        title="Progressive VAT Reform",
         executive_summary=(
-            "AI Vlada predlaže postepenu, trofaznu reformu PDV-a "
-            "umjesto jednokratnog smanjenja."
+            "The AI Government proposes a gradual, three-phase VAT reform "
+            "instead of a one-time reduction."
         ),
-        detailed_proposal="Predloženi pristup kombinuje fiskalni oprez sa socijalnom pravdom.",
+        detailed_proposal="The proposed approach combines fiscal prudence with social justice.",
         ministry_contributions=[
-            "Finance: postepeno smanjenje stopa",
-            "Justice: pravni okvir za faznu implementaciju",
+            "Finance: gradual rate reduction",
+            "Justice: legal framework for phased implementation",
         ],
-        key_differences=["Postepeno umjesto jednokratnog smanjenja", "Uključuje kompenzacione mjere"],
+        key_differences=["Gradual instead of one-time reduction", "Includes compensatory measures"],
         implementation_steps=[
-            "Usvajanje zakonskog okvira",
-            "Faza 1 — smanjenje na 15%",
-            "Evaluacija nakon 6 mjeseci",
+            "Adopt the legal framework",
+            "Phase 1 — reduce to 15%",
+            "Evaluate after 6 months",
         ],
-        risks_and_tradeoffs=["Sporiji efekat na građane", "Politički pritisak za brže smanjenje"],
+        risks_and_tradeoffs=["Slower impact on citizens", "Political pressure for faster reduction"],
     )
 
 

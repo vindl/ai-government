@@ -82,15 +82,15 @@ def compose_daily_tweet(results: list[SessionResult]) -> str:
 
     sorted_results = sorted(results, key=_sort_key)[:3]
 
-    header = "AI Vlada \u2014 dnevni pregled\n\n"
-    footer = f"\n\n{SITE_BASE_URL}\n\n#AIVlada #CrnaGora"
+    header = "AI Government \u2014 daily digest\n\n"
+    footer = f"\n\n{SITE_BASE_URL}\n\n#AIGovernment #Montenegro"
 
     # Build bullet lines, trimming decision titles to fit
     bullets: list[str] = []
     for r in sorted_results:
         score = r.critic_report.decision_score if r.critic_report else "?"
         title = r.decision.title
-        cp_tag = " [+kontraprijedlog]" if r.counter_proposal else ""
+        cp_tag = " [+counter-proposal]" if r.counter_proposal else ""
         line = f"\u2022 {title}: {score}/10{cp_tag}"
         bullets.append(line)
 

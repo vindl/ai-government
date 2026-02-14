@@ -228,9 +228,9 @@ class TestBuildDigests:
         builder = SiteBuilder(tmp_path)
         builder._build_digests(all_results)
 
-        assert (tmp_path / "pregled" / "index.html").exists()
-        assert (tmp_path / "pregled" / str(DAY1) / "index.html").exists()
-        assert (tmp_path / "pregled" / str(DAY2) / "index.html").exists()
+        assert (tmp_path / "digest" / "index.html").exists()
+        assert (tmp_path / "digest" / str(DAY1) / "index.html").exists()
+        assert (tmp_path / "digest" / str(DAY2) / "index.html").exists()
 
     def test_digest_content(
         self, tmp_path: Path, day1_results: list[SessionResult]
@@ -238,7 +238,7 @@ class TestBuildDigests:
         builder = SiteBuilder(tmp_path)
         builder._build_digests(day1_results)
 
-        html = (tmp_path / "pregled" / str(DAY1) / "index.html").read_text()
+        html = (tmp_path / "digest" / str(DAY1) / "index.html").read_text()
         assert "Budget Law" in html
         assert "Education Reform" in html
 
@@ -248,7 +248,7 @@ class TestBuildDigests:
         builder = SiteBuilder(tmp_path)
         builder._build_digests(all_results)
 
-        html = (tmp_path / "pregled" / "index.html").read_text()
+        html = (tmp_path / "digest" / "index.html").read_text()
         assert str(DAY1) in html
         assert str(DAY2) in html
 
@@ -256,6 +256,6 @@ class TestBuildDigests:
         builder = SiteBuilder(tmp_path)
         builder._build_digests([])
         # Index page should still be created (shows empty state)
-        assert (tmp_path / "pregled" / "index.html").exists()
-        html = (tmp_path / "pregled" / "index.html").read_text()
-        assert "Nema dnevnih pregleda" in html
+        assert (tmp_path / "digest" / "index.html").exists()
+        html = (tmp_path / "digest" / "index.html").read_text()
+        assert "No daily digests available" in html

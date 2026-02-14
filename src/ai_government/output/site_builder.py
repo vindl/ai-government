@@ -103,7 +103,7 @@ class SiteBuilder:
         shutil.copytree(str(STATIC_DIR), str(dest))
 
     def _build_scorecards(self, results: list[SessionResult]) -> None:
-        decisions_dir = self.output_dir / "odluke"
+        decisions_dir = self.output_dir / "decisions"
         decisions_dir.mkdir(parents=True, exist_ok=True)
 
         template = self.env.get_template("scorecard.html")
@@ -138,10 +138,16 @@ class SiteBuilder:
         (self.output_dir / "index.html").write_text(html, encoding="utf-8")
 
     def _build_about(self) -> None:
-        about_dir = self.output_dir / "o-projektu"
+        about_dir = self.output_dir / "about"
         about_dir.mkdir(parents=True, exist_ok=True)
+
+        constitution_path = DOCS_DIR / "CONSTITUTION.md"
+        constitution_md = constitution_path.read_text(encoding="utf-8")
+        constitution_html = Markup(md.markdown(constitution_md))
+
         template = self.env.get_template("about.html")
         html = template.render(
+            constitution_html=constitution_html,
             css_path="../static/css/style.css",
             base_path="../",
         )
@@ -154,7 +160,7 @@ class SiteBuilder:
             for path in sorted(announcements_dir.glob("*.md"), reverse=True):
                 announcements.append(_parse_announcement(path))
 
-        feed_dir = self.output_dir / "novosti"
+        feed_dir = self.output_dir / "news"
         feed_dir.mkdir(parents=True, exist_ok=True)
         template = self.env.get_template("feed.html")
         html = template.render(
@@ -273,7 +279,7 @@ class SiteBuilder:
             data = self._compose_digest_data(day, grouped[day])
             digests.append(data)
 
-            day_dir = self.output_dir / "pregled" / str(day)
+            day_dir = self.output_dir / "digest" / str(day)
             day_dir.mkdir(parents=True, exist_ok=True)
             html = digest_template.render(
                 digest=data,
@@ -284,11 +290,11 @@ class SiteBuilder:
 
         # Digest index — always render (shows empty state when no digests)
         digests.sort(key=lambda d: d["date"], reverse=True)
-        pregled_dir = self.output_dir / "pregled"
-        pregled_dir.mkdir(parents=True, exist_ok=True)
+        digest_dir = self.output_dir / "digest"
+        digest_dir.mkdir(parents=True, exist_ok=True)
         html = index_template.render(
             digests=digests,
             css_path="../static/css/style.css",
             base_path="../",
         )
-        (pregled_dir / "index.html").write_text(html, encoding="utf-8")
+        (digest_dir / "index.html").write_text(html, encoding="utf-8")

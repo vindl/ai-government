@@ -28,15 +28,15 @@ def format_thread(result: SessionResult) -> list[str]:
         headline = f"{result.critic_report.headline}\n\n"
     tweets.append(_truncate(
         f"{headline}"
-        f"AI Vlada analizira: {d.title}\n\n"
-        f"Rezultati analize:"
+        f"AI Government analyzes: {d.title}\n\n"
+        f"Analysis results:"
     ))
 
     # Tweet 2-N: Ministry scores
     for a in result.assessments:
         score_visual = "#" * a.score + "." * (10 - a.score)
         tweets.append(_truncate(
-            f"Ministarstvo {a.ministry}: {a.score}/10\n"
+            f"Ministry of {a.ministry}: {a.score}/10\n"
             f"[{score_visual}]\n\n"
             f"{a.summary}"
         ))
@@ -44,7 +44,7 @@ def format_thread(result: SessionResult) -> list[str]:
     # Parliament summary
     if result.debate:
         tweets.append(_truncate(
-            f"Skupstina: {result.debate.overall_verdict.value}\n\n"
+            f"Parliament: {result.debate.overall_verdict.value}\n\n"
             f"{result.debate.consensus_summary}"
         ))
 
@@ -52,7 +52,7 @@ def format_thread(result: SessionResult) -> list[str]:
     if result.critic_report:
         cr = result.critic_report
         tweets.append(_truncate(
-            f"Nezavisna ocjena: {cr.decision_score}/10\n\n"
+            f"Independent assessment: {cr.decision_score}/10\n\n"
             f"{cr.overall_analysis[:200]}"
         ))
 
@@ -60,14 +60,14 @@ def format_thread(result: SessionResult) -> list[str]:
     if result.counter_proposal:
         cp = result.counter_proposal
         tweets.append(_truncate(
-            f"Kontraprijedlog: {cp.title}\n\n"
+            f"Counter-proposal: {cp.title}\n\n"
             f"{cp.executive_summary}"
         ))
 
     # Final tweet
     tweets.append(_truncate(
-        "Kompletna analiza: [link]\n\n"
-        "#AIVlada #CrnaGora #Transparentnost"
+        "Full analysis: [link]\n\n"
+        "#AIGovernment #Montenegro #Transparency"
     ))
 
     return tweets

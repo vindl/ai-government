@@ -91,11 +91,11 @@ class SynthesizerAgent:
             data = json.loads(response_text[start:end])
             return CounterProposal(**data)
         except (ValueError, json.JSONDecodeError):
-            summary = response_text[:500] if response_text else "Sinteza nije generisana."
+            summary = response_text[:500] if response_text else "Synthesis not generated."
             return CounterProposal(
                 decision_id=decision_id,
-                title="Kontraprijedlog u pripremi",
+                title="Counter-proposal in preparation",
                 executive_summary=summary,
-                detailed_proposal="Sinteza ministarskih kontraprijedloga nije uspjela.",
-                ministry_contributions=["Parsiranje odgovora nije uspjelo"],
+                detailed_proposal="Synthesis of ministry counter-proposals failed.",
+                ministry_contributions=["Response parsing failed"],
             )

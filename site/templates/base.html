@@ -1,23 +1,23 @@
 <!DOCTYPE html>
-<html lang="sr-Latn-ME">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}AI Vlada Crne Gore{% endblock %}</title>
+  <title>{% block title %}AI Government of Montenegro{% endblock %}</title>
   <link rel="stylesheet" href="{{ css_path | default('/static/css/style.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
   <header>
     <nav>
-      <a href="{{ base_path | default('/') }}" class="site-title">AI Vlada Crne Gore</a>
+      <a href="{{ base_path | default('/') }}" class="site-title">AI Government of Montenegro</a>
       <ul>
-        <li><a href="{{ base_path | default('/') }}">Početna</a></li>
-        <li><a href="{{ base_path | default('/') }}odluke/">Odluke</a></li>
-        <li><a href="{{ base_path | default('/') }}pregled/">Pregled</a></li>
-        <li><a href="{{ base_path | default('/') }}o-projektu/">O projektu</a></li>
-        <li><a href="{{ base_path | default('/') }}novosti/">Novosti</a></li>
-        <li><a href="https://github.com/vindl/ai-government/discussions">Diskusija</a></li>
+        <li><a href="{{ base_path | default('/') }}">Home</a></li>
+        <li><a href="{{ base_path | default('/') }}decisions/">Decisions</a></li>
+        <li><a href="{{ base_path | default('/') }}digest/">Digest</a></li>
+        <li><a href="{{ base_path | default('/') }}about/">About</a></li>
+        <li><a href="{{ base_path | default('/') }}news/">News</a></li>
+        <li><a href="https://github.com/vindl/ai-government/discussions">Discussion</a></li>
       </ul>
     </nav>
   </header>
@@ -27,8 +27,8 @@
   </main>
 
   <footer>
-    <p>AI Vlada Crne Gore &mdash; Nezavisna AI analiza vladinih odluka u javnom interesu.</p>
-    <p>Izvorni kod: <a href="https://github.com/vindl/ai-government">github.com/vindl/ai-government</a></p>
+    <p>AI Government of Montenegro &mdash; Independent AI analysis of government decisions in the public interest.</p>
+    <p>Source code: <a href="https://github.com/vindl/ai-government">github.com/vindl/ai-government</a></p>
   </footer>
 </body>
 </html>

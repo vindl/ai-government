@@ -109,7 +109,7 @@
 - Container only sees a fresh git clone (no host filesystem mount)
 - Only two host resources exposed: `GH_TOKEN` env var and `~/.claude` mount (for OAuth token refresh)
 - `init: true` (tini as PID 1) for proper signal handling with `os.execv`
-- `user: UID:GID` matching host user so Claude CLI can read/write `~/.claude`
+- Fixed user `aigov` (UID 1000) defined in Dockerfile — no runtime UID override
 - Resource limits (4 CPUs, 8GB RAM) prevent runaway consumption
 - `on-failure:3` restart policy for crash recovery without infinite loops
 - `uv sync` added to `_reexec()` so dependency changes from merged PRs are installed before the next cycle

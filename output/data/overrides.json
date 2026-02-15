@@ -1,5 +1,16 @@
 [
   {
+    "timestamp": "2026-02-15T02:34:47Z",
+    "issue_number": 152,
+    "pr_number": null,
+    "override_type": "comment",
+    "actor": "vindl",
+    "issue_title": "Build and deploy the static site to establish a public web presence",
+    "ai_verdict": "AI rejected/proposed changes",
+    "human_action": "Moved to backlog via override",
+    "rationale": null
+  },
+  {
     "timestamp": "2026-02-15T01:01:08Z",
     "issue_number": 126,
     "pr_number": null,

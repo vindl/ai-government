@@ -39,3 +39,24 @@ class HumanOverride(BaseModel):
     )
 
     model_config = ConfigDict(frozen=True)
+
+
+class HumanSuggestion(BaseModel):
+    """Record of a task directly filed by a human operator.
+
+    Tracks human-directed work to demonstrate transparency about what
+    humans are asking the AI to do. Published in the transparency report
+    per Constitution Article 5 and 22.
+    """
+
+    timestamp: datetime.datetime = Field(
+        description="When the issue was created (UTC)",
+    )
+    issue_number: int = Field(description="GitHub issue number")
+    issue_title: str = Field(description="Issue title")
+    status: Literal["open", "closed"] = Field(
+        description="Current issue state (open/closed)"
+    )
+    creator: str = Field(description="GitHub username who created the issue")
+
+    model_config = ConfigDict(frozen=True)

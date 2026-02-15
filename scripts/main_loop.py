@@ -30,7 +30,7 @@ from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 from pydantic import BaseModel, Field
 
 from ai_government.config import SessionConfig
-from ai_government.models.override import HumanOverride
+from ai_government.models.override import HumanOverride, HumanSuggestion
 from ai_government.models.telemetry import (
     CyclePhaseResult,
     CycleTelemetry,
@@ -723,6 +723,71 @@ def save_override_records(overrides: list[HumanOverride]) -> Path:
     data = [o.model_dump(mode="json") for o in overrides]
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     log.info("Saved %d override records to %s", len(overrides), path)
+    return path
+
+
+def collect_human_suggestions() -> list[HumanSuggestion]:
+    """Collect all human-suggested issues for transparency reporting.
+
+    Scans all issues (open and closed) with the human-suggestion label to track
+    human-directed work.
+    """
+    suggestions: list[HumanSuggestion] = []
+
+    # Fetch all issues with human-suggestion label
+    result = _run_gh(
+        [
+            "gh",
+            "issue",
+            "list",
+            "--label",
+            LABEL_HUMAN,
+            "--state",
+            "all",
+            "--json",
+            "number,title,state,createdAt,author",
+            "--limit",
+            "200",
+        ],
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        log.warning("Could not fetch human-suggested issues")
+        return suggestions
+
+    issues = json.loads(result.stdout)
+
+    for issue in issues:
+        created_at = issue.get("createdAt", "")
+        try:
+            timestamp = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            timestamp = datetime.now(UTC)
+
+        suggestions.append(
+            HumanSuggestion(
+                timestamp=timestamp,
+                issue_number=issue["number"],
+                issue_title=issue["title"],
+                status="open" if issue["state"] == "OPEN" else "closed",
+                creator=issue.get("author", {}).get("login", "unknown"),
+            )
+        )
+
+    # Sort by timestamp descending (newest first)
+    suggestions.sort(key=lambda s: s.timestamp, reverse=True)
+    return suggestions
+
+
+def save_suggestion_records(suggestions: list[HumanSuggestion]) -> Path:
+    """Save human suggestion records to JSON file for site builder."""
+    output_dir = PROJECT_ROOT / "output" / "data"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "suggestions.json"
+
+    data = [s.model_dump(mode="json") for s in suggestions]
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    log.info("Saved %d human suggestion records to %s", len(suggestions), path)
     return path
 
 
@@ -2593,7 +2658,7 @@ async def run_one_cycle(
         except Exception:
             log.exception("X posting failed (non-fatal)")
 
-    # --- Collect and save override transparency records ---
+    # --- Collect and save transparency records ---
     if not dry_run:
         try:
             override_records = collect_override_records()
@@ -2602,6 +2667,15 @@ async def run_one_cycle(
                 print(f"  Collected {len(override_records)} override record(s) for transparency report")
         except Exception:
             log.exception("Override collection failed (non-fatal)")
+
+        try:
+            suggestion_records = collect_human_suggestions()
+            if suggestion_records:
+                save_suggestion_records(suggestion_records)
+                count = len(suggestion_records)
+                print(f"  Collected {count} human-suggested issue(s) for transparency report")
+        except Exception:
+            log.exception("Human suggestion collection failed (non-fatal)")
 
     # --- Finalize telemetry ---
     telemetry.finished_at = datetime.now(UTC)

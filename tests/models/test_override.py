@@ -1,10 +1,10 @@
-"""Tests for HumanOverride model."""
+"""Tests for HumanOverride and HumanSuggestion models."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from ai_government.models.override import HumanOverride
+from ai_government.models.override import HumanOverride, HumanSuggestion
 
 
 def test_override_creation() -> None:
@@ -85,4 +85,56 @@ def test_override_json_roundtrip() -> None:
     assert restored.issue_number == original.issue_number
     assert restored.actor == original.actor
     assert restored.rationale == original.rationale
+    assert restored.timestamp == original.timestamp
+
+
+def test_suggestion_creation() -> None:
+    """Test creating a HumanSuggestion instance."""
+    suggestion = HumanSuggestion(
+        timestamp=datetime(2026, 2, 15, 10, 0, tzinfo=UTC),
+        issue_number=200,
+        issue_title="Add new analytics feature",
+        status="open",
+        creator="vindl",
+    )
+
+    assert suggestion.issue_number == 200
+    assert suggestion.issue_title == "Add new analytics feature"
+    assert suggestion.status == "open"
+    assert suggestion.creator == "vindl"
+
+
+def test_suggestion_closed_status() -> None:
+    """Test suggestion with closed status."""
+    suggestion = HumanSuggestion(
+        timestamp=datetime(2026, 2, 15, 10, 0, tzinfo=UTC),
+        issue_number=201,
+        issue_title="Fix navigation bug",
+        status="closed",
+        creator="maintainer",
+    )
+
+    assert suggestion.status == "closed"
+
+
+def test_suggestion_json_roundtrip() -> None:
+    """Test JSON serialization and deserialization for HumanSuggestion."""
+    original = HumanSuggestion(
+        timestamp=datetime(2026, 2, 15, 10, 0, tzinfo=UTC),
+        issue_number=202,
+        issue_title="Implement feature X",
+        status="open",
+        creator="contributor",
+    )
+
+    # Serialize to JSON
+    json_data = original.model_dump(mode="json")
+
+    # Deserialize back
+    restored = HumanSuggestion.model_validate(json_data)
+
+    assert restored.issue_number == original.issue_number
+    assert restored.issue_title == original.issue_title
+    assert restored.status == original.status
+    assert restored.creator == original.creator
     assert restored.timestamp == original.timestamp

@@ -392,38 +392,77 @@ The coder agent should:
     return issue_number
 
 
-def check_ci_health() -> int:
-    """Check CI status on main branch. If failed, file an issue. Returns number of issues created."""
-    # Get the latest workflow run on main
+def _find_latest_completed_run(
+    runs: list[dict[str, object]],
+) -> dict[str, object] | None:
+    """Return the most recent completed run from a list, or None if none are completed."""
+    for run in runs:
+        if run.get("status") == "completed":
+            return run
+    return None
+
+
+def _fetch_recent_ci_runs() -> list[dict[str, object]] | None:
+    """Fetch up to 5 recent CI runs on main. Returns None on error."""
     result = _run_gh([
         "gh", "run", "list",
         "--branch", "main",
-        "--limit", "1",
+        "--limit", "5",
         "--json", "databaseId,conclusion,status",
     ], check=False)
 
     if result.returncode != 0:
         log.warning("Failed to fetch CI runs: %s", result.stderr.strip())
+        return None
+
+    runs: list[dict[str, object]] = (
+        json.loads(result.stdout) if result.stdout.strip() else []
+    )
+    return runs
+
+
+def is_ci_passing() -> bool:
+    """Return True if the most recent completed CI run on main passed.
+
+    Returns True (optimistic) if there are no runs, no completed runs,
+    or on error — so the loop isn't blocked by transient failures.
+    """
+    runs = _fetch_recent_ci_runs()
+    if runs is None or not runs:
+        return True
+
+    completed = _find_latest_completed_run(runs)
+    if completed is None:
+        # All runs are in-progress — optimistically allow
+        return True
+
+    return completed.get("conclusion") == "success"
+
+
+def check_ci_health() -> int:
+    """Check CI status on main branch. If failed, file an issue. Returns number of issues created."""
+    # Get recent workflow runs on main (up to 5)
+    runs = _fetch_recent_ci_runs()
+
+    if runs is None:
         return 0
 
-    runs = json.loads(result.stdout) if result.stdout.strip() else []
     if not runs:
         log.info("No CI runs found on main branch")
         return 0
 
-    latest_run = runs[0]
-    run_id = str(latest_run["databaseId"])
-    conclusion = latest_run.get("conclusion")
-    status = latest_run.get("status")
-
-    # If the run is still in progress, skip
-    if status != "completed":
-        log.info("Latest CI run %s is still in progress (status=%s)", run_id, status)
+    # Find the most recent *completed* run, skipping in-progress ones
+    completed_run = _find_latest_completed_run(runs)
+    if completed_run is None:
+        log.info("All %d recent CI runs are still in progress", len(runs))
         return 0
+
+    run_id = str(completed_run["databaseId"])
+    conclusion = completed_run.get("conclusion")
 
     # If the run succeeded, nothing to do
     if conclusion == "success":
-        log.info("Latest CI run %s succeeded", run_id)
+        log.info("Latest completed CI run %s succeeded", run_id)
         return 0
 
     # Check if we already have an open issue for this run
@@ -2646,6 +2685,14 @@ def _commit_output_data() -> None:
             ["git", "commit", "-m", "chore: update output data"],
             check=False,
         )
+        # Gate push on CI health: don't push if the last completed run failed,
+        # to avoid cascading failures and triggering more broken CI runs.
+        if not is_ci_passing():
+            log.warning(
+                "CI is failing on main — skipping push to avoid cascading failures. "
+                "Output data was committed locally but NOT pushed."
+            )
+            return
         _run_gh(["git", "push"], check=False)
         log.info("Output data committed and pushed")
     except Exception:

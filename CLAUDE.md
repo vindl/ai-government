@@ -56,7 +56,7 @@ uv run python scripts/build_site.py --output-dir /tmp/_site  # build to custom d
 
 # Docker (isolated main loop)
 export GH_TOKEN="ghp_..."
-# Optional: X daily digest posting (set all 4 to enable)
+# Optional: X per-analysis posting (set all 4 to enable)
 # Env var names use TWITTER_ prefix because the X Developer Portal still uses it
 # export TWITTER_CONSUMER_KEY="..."
 # export TWITTER_CONSUMER_SECRET="..."

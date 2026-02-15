@@ -1,4 +1,4 @@
-"""X (formerly Twitter) daily digest — compose and post a summary tweet."""
+"""X (formerly Twitter) posting — compose and post per-analysis tweets."""
 
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ log = logging.getLogger(__name__)
 
 SITE_BASE_URL = "https://vindl.github.io/ai-government"
 MAX_TWEET_LENGTH = 280
-DEFAULT_COOLDOWN_HOURS = 24
 MONTHLY_POST_LIMIT = 400  # X free tier allows 500/month; keep headroom
 STATE_FILE = Path("output/twitter_state.json")
 
@@ -92,26 +91,6 @@ def save_state(state: TwitterState, path: Path = STATE_FILE) -> None:
 def _current_month() -> str:
     """Return current month as 'YYYY-MM'."""
     return datetime.now(UTC).strftime("%Y-%m")
-
-
-def should_post(state: TwitterState, cooldown_hours: int = DEFAULT_COOLDOWN_HOURS) -> bool:
-    """Return True if enough time has passed and monthly limit not reached."""
-    if state.last_posted_at is not None:
-        elapsed = datetime.now(UTC) - state.last_posted_at
-        if elapsed.total_seconds() < cooldown_hours * 3600:
-            return False
-
-    # Check monthly limit (reset counter if new month)
-    current = _current_month()
-    if state.monthly_post_month == current and state.monthly_post_count >= MONTHLY_POST_LIMIT:
-        log.warning(
-            "Monthly post limit reached (%d/%d) — skipping",
-            state.monthly_post_count,
-            MONTHLY_POST_LIMIT,
-        )
-        return False
-
-    return True
 
 
 def record_post(state: TwitterState) -> None:
@@ -257,81 +236,6 @@ def try_post_analysis(result: SessionResult) -> bool:
     save_state(state)
     return True
 
-
-def compose_daily_tweet(results: list[SessionResult]) -> BilingualTweet | str:
-    """Build a bilingual daily digest tweet pair from analysis results.
-
-    Picks up to 3 results sorted by critic ``decision_score`` ascending
-    (most concerning first) and formats bullet points with a link.
-    Truncates to fit within 280 characters.
-
-    Returns a ``BilingualTweet`` with Montenegrin primary and English reply,
-    or an empty string if *results* is empty.
-    """
-    if not results:
-        return ""
-
-    # Sort by critic score ascending (lowest = most concerning)
-    def _sort_key(r: SessionResult) -> int:
-        if r.critic_report is not None:
-            return r.critic_report.decision_score
-        return 10  # no critic report → least concerning
-
-    sorted_results = sorted(results, key=_sort_key)[:3]
-
-    # --- Montenegrin primary ---
-    me_header = "AI Vlada \u2014 dnevni pregled\n\n"
-    me_footer = f"\n\n{SITE_BASE_URL}\n\n#AIVlada #CrnaGora"
-
-    me_bullets: list[str] = []
-    for r in sorted_results:
-        score = r.critic_report.decision_score if r.critic_report else "?"
-        title = r.decision.title
-        cp_tag = " [+kontra-prijedlog]" if r.counter_proposal else ""
-        line = f"\u2022 {title}: {score}/10{cp_tag}"
-        me_bullets.append(line)
-
-    me_body = "\n".join(me_bullets)
-    me_tweet = me_header + me_body + me_footer
-
-    while len(me_tweet) > MAX_TWEET_LENGTH and me_bullets:
-        last = me_bullets[-1]
-        if len(last) > 20:
-            me_bullets[-1] = last[: len(last) - 4] + "..."
-            me_body = "\n".join(me_bullets)
-            me_tweet = me_header + me_body + me_footer
-        else:
-            me_bullets.pop()
-            me_body = "\n".join(me_bullets)
-            me_tweet = me_header + me_body + me_footer
-
-    # --- English reply ---
-    en_header = "\U0001f310 AI Government \u2014 daily digest\n\n"
-    en_footer = f"\n\n{SITE_BASE_URL}\n\n#AIGovernment #Montenegro"
-
-    en_bullets: list[str] = []
-    for r in sorted_results:
-        score = r.critic_report.decision_score if r.critic_report else "?"
-        title = r.decision.title
-        cp_tag = " [+counter-proposal]" if r.counter_proposal else ""
-        line = f"\u2022 {title}: {score}/10{cp_tag}"
-        en_bullets.append(line)
-
-    en_body = "\n".join(en_bullets)
-    en_tweet = en_header + en_body + en_footer
-
-    while len(en_tweet) > MAX_TWEET_LENGTH and en_bullets:
-        last = en_bullets[-1]
-        if len(last) > 20:
-            en_bullets[-1] = last[: len(last) - 4] + "..."
-            en_body = "\n".join(en_bullets)
-            en_tweet = en_header + en_body + en_footer
-        else:
-            en_bullets.pop()
-            en_body = "\n".join(en_bullets)
-            en_tweet = en_header + en_body + en_footer
-
-    return BilingualTweet(me=me_tweet, en=en_tweet)
 
 
 def post_tweet(text: str, *, in_reply_to_tweet_id: str | None = None) -> str | None:

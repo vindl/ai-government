@@ -57,7 +57,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `scorecard.py` — full markdown scorecard with tables, scores, details
 - [x] `html.py` — Jinja2 helper functions for verdict labels and CSS classes
 - [x] `site_builder.py` — full static site builder (index, scorecards, about, feed)
-- [x] `twitter.py` — X daily digest posting (OAuth 1.0a, 24h cooldown, Montenegrin)
+- [x] `twitter.py` — X per-analysis posting (OAuth 1.0a, bilingual threads, Montenegrin)
 
 ### Static Site (`site/`)
 - [x] Jinja2 templates: base, scorecard, index, about, feed
@@ -105,14 +105,13 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Fresh clone at runtime (no host filesystem mount) for full isolation
 - [x] `uv sync` in `_reexec()` so new dependencies are installed after git pull
 
-### X Daily Digest (`src/ai_government/output/twitter.py`)
-- [x] `TwitterState` Pydantic model for tracking last post time and posted decision IDs
+### X Per-Analysis Posting (`src/ai_government/output/twitter.py`)
+- [x] `TwitterState` Pydantic model for tracking posted decision IDs and monthly limits
 - [x] `load_state()` / `save_state()` — persists to `output/twitter_state.json`
-- [x] `should_post()` — 24h cooldown between posts
 - [x] `get_unposted_results()` — filters already-posted decisions
-- [x] `compose_daily_tweet()` — template-based, picks up to 3 most concerning results, Montenegrin, 280 chars
+- [x] `compose_analysis_tweet()` — bilingual tweet pair (MNE primary + EN reply), 280 chars
+- [x] `try_post_analysis()` — posts bilingual thread per completed analysis, respects monthly limit
 - [x] `post_tweet()` — posts via tweepy (X API v2, OAuth 1.0a), gracefully skips if creds not set
-- [x] `step_post_tweet()` in main loop — runs after each cycle, non-fatal, logs composed post content
 - [x] Docker env var passthrough for `TWITTER_*` credentials
 
 ### Counter-Proposals
@@ -127,7 +126,6 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] CSS styles: `.counter-proposal`, `.counter-proposal-mini`, `.feed-counter-proposal`
 - [x] Index page badge "Counter-proposal available" when counter-proposal exists
 - [x] Social media thread includes counter-proposal tweet
-- [x] X daily digest includes `[+counter-proposal]` indicator
 
 ### GitHub Projects Integration
 - [x] Single project "AI Government Workflow" auto-created via `gh project create`

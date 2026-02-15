@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import call, patch
 
@@ -26,12 +26,10 @@ from ai_government.output.twitter import (
     _current_month,
     _truncate_at_word_boundary,
     compose_analysis_tweet,
-    compose_daily_tweet,
     get_unposted_results,
     load_state,
     record_post,
     save_state,
-    should_post,
     translate_headline,
     try_post_analysis,
 )
@@ -148,53 +146,6 @@ class TestCurrentMonth:
         assert len(result) == 7  # "YYYY-MM"
         assert result[4] == "-"
 
-
-class TestShouldPost:
-    def test_first_post(self) -> None:
-        """Test should_post returns True for first post."""
-        state = TwitterState()
-        assert should_post(state) is True
-
-    def test_cooldown_not_elapsed(self) -> None:
-        """Test should_post returns False during cooldown."""
-        state = TwitterState(
-            last_posted_at=datetime.now(UTC) - timedelta(hours=12)
-        )
-        assert should_post(state, cooldown_hours=24) is False
-
-    def test_cooldown_elapsed(self) -> None:
-        """Test should_post returns True after cooldown."""
-        state = TwitterState(
-            last_posted_at=datetime.now(UTC) - timedelta(hours=25)
-        )
-        assert should_post(state, cooldown_hours=24) is True
-
-    def test_monthly_limit_not_reached(self) -> None:
-        """Test should_post returns True when under monthly limit."""
-        current = _current_month()
-        state = TwitterState(
-            monthly_post_month=current,
-            monthly_post_count=MONTHLY_POST_LIMIT - 1,
-        )
-        assert should_post(state, cooldown_hours=0) is True
-
-    def test_monthly_limit_reached(self) -> None:
-        """Test should_post returns False when monthly limit reached."""
-        current = _current_month()
-        state = TwitterState(
-            monthly_post_month=current,
-            monthly_post_count=MONTHLY_POST_LIMIT,
-        )
-        assert should_post(state, cooldown_hours=0) is False
-
-    def test_monthly_limit_reset_new_month(self) -> None:
-        """Test should_post returns True when new month resets limit."""
-        state = TwitterState(
-            monthly_post_month="2026-01",  # Old month
-            monthly_post_count=MONTHLY_POST_LIMIT,  # At limit
-        )
-        # Current month is different, so limit should not apply
-        assert should_post(state, cooldown_hours=0) is True
 
 
 class TestRecordPost:
@@ -623,128 +574,3 @@ class TestTryPostAnalysis:
         assert saved_state.monthly_post_count == 1  # Not 2
 
 
-class TestComposeDailyTweet:
-    def test_returns_bilingual_tweet(self) -> None:
-        """compose_daily_tweet should return a BilingualTweet."""
-        results = [
-            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-
-    def test_me_tweet_has_montenegrin_header(self) -> None:
-        """Montenegrin digest should use 'AI Vlada — dnevni pregled'."""
-        results = [
-            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert "AI Vlada \u2014 dnevni pregled" in tweets.me
-
-    def test_en_tweet_has_english_header(self) -> None:
-        """English digest should use 'AI Government — daily digest'."""
-        results = [
-            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert "AI Government \u2014 daily digest" in tweets.en
-
-    def test_me_tweet_has_montenegrin_hashtags(self) -> None:
-        """Montenegrin digest should use #AIVlada #CrnaGora."""
-        results = [
-            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert "#AIVlada" in tweets.me
-        assert "#CrnaGora" in tweets.me
-
-    def test_en_tweet_has_english_hashtags(self) -> None:
-        """English digest should use #AIGovernment #Montenegro."""
-        results = [
-            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert "#AIGovernment" in tweets.en
-        assert "#Montenegro" in tweets.en
-
-    def test_both_tweets_fit_280_chars(self) -> None:
-        """Both tweets must independently fit within 280 characters."""
-        results = [
-            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
-            _make_result("d2", "Education Reform", date(2026, 2, 14), critic_score=8),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert len(tweets.me) <= MAX_TWEET_LENGTH
-        assert len(tweets.en) <= MAX_TWEET_LENGTH
-
-    def test_sorts_by_score_ascending(self) -> None:
-        """compose_daily_tweet sorts by score (lowest first) in both tweets."""
-        results = [
-            _make_result("d1", "High Score", date(2026, 2, 14), critic_score=8),
-            _make_result("d2", "Low Score", date(2026, 2, 14), critic_score=3),
-            _make_result("d3", "Mid Score", date(2026, 2, 14), critic_score=5),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        for tweet_text in [tweets.me, tweets.en]:
-            low_pos = tweet_text.find("Low Score")
-            mid_pos = tweet_text.find("Mid Score")
-            high_pos = tweet_text.find("High Score")
-            assert low_pos < mid_pos < high_pos
-
-    def test_max_three_results(self) -> None:
-        """compose_daily_tweet limits to 3 results."""
-        results = [
-            _make_result(f"d{i}", f"Decision {i}", date(2026, 2, 14), critic_score=i)
-            for i in range(1, 6)
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        for tweet_text in [tweets.me, tweets.en]:
-            assert "Decision 1" in tweet_text
-            assert "Decision 2" in tweet_text
-            assert "Decision 3" in tweet_text
-            assert "Decision 4" not in tweet_text
-            assert "Decision 5" not in tweet_text
-
-    def test_empty_results(self) -> None:
-        """compose_daily_tweet with empty results returns empty string."""
-        tweet = compose_daily_tweet([])
-        assert tweet == ""
-
-    def test_counter_proposal_tag_montenegrin(self) -> None:
-        """Montenegrin digest uses '[+kontra-prijedlog]'."""
-        results = [
-            _make_result(
-                "d1", "Budget Law", date(2026, 2, 14),
-                critic_score=5, has_counter_proposal=True,
-            ),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert "[+kontra-prijedlog]" in tweets.me
-
-    def test_counter_proposal_tag_english(self) -> None:
-        """English digest uses '[+counter-proposal]'."""
-        results = [
-            _make_result(
-                "d1", "Budget Law", date(2026, 2, 14),
-                critic_score=5, has_counter_proposal=True,
-            ),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert "[+counter-proposal]" in tweets.en
-
-    def test_en_tweet_has_globe_prefix(self) -> None:
-        """English daily tweet should start with globe emoji."""
-        results = [
-            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
-        ]
-        tweets = compose_daily_tweet(results)
-        assert isinstance(tweets, BilingualTweet)
-        assert tweets.en.startswith("\U0001f310")

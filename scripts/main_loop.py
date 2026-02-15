@@ -86,6 +86,8 @@ LABEL_STRATEGY = "strategy-suggestion"
 LABEL_EDITORIAL = "editorial-quality"
 LABEL_TASK_ANALYSIS = "task:analysis"
 LABEL_TASK_CODE = "task:code-change"
+LABEL_CI_FAILURE = "ci-failure"
+LABEL_TASK_FIX = "task:fix"
 
 ALL_LABELS: dict[str, str] = {
     LABEL_PROPOSED: "808080",    # gray
@@ -100,6 +102,8 @@ ALL_LABELS: dict[str, str] = {
     LABEL_EDITORIAL: "c5def5",   # pale blue
     LABEL_TASK_ANALYSIS: "1d76db",  # light blue
     LABEL_TASK_CODE: "5319e7",      # violet
+    LABEL_CI_FAILURE: "b60205",     # red (CI failure)
+    LABEL_TASK_FIX: "ff6347",       # tomato (high-priority fix task)
 }
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
@@ -349,6 +353,118 @@ def create_strategic_director_issue(title: str, body: str) -> int:
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
     return issue_number
+
+
+def create_ci_failure_issue(run_id: str, failure_summary: str) -> int:
+    """Create a GitHub Issue for a CI failure on main. Returns issue number."""
+    body = f"""CI failure detected on main branch.
+
+**Run ID**: {run_id}
+**Run URL**: https://github.com/{_get_repo_nwo()}/actions/runs/{run_id}
+
+## Failure Summary
+
+{failure_summary}
+
+## Next Steps
+
+This issue has been automatically created and labeled with `{LABEL_CI_FAILURE}`,
+`{LABEL_BACKLOG}`, and `{LABEL_TASK_FIX}` for high-priority handling.
+
+The coder agent should:
+1. Review the failure logs (linked above)
+2. Fix the issue (lint errors, type errors, test failures, or build issues)
+3. Ensure all checks pass locally before pushing
+4. Close this issue once main is green again
+"""
+    result = _run_gh([
+        "gh", "issue", "create",
+        "--title", f"CI failure on main (run {run_id})",
+        "--body", body,
+        "--label", f"{LABEL_CI_FAILURE},{LABEL_BACKLOG},{LABEL_TASK_FIX}",
+    ])
+    url = result.stdout.strip()
+    issue_number = int(url.rstrip("/").split("/")[-1])
+    return issue_number
+
+
+def check_ci_health() -> int:
+    """Check CI status on main branch. If failed, file an issue. Returns number of issues created."""
+    # Get the latest workflow run on main
+    result = _run_gh([
+        "gh", "run", "list",
+        "--branch", "main",
+        "--limit", "1",
+        "--json", "databaseId,conclusion,status",
+    ], check=False)
+
+    if result.returncode != 0:
+        log.warning("Failed to fetch CI runs: %s", result.stderr.strip())
+        return 0
+
+    runs = json.loads(result.stdout) if result.stdout.strip() else []
+    if not runs:
+        log.info("No CI runs found on main branch")
+        return 0
+
+    latest_run = runs[0]
+    run_id = str(latest_run["databaseId"])
+    conclusion = latest_run.get("conclusion")
+    status = latest_run.get("status")
+
+    # If the run is still in progress, skip
+    if status != "completed":
+        log.info("Latest CI run %s is still in progress (status=%s)", run_id, status)
+        return 0
+
+    # If the run succeeded, nothing to do
+    if conclusion == "success":
+        log.info("Latest CI run %s succeeded", run_id)
+        return 0
+
+    # Check if we already have an open issue for this run
+    existing_issues_result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_CI_FAILURE,
+        "--state", "open",
+        "--json", "number,title,body",
+        "--limit", "20",
+    ], check=False)
+
+    if existing_issues_result.returncode == 0:
+        existing_issues = (
+            json.loads(existing_issues_result.stdout)
+            if existing_issues_result.stdout.strip()
+            else []
+        )
+        for issue in existing_issues:
+            # Check if the issue body mentions this run ID
+            if run_id in issue.get("body", ""):
+                log.info("CI failure issue already exists for run %s (issue #%d)", run_id, issue["number"])
+                return 0
+
+    # CI failed — fetch failure logs
+    log.warning("CI run %s failed with conclusion=%s", run_id, conclusion)
+
+    logs_result = _run_gh([
+        "gh", "run", "view", run_id,
+        "--log-failed",
+    ], check=False)
+
+    if logs_result.returncode != 0:
+        failure_summary = f"Failed to fetch logs: {logs_result.stderr.strip()}"
+    else:
+        # Truncate logs to avoid huge issue bodies
+        raw_logs = logs_result.stdout.strip()
+        if len(raw_logs) > 5000:
+            failure_summary = f"```\n{raw_logs[:5000]}\n... (truncated)\n```"
+        else:
+            failure_summary = f"```\n{raw_logs}\n```"
+
+    # Create the issue
+    issue_number = create_ci_failure_issue(run_id, failure_summary)
+    log.info("Created CI failure issue #%d for run %s", issue_number, run_id)
+    return 1
 
 
 def post_debate_comment(
@@ -2391,6 +2507,18 @@ async def run_one_cycle(
     if overrides:
         print(f"  Processed {overrides} human override(s) -> moved to backlog")
     telemetry.human_overrides = overrides
+
+    # --- Step 0.5: CI health check ---
+    print("\nCI Health Check: Checking main branch status...")
+    try:
+        ci_issues_created = check_ci_health()
+        if ci_issues_created > 0:
+            print(f"  Created {ci_issues_created} CI failure issue(s)")
+        else:
+            print("  CI on main is healthy (or already tracked)")
+    except Exception as exc:
+        log.exception("CI health check failed")
+        telemetry.errors.append(f"CI health check: {exc}")
 
     # --- Phase A: Check for new government decisions ---
     t0 = time.monotonic()

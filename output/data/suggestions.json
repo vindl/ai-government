@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-15T02:27:57Z",
+    "issue_number": 153,
+    "issue_title": "Add priority:urgent label as tier 0 in step_pick()",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T02:17:53Z",
     "issue_number": 148,
     "issue_title": "CI health check has race condition: misses failures when loop pushes faster than CI runs",
@@ -24,7 +31,7 @@
     "timestamp": "2026-02-15T02:05:01Z",
     "issue_number": 143,
     "issue_title": "Give Project Director agent staffing authority for technical roles",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

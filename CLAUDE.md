@@ -74,6 +74,13 @@ docker compose down                                        # stop
 ```
 
 ## Conventions
+- **All work must be tracked as a GitHub issue first** — no task executes without a corresponding issue. This includes:
+  - Self-improvement tasks identified by Directors
+  - News analysis tasks from the News Scout
+  - Bug fixes, refactors, and new features
+  - No bypass paths, no Phase 0 shortcuts, no inline fixes
+  - The only knob for urgency is priority labels (`priority:critical`, `priority:high`, `priority:medium`, `priority:low`)
+  - This ensures a single audit trail for transparency and simpler architecture
 - Every agent class inherits from `GovernmentAgent` in `agents/base.py`
 - Prompts live in `prompts/` as string constants, not inline in agent code
 - All agent outputs are typed Pydantic models

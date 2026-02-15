@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import shutil
 from collections import Counter, defaultdict
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import markdown as md
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
+from pydantic import ValidationError
 
 from ai_government.models.override import HumanOverride, HumanSuggestion
 from ai_government.orchestrator import SessionResult
@@ -37,15 +39,23 @@ def _create_env() -> Environment:
     return env
 
 
+_logger = logging.getLogger(__name__)
+
+
 def load_results_from_dir(data_dir: Path) -> list[SessionResult]:
-    """Load serialized SessionResult JSON files from a directory."""
+    """Load serialized SessionResult JSON files from a directory.
+
+    Non-SessionResult JSON files (e.g. overrides.json, suggestions.json) are
+    silently skipped with a debug log message.
+    """
     results: list[SessionResult] = []
     for path in sorted(data_dir.glob("*.json")):
-        # Skip overrides.json (not a SessionResult)
-        if path.name == "overrides.json":
-            continue
         raw = json.loads(path.read_text(encoding="utf-8"))
-        result = SessionResult.model_validate(raw)
+        try:
+            result = SessionResult.model_validate(raw)
+        except ValidationError:
+            _logger.debug("Skipping non-SessionResult file: %s", path.name)
+            continue
         results.append(result)
     return results
 

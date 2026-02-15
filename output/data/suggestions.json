@@ -1,5 +1,19 @@
 [
   {
+    "timestamp": "2026-02-15T10:18:32Z",
+    "issue_number": 173,
+    "issue_title": "Add rolling window to telemetry.jsonl and errors.jsonl",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T10:18:23Z",
+    "issue_number": 172,
+    "issue_title": "Persist runtime errors to structured error log for Project Director",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T09:59:29Z",
     "issue_number": 169,
     "issue_title": "Site i18n: bilingual navigation and chrome",

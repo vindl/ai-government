@@ -1,22 +1,25 @@
 {% extends "base.html" %}
 
-{% block title %}Decisions — AI Government{% endblock %}
+{% block title %}Odluke — AI Vlada{% endblock %}
 
 {% block content %}
-<h1>All Decisions</h1>
-<p>Complete list of analyzed government decisions.</p>
+<h1 class="lang-mne">Sve odluke</h1>
+<h1 class="lang-en">All Decisions</h1>
+<p class="lang-mne">Kompletna lista analiziranih vladinih odluka.</p>
+<p class="lang-en">Complete list of analyzed government decisions.</p>
 
 {% if results %}
 <ul class="decision-feed">
   {% for r in results %}
   <li>
     <h3><a href="{{ r.decision.id }}.html">{{ r.decision.title }}</a></h3>
-    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal">Counter-proposal available</span>{% endif %}</div>
+    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal lang-mne">Kontra-prijedlog dostupan</span><span class="feed-counter-proposal lang-en">Counter-proposal available</span>{% endif %}</div>
     <p class="feed-summary">{{ r.decision.summary }}</p>
   </li>
   {% endfor %}
 </ul>
 {% else %}
-<p>No decisions analyzed yet.</p>
+<p class="lang-mne">Još nema analiziranih odluka.</p>
+<p class="lang-en">No decisions analyzed yet.</p>
 {% endif %}
 {% endblock %}

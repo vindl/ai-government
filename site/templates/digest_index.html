@@ -1,10 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Daily Digests — AI Government{% endblock %}
+{% block title %}Dnevni pregledi — AI Vlada{% endblock %}
 
 {% block content %}
-<h1>Daily Digests</h1>
-<p>Overview of all daily government decision analyses.</p>
+<h1 class="lang-mne">Dnevni pregledi</h1>
+<h1 class="lang-en">Daily Digests</h1>
+<p class="lang-mne">Pregled svih dnevnih analiza vladinih odluka.</p>
+<p class="lang-en">Overview of all daily government decision analyses.</p>
 
 {% if digests %}
 <ul class="digest-index-list">
@@ -12,12 +14,14 @@
   <li>
     <a href="{{ base_path }}digest/{{ d.date }}/">
       <span class="digest-date">{{ d.date }}</span>
-      <span class="digest-meta">{{ d.decision_count }} decision{{ "s" if d.decision_count != 1 else "" }} &middot; Average score: {{ d.avg_score }}/10</span>
+      <span class="digest-meta lang-mne">{{ d.decision_count }} odluk{{ "a" if d.decision_count == 1 else "e" }} &middot; Prosječna ocjena: {{ d.avg_score }}/10</span>
+      <span class="digest-meta lang-en">{{ d.decision_count }} decision{{ "s" if d.decision_count != 1 else "" }} &middot; Average score: {{ d.avg_score }}/10</span>
     </a>
   </li>
   {% endfor %}
 </ul>
 {% else %}
-<p>No daily digests available.</p>
+<p class="lang-mne">Nema dostupnih dnevnih pregleda.</p>
+<p class="lang-en">No daily digests available.</p>
 {% endif %}
 {% endblock %}

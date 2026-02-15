@@ -70,6 +70,16 @@ def render_scorecard(result: SessionResult) -> str:
             f"### Ministry of {a.ministry}",
             f"**Verdict**: {a.verdict.value} ({a.score}/10)",
             "",
+        ])
+        if a.executive_summary:
+            lines.extend([
+                f"**Executive Summary**: {a.executive_summary}",
+                "",
+            ])
+        lines.extend([
+            "<details>",
+            "<summary>Read full analysis</summary>",
+            "",
             a.summary,
             "",
         ])
@@ -95,6 +105,10 @@ def render_scorecard(result: SessionResult) -> str:
                 for change in cp.key_changes:
                     lines.append(f"- {change}")
                 lines.append("")
+        lines.extend([
+            "</details>",
+            "",
+        ])
 
     # Parliament debate
     if result.debate:

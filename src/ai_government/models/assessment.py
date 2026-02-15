@@ -37,6 +37,10 @@ class Assessment(BaseModel):
     verdict: Verdict = Field(description="Overall verdict")
     score: int = Field(ge=1, le=10, description="Score from 1 (worst) to 10 (best)")
     summary: str = Field(description="One-paragraph summary of the assessment")
+    executive_summary: str | None = Field(
+        default=None,
+        description="2-3 sentence executive summary distilling verdict, top concerns, and key recommendation"
+    )
     reasoning: str = Field(description="Detailed reasoning behind the assessment")
     key_concerns: list[str] = Field(default_factory=list, description="Key concerns identified")
     recommendations: list[str] = Field(default_factory=list, description="Recommendations for improvement")

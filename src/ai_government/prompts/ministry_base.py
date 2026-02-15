@@ -23,6 +23,7 @@ Respond ONLY with a valid JSON object:
     "verdict": "strongly_positive|positive|neutral|negative|strongly_negative",
     "score": <1-10>,
     "summary": "<one paragraph assessment>",
+    "executive_summary": "<2-3 sentence distillation of verdict, top concerns, and key recommendation for public readability>",
     "reasoning": "<detailed multi-paragraph reasoning>",
     "key_concerns": ["<concern 1>", "<concern 2>", ...],
     "recommendations": ["<recommendation 1>", "<recommendation 2>", ...],

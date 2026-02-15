@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from ai_government.models.telemetry import (
@@ -125,3 +125,59 @@ class TestTelemetryIO:
         assert path.exists()
         entries = load_telemetry(path)
         assert len(entries) == 1
+
+    def test_rolling_window_prunes_old_entries(self, tmp_path: Path) -> None:
+        path = tmp_path / "telemetry.jsonl"
+        old_time = datetime.now(UTC) - timedelta(days=10)
+        recent_time = datetime.now(UTC) - timedelta(days=1)
+
+        old_entry = CycleTelemetry(cycle=1, started_at=old_time)
+        recent_entry = CycleTelemetry(cycle=2, started_at=recent_time)
+
+        # Seed with old + recent entries
+        append_telemetry(path, old_entry, max_age_days=30)
+        append_telemetry(path, recent_entry, max_age_days=30)
+
+        entries = load_telemetry(path)
+        assert len(entries) == 2
+
+        # Now append with a 5-day window — the 10-day-old entry should be pruned
+        new_entry = CycleTelemetry(cycle=3)
+        append_telemetry(path, new_entry, max_age_days=5)
+
+        entries = load_telemetry(path)
+        assert len(entries) == 2
+        assert entries[0].cycle == 2
+        assert entries[1].cycle == 3
+
+    def test_rolling_window_keeps_unparseable_lines(self, tmp_path: Path) -> None:
+        path = tmp_path / "telemetry.jsonl"
+        # Write a malformed line directly
+        path.write_text("not valid json\n")
+
+        # Append a real entry — the malformed line should be preserved
+        append_telemetry(path, CycleTelemetry(cycle=1), max_age_days=30)
+
+        raw_lines = path.read_text().strip().splitlines()
+        assert len(raw_lines) == 2
+        assert raw_lines[0] == "not valid json"
+
+    def test_rolling_window_prunes_all_old(self, tmp_path: Path) -> None:
+        path = tmp_path / "telemetry.jsonl"
+        old_time = datetime.now(UTC) - timedelta(days=60)
+
+        for i in range(3):
+            entry = CycleTelemetry(cycle=i + 1, started_at=old_time)
+            # Use a large window so they aren't pruned during seeding
+            append_telemetry(path, entry, max_age_days=90)
+
+        entries = load_telemetry(path)
+        assert len(entries) == 3
+
+        # Now append with a tight window — all old entries should be pruned
+        new_entry = CycleTelemetry(cycle=4)
+        append_telemetry(path, new_entry, max_age_days=30)
+
+        entries = load_telemetry(path)
+        assert len(entries) == 1
+        assert entries[0].cycle == 4

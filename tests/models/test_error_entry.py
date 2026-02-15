@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from ai_government.models.telemetry import (
@@ -117,3 +118,26 @@ class TestErrorIO:
         assert path.exists()
         entries = load_errors(path)
         assert len(entries) == 1
+
+    def test_rolling_window_prunes_old_errors(self, tmp_path: Path) -> None:
+        path = tmp_path / "errors.jsonl"
+        old_time = datetime.now(UTC) - timedelta(days=10)
+        recent_time = datetime.now(UTC) - timedelta(days=1)
+
+        old_entry = ErrorEntry(step="old_step", timestamp=old_time, message="old")
+        recent_entry = ErrorEntry(step="recent_step", timestamp=recent_time, message="recent")
+
+        append_error(path, old_entry, max_age_days=30)
+        append_error(path, recent_entry, max_age_days=30)
+
+        entries = load_errors(path)
+        assert len(entries) == 2
+
+        # Append with a 5-day window — the 10-day-old entry should be pruned
+        new_entry = ErrorEntry(step="new_step", message="new")
+        append_error(path, new_entry, max_age_days=5)
+
+        entries = load_errors(path)
+        assert len(entries) == 2
+        assert entries[0].step == "recent_step"
+        assert entries[1].step == "new_step"

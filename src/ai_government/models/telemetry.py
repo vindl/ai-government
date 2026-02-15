@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import traceback as _tb
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+_DEFAULT_MAX_AGE_DAYS = 30
 
 
 class CyclePhaseResult(BaseModel):
@@ -103,11 +106,29 @@ class ErrorEntry(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def append_telemetry(path: Path, entry: CycleTelemetry) -> None:
-    """Append a single telemetry entry as one JSON line."""
+def _append_jsonl_rolling(path: Path, entry: str, *, max_age_days: int = _DEFAULT_MAX_AGE_DAYS) -> None:
+    """Append a JSONL entry and prune entries older than *max_age_days*."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as f:
-        f.write(entry.model_dump_json() + "\n")
+    lines: list[str] = []
+    cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+    if path.exists():
+        for line in path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                obj = json.loads(line)
+                ts = obj.get("timestamp") or obj.get("started_at", "")
+                if ts and datetime.fromisoformat(ts) >= cutoff:
+                    lines.append(line)
+            except (json.JSONDecodeError, ValueError):
+                lines.append(line)  # keep unparseable lines
+    lines.append(entry)
+    path.write_text("\n".join(lines) + "\n")
+
+
+def append_telemetry(path: Path, entry: CycleTelemetry, *, max_age_days: int = _DEFAULT_MAX_AGE_DAYS) -> None:
+    """Append a single telemetry entry as one JSON line, pruning old entries."""
+    _append_jsonl_rolling(path, entry.model_dump_json(), max_age_days=max_age_days)
 
 
 def load_telemetry(path: Path, *, last_n: int = 0) -> list[CycleTelemetry]:
@@ -130,11 +151,9 @@ def load_telemetry(path: Path, *, last_n: int = 0) -> list[CycleTelemetry]:
     return entries
 
 
-def append_error(path: Path, entry: ErrorEntry) -> None:
-    """Append a single error entry as one JSON line."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a") as f:
-        f.write(entry.model_dump_json() + "\n")
+def append_error(path: Path, entry: ErrorEntry, *, max_age_days: int = _DEFAULT_MAX_AGE_DAYS) -> None:
+    """Append a single error entry as one JSON line, pruning old entries."""
+    _append_jsonl_rolling(path, entry.model_dump_json(), max_age_days=max_age_days)
 
 
 def load_errors(path: Path, *, last_n: int = 0) -> list[ErrorEntry]:

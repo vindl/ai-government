@@ -116,6 +116,11 @@ NEWS_SCOUT_MAX_TURNS = 20
 NEWS_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
 NEWS_SCOUT_STATE_PATH = PROJECT_ROOT / "output" / "news_scout_state.json"
 NEWS_SCOUT_MAX_DECISIONS = 3
+ANALYSIS_STATE_PATH = PROJECT_ROOT / "output" / "analysis_state.json"
+
+# Analysis rate limiting — can be overridden via CLI or env vars
+DEFAULT_MAX_ANALYSES_PER_DAY = int(os.getenv("LOOP_MAX_ANALYSES_PER_DAY", "3"))
+DEFAULT_MIN_ANALYSIS_GAP_HOURS = int(os.getenv("LOOP_MIN_ANALYSIS_GAP_HOURS", "5"))
 
 log = logging.getLogger("main_loop")
 
@@ -151,6 +156,14 @@ class NewsScoutState(BaseModel):
     """Tracks when news was last fetched to enforce once-per-day."""
 
     last_fetch_date: str = ""  # YYYY-MM-DD
+
+
+class AnalysisState(BaseModel):
+    """Tracks analysis rate limiting: daily cap and minimum gap between analyses."""
+
+    analyses_completed_today: int = 0
+    last_analysis_date: str = ""  # YYYY-MM-DD
+    last_analysis_completed_at: str = ""  # ISO 8601 timestamp
 
 
 _repo_nwo: str | None = None
@@ -809,14 +822,53 @@ def _count_pending_analysis_issues() -> int:
     return len(json.loads(result.stdout))
 
 
-def should_fetch_news() -> bool:
-    """Return True if news has not been fetched today and analysis backlog has room."""
-    # Skip if we already have enough analysis issues queued
-    pending = _count_pending_analysis_issues()
-    if pending >= NEWS_SCOUT_MAX_DECISIONS:
+def should_run_analysis(
+    max_per_day: int = DEFAULT_MAX_ANALYSES_PER_DAY,
+    min_gap_hours: int = DEFAULT_MIN_ANALYSIS_GAP_HOURS,
+) -> bool:
+    """Check daily cap and minimum gap between analyses."""
+    state = _load_analysis_state()
+    today = _dt.date.today().isoformat()
+
+    # Reset counter if new day
+    if state.last_analysis_date != today:
+        return True
+
+    # Check daily cap
+    if state.analyses_completed_today >= max_per_day:
         log.info(
-            "Skipping News Scout: %d analysis issues already queued (max %d)",
-            pending, NEWS_SCOUT_MAX_DECISIONS,
+            "Analysis rate limit: %d/%d analyses completed today (max reached)",
+            state.analyses_completed_today, max_per_day,
+        )
+        return False
+
+    # Check minimum gap (skip if no gap required)
+    if min_gap_hours > 0 and state.last_analysis_completed_at:
+        from datetime import timedelta
+        last_completed = datetime.fromisoformat(state.last_analysis_completed_at)
+        elapsed = datetime.now(UTC) - last_completed
+        required_gap = timedelta(hours=min_gap_hours)
+        if elapsed < required_gap:
+            remaining = required_gap - elapsed
+            hours, remainder = divmod(int(remaining.total_seconds()), 3600)
+            minutes = remainder // 60
+            log.info(
+                "Analysis rate limit: only %dh %dm since last analysis (need %dh gap)",
+                hours, minutes, min_gap_hours,
+            )
+            return False
+
+    return True
+
+
+def should_fetch_news() -> bool:
+    """Return True if news has not been fetched today and analysis queue is empty."""
+    # Tighter gate: wait until analysis queue is fully drained
+    pending = _count_pending_analysis_issues()
+    if pending > 0:
+        log.info(
+            "Skipping News Scout: %d analysis issue(s) still open (must be 0)",
+            pending,
         )
         return False
 
@@ -835,6 +887,43 @@ def _save_news_scout_state(date_str: str) -> None:
     NEWS_SCOUT_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     NEWS_SCOUT_STATE_PATH.write_text(
         NewsScoutState(last_fetch_date=date_str).model_dump_json()
+    )
+
+
+def _load_analysis_state() -> AnalysisState:
+    """Load analysis state from disk, or return empty state if missing/corrupt."""
+    if not ANALYSIS_STATE_PATH.exists():
+        return AnalysisState()
+    try:
+        return AnalysisState.model_validate_json(ANALYSIS_STATE_PATH.read_text())
+    except Exception:
+        log.warning("Could not parse analysis state, using empty state")
+        return AnalysisState()
+
+
+def _save_analysis_state(state: AnalysisState) -> None:
+    """Persist analysis state to disk."""
+    ANALYSIS_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    ANALYSIS_STATE_PATH.write_text(state.model_dump_json())
+
+
+def _record_analysis_completion(max_per_day: int = DEFAULT_MAX_ANALYSES_PER_DAY) -> None:
+    """Record that an analysis was completed just now."""
+    state = _load_analysis_state()
+    now = datetime.now(UTC)
+    today = _dt.date.today().isoformat()
+
+    # Reset counter if new day
+    if state.last_analysis_date != today:
+        state.analyses_completed_today = 0
+        state.last_analysis_date = today
+
+    state.analyses_completed_today += 1
+    state.last_analysis_completed_at = now.isoformat()
+    _save_analysis_state(state)
+    log.info(
+        "Recorded analysis completion: %d/%d today, last at %s",
+        state.analyses_completed_today, max_per_day, state.last_analysis_completed_at,
     )
 
 
@@ -1069,6 +1158,7 @@ async def step_execute_analysis(
             log.exception("Analysis tweet failed (non-fatal)")
 
         mark_issue_done(issue_number)
+        _record_analysis_completion()
         log.info("Analysis issue #%d completed successfully", issue_number)
         return True
     except Exception as exc:
@@ -1996,6 +2086,8 @@ async def run_one_cycle(
     max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
     director_interval: int = DEFAULT_DIRECTOR_INTERVAL,
     strategic_director_interval: int = DEFAULT_STRATEGIC_DIRECTOR_INTERVAL,
+    max_analyses_per_day: int = DEFAULT_MAX_ANALYSES_PER_DAY,
+    min_analysis_gap: int = DEFAULT_MIN_ANALYSIS_GAP_HOURS,
     dry_run: bool = False,
     skip_analysis: bool = False,
     skip_improve: bool = False,
@@ -2139,19 +2231,31 @@ async def run_one_cycle(
         telemetry.picked_issue_number = issue["number"]
         telemetry.picked_issue_type = task_type
 
-        print(f"\n  Executing issue #{issue['number']}...")
-        try:
-            success = await step_execute(
-                issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
-            )
-        except Exception as exc:
-            log.exception("Phase C execution failed")
-            success = False
-            telemetry.errors.append(f"Phase C: {exc}")
-        telemetry.execution_success = success
-        phase_c.success = success
-        phase_c.detail = f"#{issue['number']} {'OK' if success else 'FAILED'}"
-        print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+        # Check rate limit before executing analysis
+        if task_type == "analysis" and not should_run_analysis(
+            max_per_day=max_analyses_per_day,
+            min_gap_hours=min_analysis_gap,
+        ):
+            print("  Skipping execution: analysis rate limit reached")
+            phase_c.detail = "rate limited"
+            # Return issue to backlog
+            _run_gh(["gh", "issue", "edit", str(issue["number"]),
+                     "--remove-label", LABEL_IN_PROGRESS,
+                     "--add-label", LABEL_BACKLOG], check=False)
+        else:
+            print(f"\n  Executing issue #{issue['number']}...")
+            try:
+                success = await step_execute(
+                    issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+                )
+            except Exception as exc:
+                log.exception("Phase C execution failed")
+                success = False
+                telemetry.errors.append(f"Phase C: {exc}")
+            telemetry.execution_success = success
+            phase_c.success = success
+            phase_c.detail = f"#{issue['number']} {'OK' if success else 'FAILED'}"
+            print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
     phase_c.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase_c)
 
@@ -2262,6 +2366,8 @@ def _reexec(
     max_pr_rounds: int,
     director_interval: int,
     strategic_director_interval: int,
+    max_analyses_per_day: int,
+    min_analysis_gap: int,
     dry_run: bool,
     skip_analysis: bool,
     skip_improve: bool,
@@ -2303,6 +2409,10 @@ def _reexec(
         argv += ["--director-interval", str(director_interval)]
     if strategic_director_interval != DEFAULT_STRATEGIC_DIRECTOR_INTERVAL:
         argv += ["--strategic-director-interval", str(strategic_director_interval)]
+    if max_analyses_per_day != DEFAULT_MAX_ANALYSES_PER_DAY:
+        argv += ["--max-analyses-per-day", str(max_analyses_per_day)]
+    if min_analysis_gap != DEFAULT_MIN_ANALYSIS_GAP_HOURS:
+        argv += ["--min-analysis-gap", str(min_analysis_gap)]
     if dry_run:
         argv += ["--dry-run"]
     if skip_analysis:
@@ -2369,6 +2479,20 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--max-analyses-per-day", type=int, default=DEFAULT_MAX_ANALYSES_PER_DAY,
+        help=(
+            f"Maximum analyses to run per day "
+            f"(default: {DEFAULT_MAX_ANALYSES_PER_DAY})"
+        ),
+    )
+    parser.add_argument(
+        "--min-analysis-gap", type=int, default=DEFAULT_MIN_ANALYSIS_GAP_HOURS,
+        help=(
+            f"Minimum hours between analyses "
+            f"(default: {DEFAULT_MIN_ANALYSIS_GAP_HOURS})"
+        ),
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Propose and debate only; skip execution",
     )
@@ -2413,6 +2537,8 @@ def main() -> None:
             max_pr_rounds=args.max_pr_rounds,
             director_interval=args.director_interval,
             strategic_director_interval=args.strategic_director_interval,
+            max_analyses_per_day=args.max_analyses_per_day,
+            min_analysis_gap=args.min_analysis_gap,
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,
@@ -2457,6 +2583,8 @@ def main() -> None:
             max_pr_rounds=args.max_pr_rounds,
             director_interval=args.director_interval,
             strategic_director_interval=args.strategic_director_interval,
+            max_analyses_per_day=args.max_analyses_per_day,
+            min_analysis_gap=args.min_analysis_gap,
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,

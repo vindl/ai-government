@@ -230,7 +230,7 @@ class TestTransparencyPageBilingual:
 
 
 class TestTransparencyPageWithData:
-    """transparency.html with overrides and suggestions has bilingual labels."""
+    """transparency.html with overrides and suggestions in a unified list."""
 
     @pytest.fixture()
     def html(self, tmp_path: Path) -> str:
@@ -259,25 +259,26 @@ class TestTransparencyPageWithData:
         builder._build_transparency(overrides, suggestions)
         return (output_dir / "transparency" / "index.html").read_text()
 
-    def test_mne_overrides_heading(self, html: str) -> None:
-        assert "Zamjene AI odluka" in html
+    def test_unified_list_contains_both(self, html: str) -> None:
+        assert "Test issue" in html
+        assert "Suggested task" in html
 
-    def test_en_overrides_heading(self, html: str) -> None:
-        assert "AI Decision Overrides" in html
+    def test_override_has_type_label(self, html: str) -> None:
+        assert "HUMAN OVERRIDE" in html
 
-    def test_mne_suggestions_heading(self, html: str) -> None:
-        assert "Zadaci koje su odredili ljudi" in html
-
-    def test_en_suggestions_heading(self, html: str) -> None:
-        assert "Human-Directed Tasks" in html
+    def test_suggestion_has_type_label(self, html: str) -> None:
+        assert "Human-directed task" in html
 
     def test_mne_labels(self, html: str) -> None:
-        assert "Tip zamjene" in html
         assert "Akter" in html
+        assert "Podnio" in html
 
     def test_en_labels(self, html: str) -> None:
-        assert "Override type" in html
         assert "Actor:" in html
+        assert "Filed by:" in html
+
+    def test_all_entries_use_override_record_class(self, html: str) -> None:
+        assert html.count("override-record") == 2
 
 
 class TestBilingualDecisionTitles:

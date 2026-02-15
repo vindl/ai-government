@@ -156,7 +156,7 @@ def test_build_transparency_page_with_suggestions(
     sample_overrides: list[HumanOverride],
     sample_suggestions: list[HumanSuggestion],
 ) -> None:
-    """Test building transparency page with both overrides and suggestions."""
+    """Test building transparency page with both overrides and suggestions in unified list."""
     output_dir = tmp_path / "site"
     builder = SiteBuilder(output_dir)
     builder._build_transparency(sample_overrides, sample_suggestions)
@@ -166,16 +166,13 @@ def test_build_transparency_page_with_suggestions(
 
     content = transparency_page.read_text()
 
-    # Check for override section
-    assert "AI Decision Overrides" in content
+    # All entries in a single unified list
     assert "#123: Implement transparency report" in content
-
-    # Check for suggestion section
-    assert "Human-Directed Tasks" in content
     assert "#200: Add new analytics feature" in content
     assert "#199: Improve error handling" in content
-    assert "status-open" in content
-    assert "status-closed" in content
+
+    # Both types are rendered with override-record class
+    assert content.count("override-record") == 4  # 2 overrides + 2 suggestions
 
 
 def test_build_transparency_page_suggestions_only(
@@ -191,12 +188,9 @@ def test_build_transparency_page_suggestions_only(
 
     content = transparency_page.read_text()
 
-    # Should show suggestions section
-    assert "Human-Directed Tasks" in content
+    # Should show suggestions in the unified list
     assert "#200: Add new analytics feature" in content
-
-    # Should not show override section (empty)
-    assert "AI Decision Overrides" not in content
+    assert "Human-directed task" in content
 
 
 def _save_test_overrides(overrides: list[HumanOverride], output_dir: Path) -> None:

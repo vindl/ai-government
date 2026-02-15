@@ -213,10 +213,17 @@ class SiteBuilder:
         transparency_dir = self.output_dir / "transparency"
         transparency_dir.mkdir(parents=True, exist_ok=True)
 
+        # Merge overrides and suggestions into a single chronological list
+        interventions: list[dict[str, Any]] = []
+        for o in overrides:
+            interventions.append({"type": "override", "item": o, "timestamp": o.timestamp})
+        for s in suggestions:
+            interventions.append({"type": "suggestion", "item": s, "timestamp": s.timestamp})
+        interventions.sort(key=lambda x: x["timestamp"], reverse=True)
+
         template = self.env.get_template("transparency.html")
         html = template.render(
-            overrides=overrides,
-            suggestions=suggestions,
+            interventions=interventions,
             css_path="../static/css/style.css",
             base_path="../",
         )

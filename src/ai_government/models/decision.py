@@ -19,3 +19,7 @@ class GovernmentDecision(BaseModel):
         description="Category: fiscal, legal, eu, health, security, general",
     )
     tags: list[str] = Field(default_factory=list, description="Tags for categorization")
+    title_mne: str = Field(default="", description="Montenegrin translation of the title")
+    summary_mne: str = Field(
+        default="", description="Montenegrin translation of the summary"
+    )

@@ -41,6 +41,26 @@ class HumanOverride(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
+class PRMerge(BaseModel):
+    """Record of a human merging an AI-generated pull request.
+
+    Tracks when humans review and approve AI code for deployment.
+    Published in the transparency report per Constitution Article 5 and 22.
+    """
+
+    timestamp: datetime.datetime = Field(
+        description="When the PR was merged (UTC)",
+    )
+    pr_number: int = Field(description="GitHub PR number")
+    pr_title: str = Field(description="PR title")
+    actor: str = Field(description="GitHub username who merged the PR")
+    issue_number: int | None = Field(
+        default=None, description="Linked issue number (if any)"
+    )
+
+    model_config = ConfigDict(frozen=True)
+
+
 class HumanSuggestion(BaseModel):
     """Record of a task directly filed by a human operator.
 

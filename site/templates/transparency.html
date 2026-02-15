@@ -30,158 +30,183 @@
     </p>
   </div>
 
-  {% if suggestions %}
-  <section class="suggestion-section">
-    <h2 class="lang-mne">Zadaci koje su odredili ljudi</h2>
-    <h2 class="lang-en">Human-Directed Tasks</h2>
-    <p class="section-intro lang-mne">
-      Zadaci koje su eksplicitno podnijeli ljudski operateri, usmjeravajući AI da radi na specifičnim poboljšanjima
-      ili analizama. Ovi predstavljaju prioritete koje su pokrenuli ljudi za projekat.
+  <div class="transparency-footer">
+    <h2 class="lang-mne">Kako funkcionišu ljudske intervencije</h2>
+    <h2 class="lang-en">How Human Interventions Work</h2>
+    <p class="lang-mne">
+      Ova stranica prati tri vrste ljudskog uticaja na AI sistem:
     </p>
-    <p class="section-intro lang-en">
-      Tasks explicitly filed by human operators, directing the AI to work on specific improvements
-      or analyses. These represent human-initiated priorities for the project.
+    <p class="lang-en">
+      This page tracks three types of human influence on the AI system:
     </p>
-
-    <div class="suggestion-stats">
-      <p class="lang-mne"><strong>Ukupno zadataka koje su odredili ljudi:</strong> {{ suggestions|length }}</p>
-      <p class="lang-en"><strong>Total human-directed tasks:</strong> {{ suggestions|length }}</p>
-    </div>
-
-    <div class="suggestion-list">
-      {% for suggestion in suggestions %}
-      <article class="suggestion-record">
-        <div class="suggestion-header">
-          <h3>
-            <a href="https://github.com/vindl/ai-government/issues/{{ suggestion.issue_number }}"
-               target="_blank" rel="noopener noreferrer">
-              #{{ suggestion.issue_number }}: {{ suggestion.issue_title }}
-            </a>
-          </h3>
-          <span class="status-badge status-{{ suggestion.status }}">
-            {{ suggestion.status }}
-          </span>
-        </div>
-
-        <div class="suggestion-details">
-          <dl>
-            <dt class="lang-mne">Podnio:</dt>
-            <dt class="lang-en">Filed by:</dt>
-            <dd>
-              <a href="https://github.com/{{ suggestion.creator }}"
-                 target="_blank" rel="noopener noreferrer">
-                @{{ suggestion.creator }}
-              </a>
-            </dd>
-
-            <dt class="lang-mne">Datum podnošenja:</dt>
-            <dt class="lang-en">Date filed:</dt>
-            <dd>
-              <time datetime="{{ suggestion.timestamp.isoformat() }}">
-                {{ suggestion.timestamp.strftime('%Y-%m-%d %H:%M UTC') }}
-              </time>
-            </dd>
-          </dl>
-        </div>
-      </article>
-      {% endfor %}
-    </div>
-  </section>
-  {% endif %}
-
-  {% if overrides %}
-  <section class="override-section">
-    <h2 class="lang-mne">Zamjene AI odluka</h2>
-    <h2 class="lang-en">AI Decision Overrides</h2>
-    <p class="section-intro lang-mne">
-      Slučajevi u kojima su ljudski operateri poništili ili izmijenili odluke AI trijaže, premjestivši odbijene
-      prijedloge u red čekanja ili odobrivši PR-ove za koje je AI tražio izmjene.
+    <ol class="lang-mne">
+      <li><strong>Zamjene:</strong> Kada AI trijaža odbije prijedlog, čovjek može ponovo otvoriti
+          pitanje ili dodati komentar "HUMAN OVERRIDE" da premjesti pitanje u red čekanja,
+          zaobilazeći AI odluku.</li>
+      <li><strong>Zadaci koje su odredili ljudi:</strong> Pitanja direktno kreirana od strane ljudi,
+          koja usmjeravaju AI da radi na određenim zadacima.</li>
+      <li><strong>Spajanja PR-ova:</strong> Kada čovjek pregleda i spoji AI-generisani pull request,
+          odobravajući AI kod za primjenu.</li>
+    </ol>
+    <ol class="lang-en">
+      <li><strong>Overrides:</strong> When AI triage rejects a proposal, a human can reopen the
+          issue or add a "HUMAN OVERRIDE" comment to move it to the backlog,
+          bypassing the AI decision.</li>
+      <li><strong>Human-directed tasks:</strong> Issues filed directly by humans,
+          directing the AI to work on specific tasks.</li>
+      <li><strong>PR merges:</strong> When a human reviews and merges an AI-generated pull request,
+          approving AI code for deployment.</li>
+    </ol>
+    <p class="lang-mne">
+      Svaka intervencija je zabilježena sa akterom, vremenskim pečatom i punim detaljima.
+      Ovo osigurava odgovornost i demonstrira da projekat funkcioniše transparentno —
+      ne kao automatizacija bez nadzora, već kao AI analiza pod ljudskim nadzorom.
     </p>
-    <p class="section-intro lang-en">
-      Cases where human operators reversed or modified AI triage decisions, moving rejected
-      proposals to the backlog or approving PRs that the AI requested changes on.
+    <p class="lang-en">
+      Every intervention is logged with the actor, timestamp, and full details.
+      This ensures accountability and demonstrates that the project operates transparently —
+      not as unchecked automation, but as human-supervised AI analysis.
     </p>
+  </div>
 
-    <div class="override-stats">
-      <p class="lang-mne"><strong>Ukupno zabilježenih zamjena:</strong> {{ overrides|length }}</p>
-      <p class="lang-en"><strong>Total overrides recorded:</strong> {{ overrides|length }}</p>
-    </div>
+  {% if interventions %}
+  <div class="override-stats">
+    <p class="lang-mne"><strong>Ukupno zabilježenih intervencija:</strong> {{ interventions|length }}</p>
+    <p class="lang-en"><strong>Total interventions recorded:</strong> {{ interventions|length }}</p>
+  </div>
 
-    <div class="override-list">
-    {% for override in overrides %}
+  <div class="override-list">
+    {% for entry in interventions %}
     <article class="override-record">
       <div class="override-header">
         <h2>
-          <a href="https://github.com/vindl/ai-government/issues/{{ override.issue_number }}"
+          {% if entry.type == 'pr_merge' %}
+          <a href="https://github.com/vindl/ai-government/pull/{{ entry.item.pr_number }}"
              target="_blank" rel="noopener noreferrer">
-            #{{ override.issue_number }}: {{ override.issue_title }}
+            PR #{{ entry.item.pr_number }}: {{ entry.item.pr_title }}
           </a>
+          {% else %}
+          <a href="https://github.com/vindl/ai-government/issues/{{ entry.item.issue_number }}"
+             target="_blank" rel="noopener noreferrer">
+            #{{ entry.item.issue_number }}: {{ entry.item.issue_title }}
+          </a>
+          {% endif %}
         </h2>
-        <time datetime="{{ override.timestamp.isoformat() }}">
-          {{ override.timestamp.strftime('%Y-%m-%d %H:%M UTC') }}
+        <time datetime="{{ entry.timestamp.isoformat() }}">
+          {{ entry.timestamp.strftime('%Y-%m-%d %H:%M UTC') }}
         </time>
       </div>
 
       <div class="override-details">
         <dl>
-          <dt class="lang-mne">Tip zamjene:</dt>
-          <dt class="lang-en">Override type:</dt>
+          {% if entry.type == 'override' %}
+          <dt class="lang-mne">Tip:</dt>
+          <dt class="lang-en">Type:</dt>
           <dd>
-            {% if override.override_type == 'reopened' %}
-            <span class="lang-mne">Ponovno otvoreno odbijeno pitanje</span>
-            <span class="lang-en">Reopened rejected issue</span>
-            {% elif override.override_type == 'comment' %}
-            <span class="lang-mne">Eksplicitni komentar HUMAN OVERRIDE</span>
-            <span class="lang-en">Explicit HUMAN OVERRIDE comment</span>
-            {% elif override.override_type == 'pr_comment' %}
-            <span class="lang-mne">Zamjena putem PR recenzije</span>
-            <span class="lang-en">PR review override</span>
+            {% if entry.item.override_type == 'reopened' %}
+            <span class="lang-mne">Zamjena — Ponovno otvoreno odbijeno pitanje</span>
+            <span class="lang-en">Override — Reopened rejected issue</span>
+            {% elif entry.item.override_type == 'comment' %}
+            <span class="lang-mne">Zamjena — Eksplicitni komentar HUMAN OVERRIDE</span>
+            <span class="lang-en">Override — Explicit HUMAN OVERRIDE comment</span>
+            {% elif entry.item.override_type == 'pr_comment' %}
+            <span class="lang-mne">Zamjena — Zamjena putem PR recenzije</span>
+            <span class="lang-en">Override — PR review override</span>
             {% endif %}
           </dd>
 
           <dt class="lang-mne">Akter:</dt>
           <dt class="lang-en">Actor:</dt>
           <dd>
-            <a href="https://github.com/{{ override.actor }}"
+            <a href="https://github.com/{{ entry.item.actor }}"
                target="_blank" rel="noopener noreferrer">
-              @{{ override.actor }}
+              @{{ entry.item.actor }}
             </a>
           </dd>
 
           <dt class="lang-mne">AI presuda:</dt>
           <dt class="lang-en">AI verdict:</dt>
-          <dd class="ai-verdict">{{ override.ai_verdict }}</dd>
+          <dd class="ai-verdict">{{ entry.item.ai_verdict }}</dd>
 
           <dt class="lang-mne">Ljudska akcija:</dt>
           <dt class="lang-en">Human action:</dt>
-          <dd class="human-action">{{ override.human_action }}</dd>
+          <dd class="human-action">{{ entry.item.human_action }}</dd>
 
-          {% if override.rationale %}
+          {% if entry.item.rationale %}
           <dt class="lang-mne">Obrazloženje:</dt>
           <dt class="lang-en">Rationale:</dt>
-          <dd class="rationale">{{ override.rationale }}</dd>
+          <dd class="rationale">{{ entry.item.rationale }}</dd>
           {% endif %}
 
-          {% if override.pr_number %}
+          {% if entry.item.pr_number %}
           <dt class="lang-mne">Povezani PR:</dt>
           <dt class="lang-en">Related PR:</dt>
           <dd>
-            <a href="https://github.com/vindl/ai-government/pull/{{ override.pr_number }}"
+            <a href="https://github.com/vindl/ai-government/pull/{{ entry.item.pr_number }}"
                target="_blank" rel="noopener noreferrer">
-              #{{ override.pr_number }}
+              #{{ entry.item.pr_number }}
             </a>
           </dd>
+          {% endif %}
+
+          {% elif entry.type == 'pr_merge' %}
+          <dt class="lang-mne">Tip:</dt>
+          <dt class="lang-en">Type:</dt>
+          <dd>
+            <span class="lang-mne">PR spojen</span>
+            <span class="lang-en">PR merged</span>
+          </dd>
+
+          <dt class="lang-mne">Spojio:</dt>
+          <dt class="lang-en">Merged by:</dt>
+          <dd>
+            <a href="https://github.com/{{ entry.item.actor }}"
+               target="_blank" rel="noopener noreferrer">
+              @{{ entry.item.actor }}
+            </a>
+          </dd>
+
+          {% if entry.item.issue_number %}
+          <dt class="lang-mne">Povezano pitanje:</dt>
+          <dt class="lang-en">Linked issue:</dt>
+          <dd>
+            <a href="https://github.com/vindl/ai-government/issues/{{ entry.item.issue_number }}"
+               target="_blank" rel="noopener noreferrer">
+              #{{ entry.item.issue_number }}
+            </a>
+          </dd>
+          {% endif %}
+
+          {% else %}
+          <dt class="lang-mne">Tip:</dt>
+          <dt class="lang-en">Type:</dt>
+          <dd>
+            <span class="lang-mne">Zadatak koji je odredio čovjek</span>
+            <span class="lang-en">Human-directed task</span>
+          </dd>
+
+          <dt class="lang-mne">Podnio:</dt>
+          <dt class="lang-en">Filed by:</dt>
+          <dd>
+            <a href="https://github.com/{{ entry.item.creator }}"
+               target="_blank" rel="noopener noreferrer">
+              @{{ entry.item.creator }}
+            </a>
+          </dd>
+
+          <dt class="lang-mne">Status:</dt>
+          <dt class="lang-en">Status:</dt>
+          <dd>{{ entry.item.status }}</dd>
           {% endif %}
         </dl>
       </div>
     </article>
     {% endfor %}
   </div>
-  </section>
   {% endif %}
 
-  {% if not overrides and not suggestions %}
-  <div class="no-records">
+  {% if not interventions %}
+  <div class="no-overrides">
     <p class="lang-mne">Još nijesu zabilježene ljudske intervencije.</p>
     <p class="lang-en">No human interventions have been recorded yet.</p>
     <p class="lang-mne">
@@ -195,37 +220,5 @@
   </div>
   {% endif %}
 
-  <div class="transparency-footer">
-    <h2 class="lang-mne">Kako zamjene funkcionišu</h2>
-    <h2 class="lang-en">How Overrides Work</h2>
-    <p class="lang-mne">
-      Administratori repozitorijuma mogu zamijeniti AI odluke na dva načina:
-    </p>
-    <p class="lang-en">
-      Repository administrators can override AI decisions in two ways:
-    </p>
-    <ol class="lang-mne">
-      <li><strong>Ponovno otvaranje odbijenog pitanja:</strong> Ako AI trijaža odbije prijedlog, čovjek
-          može ponovo otvoriti pitanje da ga premjesti u red čekanja za izvršenje.</li>
-      <li><strong>Dodavanje HUMAN OVERRIDE komentara:</strong> Svaki privilegovani korisnik može dodati komentar
-          koji sadrži "HUMAN OVERRIDE" da premjesti pitanje direktno u red čekanja, zaobilazeći AI debatu.</li>
-    </ol>
-    <ol class="lang-en">
-      <li><strong>Reopen a rejected issue:</strong> If the AI triage rejects a proposal, a human
-          can reopen the issue to move it to the backlog for execution.</li>
-      <li><strong>Add a HUMAN OVERRIDE comment:</strong> Any privileged user can add a comment
-          containing "HUMAN OVERRIDE" to move an issue directly to the backlog, bypassing AI debate.</li>
-    </ol>
-    <p class="lang-mne">
-      Svaka zamjena je zabilježena sa akterom, vremenskim pečatom, AI presudom, ljudskom akcijom i obrazloženjem.
-      Ovo osigurava odgovornost i demonstrira da projekat funkcioniše transparentno —
-      ne kao automatizacija bez nadzora, već kao AI analiza pod ljudskim nadzorom.
-    </p>
-    <p class="lang-en">
-      Every override is logged with the actor, timestamp, AI verdict, human action, and rationale.
-      This ensures accountability and demonstrates that the project operates transparently —
-      not as unchecked automation, but as human-supervised AI analysis.
-    </p>
-  </div>
 </div>
 {% endblock %}

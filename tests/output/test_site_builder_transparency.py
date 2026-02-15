@@ -7,10 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from ai_government.models.override import HumanOverride, HumanSuggestion
+from ai_government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from ai_government.output.site_builder import (
     SiteBuilder,
     load_overrides_from_file,
+    load_pr_merges_from_file,
     load_suggestions_from_file,
 )
 
@@ -59,6 +60,27 @@ def sample_suggestions() -> list[HumanSuggestion]:
             issue_title="Improve error handling",
             status="closed",
             creator="contributor",
+        ),
+    ]
+
+
+@pytest.fixture
+def sample_pr_merges() -> list[PRMerge]:
+    """Sample PR merge records for testing."""
+    return [
+        PRMerge(
+            timestamp=datetime(2026, 2, 15, 14, 0, tzinfo=UTC),
+            pr_number=50,
+            pr_title="Add transparency report",
+            actor="vindl",
+            issue_number=42,
+        ),
+        PRMerge(
+            timestamp=datetime(2026, 2, 14, 16, 0, tzinfo=UTC),
+            pr_number=48,
+            pr_title="Fix scoring bug",
+            actor="admin",
+            issue_number=None,
         ),
     ]
 
@@ -156,7 +178,7 @@ def test_build_transparency_page_with_suggestions(
     sample_overrides: list[HumanOverride],
     sample_suggestions: list[HumanSuggestion],
 ) -> None:
-    """Test building transparency page with both overrides and suggestions."""
+    """Test building transparency page with both overrides and suggestions in unified list."""
     output_dir = tmp_path / "site"
     builder = SiteBuilder(output_dir)
     builder._build_transparency(sample_overrides, sample_suggestions)
@@ -166,16 +188,13 @@ def test_build_transparency_page_with_suggestions(
 
     content = transparency_page.read_text()
 
-    # Check for override section
-    assert "AI Decision Overrides" in content
+    # All entries in a single unified list
     assert "#123: Implement transparency report" in content
-
-    # Check for suggestion section
-    assert "Human-Directed Tasks" in content
     assert "#200: Add new analytics feature" in content
     assert "#199: Improve error handling" in content
-    assert "status-open" in content
-    assert "status-closed" in content
+
+    # Both types are rendered with override-record class
+    assert content.count("override-record") == 4  # 2 overrides + 2 suggestions
 
 
 def test_build_transparency_page_suggestions_only(
@@ -191,12 +210,95 @@ def test_build_transparency_page_suggestions_only(
 
     content = transparency_page.read_text()
 
-    # Should show suggestions section
-    assert "Human-Directed Tasks" in content
+    # Should show suggestions in the unified list
     assert "#200: Add new analytics feature" in content
+    assert "Human-directed task" in content
 
-    # Should not show override section (empty)
-    assert "AI Decision Overrides" not in content
+
+def test_save_and_load_pr_merges(tmp_path: Path, sample_pr_merges: list[PRMerge]) -> None:
+    """Test saving and loading PR merge records."""
+    save_path = Path(str(tmp_path))
+    _save_test_pr_merges(sample_pr_merges, save_path)
+
+    loaded = load_pr_merges_from_file(save_path)
+
+    assert len(loaded) == 2
+    assert loaded[0].pr_number == 50
+    assert loaded[0].actor == "vindl"
+    assert loaded[0].issue_number == 42
+    assert loaded[1].pr_number == 48
+    assert loaded[1].issue_number is None
+
+
+def test_load_pr_merges_from_nonexistent_file(tmp_path: Path) -> None:
+    """Test loading PR merges from nonexistent file returns empty list."""
+    loaded = load_pr_merges_from_file(tmp_path / "nonexistent")
+    assert loaded == []
+
+
+def test_build_transparency_page_with_pr_merges(
+    tmp_path: Path,
+    sample_overrides: list[HumanOverride],
+    sample_suggestions: list[HumanSuggestion],
+    sample_pr_merges: list[PRMerge],
+) -> None:
+    """Test building transparency page with overrides, suggestions, and PR merges."""
+    output_dir = tmp_path / "site"
+    builder = SiteBuilder(output_dir)
+    builder._build_transparency(sample_overrides, sample_suggestions, sample_pr_merges)
+
+    transparency_page = output_dir / "transparency" / "index.html"
+    assert transparency_page.exists()
+
+    content = transparency_page.read_text()
+
+    # All entries in a single unified list
+    assert "#123: Implement transparency report" in content
+    assert "#200: Add new analytics feature" in content
+    assert "PR #50: Add transparency report" in content
+    assert "PR #48: Fix scoring bug" in content
+
+    # PR merge type labels
+    assert "PR spojen" in content
+    assert "PR merged" in content
+
+    # Merged by labels
+    assert "Spojio:" in content
+    assert "Merged by:" in content
+
+    # Linked issue
+    assert "issues/42" in content
+
+    # All entries use override-record class (2 overrides + 2 suggestions + 2 PR merges)
+    assert content.count("override-record") == 6
+
+
+def test_build_transparency_page_pr_merges_only(
+    tmp_path: Path, sample_pr_merges: list[PRMerge]
+) -> None:
+    """Test building transparency page with only PR merges."""
+    output_dir = tmp_path / "site"
+    builder = SiteBuilder(output_dir)
+    builder._build_transparency([], [], sample_pr_merges)
+
+    transparency_page = output_dir / "transparency" / "index.html"
+    assert transparency_page.exists()
+
+    content = transparency_page.read_text()
+
+    assert "PR #50: Add transparency report" in content
+    assert "PR merged" in content
+    assert content.count("override-record") == 2
+
+
+def _save_test_pr_merges(merges: list[PRMerge], output_dir: Path) -> None:
+    """Helper to save PR merge records for tests."""
+    import json
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "pr_merges.json"
+    data = [m.model_dump(mode="json") for m in merges]
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
 def _save_test_overrides(overrides: list[HumanOverride], output_dir: Path) -> None:

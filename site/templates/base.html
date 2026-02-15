@@ -15,13 +15,10 @@
         <span class="lang-en">AI Government of Montenegro</span>
       </a>
       <ul>
-        <li><a href="{{ base_path | default('/') }}"><span class="lang-mne">Početna</span><span class="lang-en">Home</span></a></li>
         <li><a href="{{ base_path | default('/') }}decisions/"><span class="lang-mne">Odluke</span><span class="lang-en">Decisions</span></a></li>
-        <li><a href="{{ base_path | default('/') }}digest/"><span class="lang-mne">Dnevni pregled</span><span class="lang-en">Daily Digest</span></a></li>
         <li><a href="{{ base_path | default('/') }}transparency/"><span class="lang-mne">Transparentnost</span><span class="lang-en">Transparency</span></a></li>
-        <li><a href="{{ base_path | default('/') }}about/"><span class="lang-mne">O nama</span><span class="lang-en">About</span></a></li>
+        <li><a href="{{ base_path | default('/') }}constitution/"><span class="lang-mne">Ustav</span><span class="lang-en">Constitution</span></a></li>
         <li><a href="{{ base_path | default('/') }}news/"><span class="lang-mne">Vijesti</span><span class="lang-en">News</span></a></li>
-        <li><a href="https://github.com/vindl/ai-government/discussions"><span class="lang-mne">Diskusija</span><span class="lang-en">Discussion</span></a></li>
       </ul>
       <div class="lang-toggle">
         <button data-lang="mne" class="active">MNE</button>
@@ -50,14 +47,6 @@
     function setLang(lang) {
       localStorage.setItem(STORAGE_KEY, lang);
       document.documentElement.setAttribute('data-lang', lang);
-      var mne = document.querySelectorAll('.lang-mne');
-      var en = document.querySelectorAll('.lang-en');
-      for (var i = 0; i < mne.length; i++) {
-        mne[i].style.display = lang === 'mne' ? '' : 'none';
-      }
-      for (var i = 0; i < en.length; i++) {
-        en[i].style.display = lang === 'en' ? '' : 'none';
-      }
       var btns = document.querySelectorAll('.lang-toggle button');
       for (var i = 0; i < btns.length; i++) {
         btns[i].classList.toggle('active', btns[i].getAttribute('data-lang') === lang);

@@ -4,7 +4,8 @@
 
 {% block content %}
 <article class="scorecard">
-  <h1>{{ result.decision.title }}</h1>
+  {% if result.decision.title_mne %}<h1 class="lang-mne">{{ result.decision.title_mne }}</h1>{% endif %}
+  <h1 class="{% if result.decision.title_mne %}lang-en{% endif %}">{{ result.decision.title }}</h1>
 
   <div class="decision-meta">
     <span class="meta-item"><strong>Datum / Date:</strong> {{ result.decision.date }}</span>
@@ -14,7 +15,8 @@
     {% endif %}
   </div>
 
-  <blockquote class="decision-summary">{{ result.decision.summary }}</blockquote>
+  {% if result.decision.summary_mne %}<blockquote class="decision-summary lang-mne">{{ result.decision.summary_mne }}</blockquote>{% endif %}
+  <blockquote class="decision-summary {% if result.decision.summary_mne %}lang-en{% endif %}">{{ result.decision.summary }}</blockquote>
 
   {% if result.critic_report %}
   <section class="headline-section">

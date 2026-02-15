@@ -23,6 +23,7 @@ from ai_government.output.twitter import (
     MONTHLY_POST_LIMIT,
     TwitterState,
     _current_month,
+    _truncate_at_word_boundary,
     compose_analysis_tweet,
     compose_daily_tweet,
     get_unposted_results,
@@ -255,9 +256,48 @@ class TestGetUnpostedResults:
         assert len(unposted) == 2
 
 
+class TestTruncateAtWordBoundary:
+    def test_short_text_unchanged(self) -> None:
+        """Text within limit is returned as-is."""
+        assert _truncate_at_word_boundary("hello world", 50) == "hello world"
+
+    def test_truncates_at_word_boundary(self) -> None:
+        """Long text is cut at a space, not mid-word."""
+        result = _truncate_at_word_boundary("one two three four five", 15)
+        assert result.endswith("\u2026")
+        assert len(result) <= 15
+        # Should not cut inside a word
+        without_ellipsis = result[:-1]
+        assert without_ellipsis == without_ellipsis.rstrip()
+        assert " " not in result or result.index("\u2026") > result.rfind(" ")
+
+    def test_exact_limit(self) -> None:
+        """Text exactly at limit is returned as-is."""
+        text = "abcde"
+        assert _truncate_at_word_boundary(text, 5) == text
+
+    def test_single_long_word(self) -> None:
+        """A single word longer than the limit still gets truncated."""
+        result = _truncate_at_word_boundary("superlongword", 8)
+        assert len(result) <= 8
+        assert result.endswith("\u2026")
+
+
 class TestComposeAnalysisTweet:
-    def test_basic_format(self) -> None:
-        """Test compose_analysis_tweet basic format."""
+    def test_leads_with_headline(self) -> None:
+        """Tweet should start with the headline, not the title."""
+        result = _make_result(
+            "d1",
+            "Budget Law",
+            date(2026, 2, 14),
+            critic_score=7,
+            headline="Strong fiscal policy for Montenegro",
+        )
+        tweet = compose_analysis_tweet(result)
+        assert tweet.startswith("Strong fiscal policy for Montenegro")
+
+    def test_no_official_title(self) -> None:
+        """Official decision title should NOT appear in the tweet."""
         result = _make_result(
             "d1",
             "Budget Law",
@@ -266,15 +306,10 @@ class TestComposeAnalysisTweet:
             headline="Strong fiscal policy",
         )
         tweet = compose_analysis_tweet(result)
-        assert "Budget Law: 7/10" in tweet
-        assert "Strong fiscal policy" in tweet
-        assert "/decisions/d1.html" in tweet
-        assert "#AIGovernment" in tweet
-        assert "#Montenegro" in tweet
-        assert len(tweet) <= MAX_TWEET_LENGTH
+        assert "Budget Law" not in tweet
 
-    def test_with_counter_proposal(self) -> None:
-        """Test compose_analysis_tweet with counter-proposal tag."""
+    def test_no_counter_proposal_tag(self) -> None:
+        """Counter-proposal tag should NOT appear in analysis tweets."""
         result = _make_result(
             "d1",
             "Budget Law",
@@ -283,31 +318,63 @@ class TestComposeAnalysisTweet:
             has_counter_proposal=True,
         )
         tweet = compose_analysis_tweet(result)
-        assert "[+counter-proposal]" in tweet
-        assert len(tweet) <= MAX_TWEET_LENGTH
+        assert "[+counter-proposal]" not in tweet
 
-    def test_truncates_long_headline(self) -> None:
-        """Test compose_analysis_tweet truncates long headlines."""
-        long_headline = (
-            "This is a very long headline that will definitely exceed the "
-            "tweet character limit and needs to be truncated to fit within "
-            "280 characters maximum"
-        )
+    def test_score_format(self) -> None:
+        """Score should be formatted as 'Score: X/10'."""
         result = _make_result(
             "d1",
             "Budget Law",
             date(2026, 2, 14),
             critic_score=7,
+            headline="Strong fiscal policy",
+        )
+        tweet = compose_analysis_tweet(result)
+        assert "Score: 7/10" in tweet
+
+    def test_contains_link_and_hashtags(self) -> None:
+        """Tweet should contain the decision link and hashtags."""
+        result = _make_result(
+            "d1",
+            "Budget Law",
+            date(2026, 2, 14),
+            critic_score=7,
+            headline="Strong fiscal policy",
+        )
+        tweet = compose_analysis_tweet(result)
+        assert "/decisions/d1.html" in tweet
+        assert "#AIGovernment" in tweet
+        assert "#Montenegro" in tweet
+        assert len(tweet) <= MAX_TWEET_LENGTH
+
+    def test_truncates_long_headline_at_word_boundary(self) -> None:
+        """Long headlines are truncated at a word boundary, not mid-word."""
+        long_headline = (
+            "Montenegro's Parliament Rubber-Stamps 25 Laws in One Day "
+            "Raising Serious Questions About Democratic Oversight and "
+            "EU Integration Progress Amid Growing Concerns From Civil "
+            "Society Organizations and Opposition Parties Who Demand "
+            "More Transparent Legislative Processes"
+        )
+        result = _make_result(
+            "d1",
+            "Budget Law",
+            date(2026, 2, 14),
+            critic_score=5,
             headline=long_headline,
         )
         tweet = compose_analysis_tweet(result)
         assert len(tweet) <= MAX_TWEET_LENGTH
-        # Should contain ellipsis if truncated
-        if long_headline not in tweet:
-            assert "..." in tweet
+        # Should use ellipsis character for truncation
+        assert "\u2026" in tweet
+        # Ellipsis should not appear mid-word — the char before it should be
+        # a letter or punctuation, and it should be preceded by a space-delimited word
+        ellipsis_pos = tweet.index("\u2026")
+        before_ellipsis = tweet[:ellipsis_pos].rstrip()
+        assert before_ellipsis[-1] != " "
 
     def test_no_headline(self) -> None:
-        """Test compose_analysis_tweet without headline."""
+        """Tweet without headline should still have score and link."""
         result = _make_result(
             "d1",
             "Budget Law",
@@ -316,12 +383,12 @@ class TestComposeAnalysisTweet:
             headline="",
         )
         tweet = compose_analysis_tweet(result)
-        assert "Budget Law: 7/10" in tweet
+        assert "Score: 7/10" in tweet
         assert "/decisions/d1.html" in tweet
         assert len(tweet) <= MAX_TWEET_LENGTH
 
     def test_no_critic_report(self) -> None:
-        """Test compose_analysis_tweet without critic report."""
+        """Tweet without critic report should show '?' score."""
         decision = _make_decision("d1", "Budget Law", date(2026, 2, 14))
         assessment = Assessment(
             ministry="Finance",
@@ -333,7 +400,7 @@ class TestComposeAnalysisTweet:
         )
         result = SessionResult(decision=decision, assessments=[assessment])
         tweet = compose_analysis_tweet(result)
-        assert "Budget Law: ?/10" in tweet  # No score
+        assert "Score: ?/10" in tweet
         assert len(tweet) <= MAX_TWEET_LENGTH
 
 

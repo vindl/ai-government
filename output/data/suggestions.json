@@ -1,9 +1,30 @@
 [
   {
+    "timestamp": "2026-02-15T01:58:56Z",
+    "issue_number": 139,
+    "issue_title": "Add 'do not propose new agents' constraint to PM prompt",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T01:56:13Z",
+    "issue_number": 138,
+    "issue_title": "Set DEFAULT_MODEL to claude-opus-4-6 and add regression test",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T01:49:19Z",
+    "issue_number": 136,
+    "issue_title": "Document convention: every task is an issue first, only tweak priorities",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T01:47:49Z",
     "issue_number": 135,
     "issue_title": "Detect CI failures on main and file auto-fix issues",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

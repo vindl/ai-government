@@ -2068,6 +2068,88 @@ async def step_execute_code_change(
 
 
 # ---------------------------------------------------------------------------
+# Phase D: Project Director — helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_error_distribution_section(entries: list[CycleTelemetry]) -> str:
+    """Summarize error types from recent telemetry cycles."""
+    error_counts: Counter[str] = Counter()
+    for entry in entries:
+        for err in entry.errors:
+            # Use first line (exception class + message prefix) as category
+            pattern = err.strip().split("\n")[0][:120]
+            if pattern:
+                error_counts[pattern] += 1
+    if not error_counts:
+        return "## Error Distribution\n\nNo errors recorded in recent cycles."
+    lines = [f"  {pat}: {cnt}x" for pat, cnt in error_counts.most_common(10)]
+    return "## Error Type Distribution (recent cycles)\n\n" + "\n".join(lines)
+
+
+def _build_agent_performance_section(entries: list[CycleTelemetry]) -> str:
+    """Summarize per-phase performance stats from telemetry."""
+    phase_durations: dict[str, list[float]] = {}
+    phase_failures: Counter[str] = Counter()
+    phase_runs: Counter[str] = Counter()
+    for entry in entries:
+        for phase in entry.phases:
+            phase_runs[phase.phase] += 1
+            phase_durations.setdefault(phase.phase, []).append(phase.duration_seconds)
+            if not phase.success:
+                phase_failures[phase.phase] += 1
+
+    if not phase_runs:
+        return "## Agent/Phase Performance\n\nNo phase-level data available."
+
+    lines: list[str] = []
+    for phase_id in sorted(phase_runs):
+        runs = phase_runs[phase_id]
+        fails = phase_failures.get(phase_id, 0)
+        durations = phase_durations.get(phase_id, [])
+        avg_dur = sum(durations) / len(durations) if durations else 0
+        max_dur = max(durations) if durations else 0
+        fail_pct = (fails / runs * 100) if runs else 0
+        lines.append(
+            f"  Phase {phase_id}: {runs} runs, {fails} failures ({fail_pct:.0f}%), "
+            f"avg {avg_dur:.1f}s, max {max_dur:.1f}s"
+        )
+    return "## Agent/Phase Performance\n\n" + "\n".join(lines)
+
+
+def _build_ci_results_section() -> str:
+    """Fetch recent CI workflow run conclusions from GitHub Actions."""
+    result = _run_gh([
+        "gh", "run", "list",
+        "--branch", "main",
+        "--limit", "10",
+        "--json", "conclusion,event,name,createdAt,headBranch",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return "## Recent CI Runs\n\nNo CI data available (gh run list failed or empty)."
+    try:
+        runs = json.loads(result.stdout)
+        if not runs:
+            return "## Recent CI Runs\n\nNo CI runs found on main branch."
+        conclusion_counts: Counter[str] = Counter()
+        lines: list[str] = []
+        for run in runs:
+            conclusion = run.get("conclusion") or "in_progress"
+            conclusion_counts[conclusion] += 1
+            lines.append(
+                f"  - {run.get('name', '?')}: {conclusion} "
+                f"({run.get('createdAt', '?')[:10]})"
+            )
+        summary = ", ".join(f"{k}: {v}" for k, v in conclusion_counts.most_common())
+        return (
+            f"## Recent CI Runs (last {len(runs)})\n\n"
+            f"Summary: {summary}\n\n" + "\n".join(lines)
+        )
+    except (json.JSONDecodeError, KeyError):
+        return "## Recent CI Runs\n\nFailed to parse CI run data."
+
+
+# ---------------------------------------------------------------------------
 # Phase D: Project Director
 # ---------------------------------------------------------------------------
 
@@ -2092,6 +2174,12 @@ def _prefetch_director_context(last_n_cycles: int) -> str:
         sections.append(
             f"\n## Cycle Yield: {yielded}/{total} ({pct:.0f}%)\n"
         )
+
+        # Error type distribution from telemetry
+        sections.append(_build_error_distribution_section(entries))
+
+        # Agent-level performance stats from telemetry phases
+        sections.append(_build_agent_performance_section(entries))
     else:
         sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
 
@@ -2133,6 +2221,9 @@ def _prefetch_director_context(last_n_cycles: int) -> str:
             sections.append(f"## Open Issue Label Distribution\n\n{dist}")
         except (json.JSONDecodeError, KeyError):
             pass
+
+    # 5. Recent CI run results
+    sections.append(_build_ci_results_section())
 
     return "\n\n".join(sections)
 
@@ -2184,16 +2275,66 @@ Format:
 
 
 # ---------------------------------------------------------------------------
+# Phase E: Strategic Director — helpers
+# ---------------------------------------------------------------------------
+
+
+def _build_agent_roster_section() -> str:
+    """Return a markdown section listing current ministry agents and their domains."""
+    from ai_government.agents.ministry_economy import create_economy_agent
+    from ai_government.agents.ministry_education import create_education_agent
+    from ai_government.agents.ministry_eu import create_eu_agent
+    from ai_government.agents.ministry_finance import create_finance_agent
+    from ai_government.agents.ministry_health import create_health_agent
+    from ai_government.agents.ministry_interior import create_interior_agent
+    from ai_government.agents.ministry_justice import create_justice_agent
+
+    factories = [
+        create_finance_agent,
+        create_justice_agent,
+        create_eu_agent,
+        create_health_agent,
+        create_interior_agent,
+        create_education_agent,
+        create_economy_agent,
+    ]
+    lines: list[str] = []
+    for factory in factories:
+        agent = factory(None)
+        areas = ", ".join(agent.ministry.focus_areas)
+        lines.append(f"  - {agent.ministry.name} ({agent.ministry.slug}): {areas}")
+    return "## Current Agent Roster\n\n" + "\n".join(lines)
+
+
+def _build_skipped_news_section() -> str:
+    """Return a markdown section with skipped/rejected news items from GitHub issues."""
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--state", "closed",
+        "--label", LABEL_REJECTED,
+        "--json", "title,closedAt",
+        "--limit", "10",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return "## Skipped/Rejected Items\n\nNo rejected issues found."
+    try:
+        issues = json.loads(result.stdout)
+        if not issues:
+            return "## Skipped/Rejected Items\n\nNo rejected issues found."
+        lines = [f"  - {iss.get('title', '?')} (closed {iss.get('closedAt', '?')[:10]})"
+                 for iss in issues]
+        return f"## Skipped/Rejected Items (last {len(issues)})\n\n" + "\n".join(lines)
+    except (json.JSONDecodeError, KeyError):
+        return "## Skipped/Rejected Items\n\nFailed to parse rejected issues."
+
+
+# ---------------------------------------------------------------------------
 # Phase E: Strategic Director
 # ---------------------------------------------------------------------------
 
 
 def _prefetch_strategic_context(last_n_cycles: int) -> str:
-    """Pre-fetch all context the Strategic Director needs (no tool access).
-
-    This is a placeholder that will be expanded with real metrics when
-    data sources are available (X analytics, site traffic, API costs).
-    """
+    """Pre-fetch all context the Strategic Director needs (no tool access)."""
     sections: list[str] = []
 
     # 1. Recent telemetry (focusing on output yield)
@@ -2213,7 +2354,7 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
     else:
         sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
 
-    # 2. Recent published analyses
+    # 2. Recent published analyses + domain/topic distribution
     if DATA_DIR.exists():
         try:
             results = load_results_from_dir(DATA_DIR)
@@ -2221,10 +2362,35 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
                 f"## Published Analyses: {len(results)} total\n\n"
                 f"Most recent: {[r.decision.title[:50] for r in results[:3]]}"
             )
+
+            # Domain/topic distribution from published analyses
+            category_counts: Counter[str] = Counter()
+            ministry_counts: Counter[str] = Counter()
+            for r in results:
+                category_counts[r.decision.category or "general"] += 1
+                for a in r.assessments:
+                    ministry_counts[a.ministry] += 1
+            if category_counts:
+                cat_lines = "\n".join(
+                    f"  {cat}: {cnt}" for cat, cnt in category_counts.most_common()
+                )
+                sections.append(
+                    f"## Analysis Domain Distribution (by decision category)\n\n{cat_lines}"
+                )
+            if ministry_counts:
+                min_lines = "\n".join(
+                    f"  {m}: {cnt} assessments" for m, cnt in ministry_counts.most_common()
+                )
+                sections.append(
+                    f"## Ministry Assessment Activity\n\n{min_lines}"
+                )
         except Exception as exc:
             log.warning("Failed to load results for strategic context: %s", exc)
 
-    # 3. Issue distribution by type
+    # 3. Current agent roster (ministry agents and their domains)
+    sections.append(_build_agent_roster_section())
+
+    # 4. Issue distribution by type
     result = _run_gh([
         "gh", "issue", "list",
         "--state", "all",
@@ -2242,6 +2408,9 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
             sections.append(f"## Issue Type Distribution\n\n{dist}")
         except (json.JSONDecodeError, KeyError):
             pass
+
+    # 5. Skipped/rejected news items (topics we saw but didn't analyze)
+    sections.append(_build_skipped_news_section())
 
     # Placeholder for future metrics
     sections.append(

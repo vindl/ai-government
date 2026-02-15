@@ -676,3 +676,66 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
     margin-top: 0;
   }
 }
+
+/* ============================================
+   Bilingual language toggle
+   ============================================ */
+
+/* Default: Montenegrin visible, English hidden */
+[data-lang="mne"] .lang-en { display: none !important; }
+[data-lang="mne"] .lang-mne { display: inline; }
+
+[data-lang="en"] .lang-mne { display: none !important; }
+[data-lang="en"] .lang-en { display: inline; }
+
+/* Block-level bilingual elements (paragraphs, divs) */
+[data-lang="mne"] p.lang-en,
+[data-lang="mne"] div.lang-en,
+[data-lang="mne"] h2.lang-en,
+[data-lang="mne"] h3.lang-en { display: none !important; }
+[data-lang="mne"] p.lang-mne,
+[data-lang="mne"] div.lang-mne,
+[data-lang="mne"] h2.lang-mne,
+[data-lang="mne"] h3.lang-mne { display: block; }
+
+[data-lang="en"] p.lang-mne,
+[data-lang="en"] div.lang-mne,
+[data-lang="en"] h2.lang-mne,
+[data-lang="en"] h3.lang-mne { display: none !important; }
+[data-lang="en"] p.lang-en,
+[data-lang="en"] div.lang-en,
+[data-lang="en"] h2.lang-en,
+[data-lang="en"] h3.lang-en { display: block; }
+
+/* Fallback: if no data-lang is set, show Montenegrin */
+html:not([data-lang]) .lang-en { display: none !important; }
+
+/* Language switcher */
+.lang-switcher {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+.lang-btn {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  color: var(--color-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.lang-btn:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.lang-btn.active {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}

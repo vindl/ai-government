@@ -17,7 +17,8 @@ from pydantic import ValidationError
 
 from ai_government.models.override import HumanOverride, HumanSuggestion
 from ai_government.orchestrator import SessionResult
-from ai_government.output.html import _verdict_css_class, _verdict_label
+from ai_government.output.html import _verdict_css_class, _verdict_label, _verdict_label_mne
+from ai_government.output.localization import UI_LABELS
 
 if TYPE_CHECKING:
     import datetime
@@ -35,7 +36,10 @@ def _create_env() -> Environment:
         autoescape=True,
     )
     env.filters["verdict_label"] = _verdict_label
+    env.filters["verdict_label_mne"] = _verdict_label_mne
     env.filters["verdict_css_class"] = _verdict_css_class
+    # Make UI labels available in all templates
+    env.globals["ui"] = UI_LABELS
     return env
 
 

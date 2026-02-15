@@ -3,14 +3,32 @@
 {% block title %}{{ result.decision.title }} — AI Government{% endblock %}
 
 {% block content %}
-<article class="scorecard">
+<article class="scorecard bilingual">
+  <div class="lang-switcher">
+    <button class="lang-btn active" data-lang="mne">Crnogorski</button>
+    <button class="lang-btn" data-lang="en">English</button>
+  </div>
+
   <h1>{{ result.decision.title }}</h1>
 
   <div class="decision-meta">
-    <span class="meta-item"><strong>Date:</strong> {{ result.decision.date }}</span>
-    <span class="meta-item"><strong>Category:</strong> {{ result.decision.category }}</span>
+    <span class="meta-item">
+      <strong class="lang-mne">{{ ui.mne.date }}:</strong>
+      <strong class="lang-en">{{ ui.en.date }}:</strong>
+      {{ result.decision.date }}
+    </span>
+    <span class="meta-item">
+      <strong class="lang-mne">{{ ui.mne.category }}:</strong>
+      <strong class="lang-en">{{ ui.en.category }}:</strong>
+      {{ result.decision.category }}
+    </span>
     {% if result.decision.source_url %}
-    <span class="meta-item"><a href="{{ result.decision.source_url }}">Source</a></span>
+    <span class="meta-item">
+      <a href="{{ result.decision.source_url }}">
+        <span class="lang-mne">{{ ui.mne.source }}</span>
+        <span class="lang-en">{{ ui.en.source }}</span>
+      </a>
+    </span>
     {% endif %}
   </div>
 
@@ -18,15 +36,27 @@
 
   {% if result.critic_report %}
   <section class="headline-section">
-    <h2>{{ result.critic_report.headline }}</h2>
+    {% if result.critic_report.headline_mne %}
+    <h2 class="lang-mne">{{ result.critic_report.headline_mne }}</h2>
+    {% endif %}
+    <h2 class="lang-en">{{ result.critic_report.headline }}</h2>
+    {% if not result.critic_report.headline_mne %}
+    <h2 class="lang-mne">{{ result.critic_report.headline }}</h2>
+    {% endif %}
     <div class="scores">
       <div class="score-item">
-        <span class="score-label">Decision Score</span>
+        <span class="score-label">
+          <span class="lang-mne">{{ ui.mne.decision_score }}</span>
+          <span class="lang-en">{{ ui.en.decision_score }}</span>
+        </span>
         <span class="score-value">{{ result.critic_report.decision_score }}/10</span>
         <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.decision_score * 10 }}%"></div></div>
       </div>
       <div class="score-item">
-        <span class="score-label">Assessment Quality</span>
+        <span class="score-label">
+          <span class="lang-mne">{{ ui.mne.assessment_quality }}</span>
+          <span class="lang-en">{{ ui.en.assessment_quality }}</span>
+        </span>
         <span class="score-value">{{ result.critic_report.assessment_quality_score }}/10</span>
         <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.assessment_quality_score * 10 }}%"></div></div>
       </div>
@@ -35,38 +65,81 @@
   {% endif %}
 
   <section class="ministry-overview">
-    <h2>Ministry Verdicts</h2>
+    <h2>
+      <span class="lang-mne">{{ ui.mne.ministry_verdicts }}</span>
+      <span class="lang-en">{{ ui.en.ministry_verdicts }}</span>
+    </h2>
     <div class="ministry-cards">
       {% for a in result.assessments %}
       <div class="ministry-card {{ a.verdict.value | verdict_css_class }}">
         <h3>{{ a.ministry }}</h3>
-        <span class="verdict">{{ a.verdict.value | verdict_label }}</span>
+        <span class="verdict">
+          <span class="lang-mne">{{ a.verdict.value | verdict_label_mne }}</span>
+          <span class="lang-en">{{ a.verdict.value | verdict_label }}</span>
+        </span>
         <span class="card-score">{{ a.score }}/10</span>
-        <p>{{ a.summary }}</p>
+        {% if a.summary_mne %}
+        <p class="lang-mne">{{ a.summary_mne }}</p>
+        {% endif %}
+        <p class="lang-en">{{ a.summary }}</p>
+        {% if not a.summary_mne %}
+        <p class="lang-mne">{{ a.summary }}</p>
+        {% endif %}
       </div>
       {% endfor %}
     </div>
   </section>
 
   <section class="ministry-details">
-    <h2>Detailed Analyses</h2>
+    <h2>
+      <span class="lang-mne">{{ ui.mne.detailed_analyses }}</span>
+      <span class="lang-en">{{ ui.en.detailed_analyses }}</span>
+    </h2>
     {% for a in result.assessments %}
     <div class="ministry-detail">
-      <h3>Ministry of {{ a.ministry }}</h3>
+      <h3>
+        <span class="lang-mne">{{ ui.mne.ministry_of }} {{ a.ministry }}</span>
+        <span class="lang-en">Ministry of {{ a.ministry }}</span>
+      </h3>
       <div class="detail-meta">
-        <span class="{{ a.verdict.value | verdict_css_class }}">{{ a.verdict.value | verdict_label }}</span>
+        <span class="{{ a.verdict.value | verdict_css_class }}">
+          <span class="lang-mne">{{ a.verdict.value | verdict_label_mne }}</span>
+          <span class="lang-en">{{ a.verdict.value | verdict_label }}</span>
+        </span>
         <span>{{ a.score }}/10</span>
       </div>
       {% if a.executive_summary %}
       <div class="executive-summary">
-        <strong>Executive Summary:</strong> {{ a.executive_summary }}
+        <strong>
+          <span class="lang-mne">{{ ui.mne.executive_summary }}:</span>
+          <span class="lang-en">{{ ui.en.executive_summary }}:</span>
+        </strong>
+        {% if a.executive_summary_mne %}
+        <span class="lang-mne">{{ a.executive_summary_mne }}</span>
+        {% endif %}
+        <span class="lang-en">{{ a.executive_summary }}</span>
+        {% if not a.executive_summary_mne %}
+        <span class="lang-mne">{{ a.executive_summary }}</span>
+        {% endif %}
       </div>
       {% endif %}
       <details class="full-analysis">
-        <summary>Read full analysis</summary>
-        <p>{{ a.summary }}</p>
+        <summary>
+          <span class="lang-mne">{{ ui.mne.read_full_analysis }}</span>
+          <span class="lang-en">{{ ui.en.read_full_analysis }}</span>
+        </summary>
+        {% if a.summary_mne %}
+        <p class="lang-mne">{{ a.summary_mne }}</p>
+        {% endif %}
+        <p class="lang-en">{{ a.summary }}</p>
+        {% if not a.summary_mne %}
+        <p class="lang-mne">{{ a.summary }}</p>
+        {% endif %}
       {% if a.key_concerns %}
-      <h4>Key Concerns</h4>
+      <h4>
+        <span class="lang-mne">{{ ui.mne.key_concerns }}</span>
+        <span class="lang-en">{{ ui.en.key_concerns }}</span>
+      </h4>
       <ul>
         {% for concern in a.key_concerns %}
         <li>{{ concern }}</li>
@@ -74,7 +147,10 @@
       </ul>
       {% endif %}
       {% if a.recommendations %}
-      <h4>Recommendations</h4>
+      <h4>
+        <span class="lang-mne">{{ ui.mne.recommendations }}</span>
+        <span class="lang-en">{{ ui.en.recommendations }}</span>
+      </h4>
       <ul>
         {% for rec in a.recommendations %}
         <li>{{ rec }}</li>
@@ -83,8 +159,17 @@
       {% endif %}
       {% if a.counter_proposal %}
       <div class="counter-proposal-mini">
-        <h4>Counter-proposal: {{ a.counter_proposal.title }}</h4>
-        <p>{{ a.counter_proposal.summary }}</p>
+        <h4>
+          <span class="lang-mne">{{ ui.mne.counter_proposal_label }}: {{ a.counter_proposal.title }}</span>
+          <span class="lang-en">Counter-proposal: {{ a.counter_proposal.title }}</span>
+        </h4>
+        {% if a.counter_proposal.summary_mne %}
+        <p class="lang-mne">{{ a.counter_proposal.summary_mne }}</p>
+        {% endif %}
+        <p class="lang-en">{{ a.counter_proposal.summary }}</p>
+        {% if not a.counter_proposal.summary_mne %}
+        <p class="lang-mne">{{ a.counter_proposal.summary }}</p>
+        {% endif %}
         {% if a.counter_proposal.key_changes %}
         <ul>
           {% for change in a.counter_proposal.key_changes %}
@@ -93,10 +178,22 @@
         </ul>
         {% endif %}
         {% if a.counter_proposal.expected_benefits %}
-        <p><strong>Expected benefits:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
+        <p>
+          <strong>
+            <span class="lang-mne">{{ ui.mne.expected_benefits }}:</span>
+            <span class="lang-en">{{ ui.en.expected_benefits }}:</span>
+          </strong>
+          {{ a.counter_proposal.expected_benefits | join(', ') }}
+        </p>
         {% endif %}
         {% if a.counter_proposal.estimated_feasibility %}
-        <p><strong>Feasibility:</strong> {{ a.counter_proposal.estimated_feasibility }}</p>
+        <p>
+          <strong>
+            <span class="lang-mne">{{ ui.mne.feasibility }}:</span>
+            <span class="lang-en">{{ ui.en.feasibility }}:</span>
+          </strong>
+          {{ a.counter_proposal.estimated_feasibility }}
+        </p>
         {% endif %}
       </div>
       {% endif %}
@@ -107,18 +204,28 @@
 
   {% if result.debate %}
   <section class="debate">
-    <h2>Parliamentary Debate</h2>
+    <h2>
+      <span class="lang-mne">{{ ui.mne.parliamentary_debate }}</span>
+      <span class="lang-en">{{ ui.en.parliamentary_debate }}</span>
+    </h2>
     <div class="detail-meta">
       <span class="{{ result.debate.overall_verdict.value | verdict_css_class }}">
-        {{ result.debate.overall_verdict.value | verdict_label }}
+        <span class="lang-mne">{{ result.debate.overall_verdict.value | verdict_label_mne }}</span>
+        <span class="lang-en">{{ result.debate.overall_verdict.value | verdict_label }}</span>
       </span>
     </div>
 
-    <h3>Consensus</h3>
+    <h3>
+      <span class="lang-mne">{{ ui.mne.consensus }}</span>
+      <span class="lang-en">{{ ui.en.consensus }}</span>
+    </h3>
     <p>{{ result.debate.consensus_summary }}</p>
 
     {% if result.debate.disagreements %}
-    <h3>Disagreements</h3>
+    <h3>
+      <span class="lang-mne">{{ ui.mne.disagreements }}</span>
+      <span class="lang-en">{{ ui.en.disagreements }}</span>
+    </h3>
     <ul>
       {% for d in result.debate.disagreements %}
       <li>{{ d }}</li>
@@ -126,17 +233,32 @@
     </ul>
     {% endif %}
 
-    <h3>Transcript</h3>
+    <h3>
+      <span class="lang-mne">{{ ui.mne.transcript }}</span>
+      <span class="lang-en">{{ ui.en.transcript }}</span>
+    </h3>
     <div class="transcript">{{ result.debate.debate_transcript }}</div>
   </section>
   {% endif %}
 
   {% if result.critic_report %}
   <section class="critic">
-    <h2>Independent Critical Analysis</h2>
-    <p>{{ result.critic_report.overall_analysis }}</p>
+    <h2>
+      <span class="lang-mne">{{ ui.mne.independent_critical_analysis }}</span>
+      <span class="lang-en">{{ ui.en.independent_critical_analysis }}</span>
+    </h2>
+    {% if result.critic_report.overall_analysis_mne %}
+    <p class="lang-mne">{{ result.critic_report.overall_analysis_mne }}</p>
+    {% endif %}
+    <p class="lang-en">{{ result.critic_report.overall_analysis }}</p>
+    {% if not result.critic_report.overall_analysis_mne %}
+    <p class="lang-mne">{{ result.critic_report.overall_analysis }}</p>
+    {% endif %}
     {% if result.critic_report.blind_spots %}
-    <h3>Blind Spots</h3>
+    <h3>
+      <span class="lang-mne">{{ ui.mne.blind_spots }}</span>
+      <span class="lang-en">{{ ui.en.blind_spots }}</span>
+    </h3>
     <ul>
       {% for bs in result.critic_report.blind_spots %}
       <li>{{ bs }}</li>
@@ -148,13 +270,27 @@
 
   {% if result.counter_proposal %}
   <section class="counter-proposal">
-    <h2>AI Government Counter-proposal</h2>
+    <h2>
+      <span class="lang-mne">{{ ui.mne.ai_counter_proposal }}</span>
+      <span class="lang-en">{{ ui.en.ai_counter_proposal }}</span>
+    </h2>
     <h3>{{ result.counter_proposal.title }}</h3>
-    <p class="executive-summary"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
+    <p class="executive-summary">
+      {% if result.counter_proposal.executive_summary_mne %}
+      <strong class="lang-mne">{{ result.counter_proposal.executive_summary_mne }}</strong>
+      {% endif %}
+      <strong class="lang-en">{{ result.counter_proposal.executive_summary }}</strong>
+      {% if not result.counter_proposal.executive_summary_mne %}
+      <strong class="lang-mne">{{ result.counter_proposal.executive_summary }}</strong>
+      {% endif %}
+    </p>
     <div class="detailed-proposal">{{ result.counter_proposal.detailed_proposal }}</div>
 
     {% if result.counter_proposal.key_differences %}
-    <h4>Key Differences</h4>
+    <h4>
+      <span class="lang-mne">{{ ui.mne.key_differences }}</span>
+      <span class="lang-en">{{ ui.en.key_differences }}</span>
+    </h4>
     <ul>
       {% for diff in result.counter_proposal.key_differences %}
       <li>{{ diff }}</li>
@@ -163,7 +299,10 @@
     {% endif %}
 
     {% if result.counter_proposal.implementation_steps %}
-    <h4>Implementation Steps</h4>
+    <h4>
+      <span class="lang-mne">{{ ui.mne.implementation_steps }}</span>
+      <span class="lang-en">{{ ui.en.implementation_steps }}</span>
+    </h4>
     <ol>
       {% for step in result.counter_proposal.implementation_steps %}
       <li>{{ step }}</li>
@@ -172,7 +311,10 @@
     {% endif %}
 
     {% if result.counter_proposal.risks_and_tradeoffs %}
-    <h4>Risks and Trade-offs</h4>
+    <h4>
+      <span class="lang-mne">{{ ui.mne.risks_and_tradeoffs }}</span>
+      <span class="lang-en">{{ ui.en.risks_and_tradeoffs }}</span>
+    </h4>
     <ul>
       {% for risk in result.counter_proposal.risks_and_tradeoffs %}
       <li>{{ risk }}</li>
@@ -181,7 +323,10 @@
     {% endif %}
 
     {% if result.counter_proposal.ministry_contributions %}
-    <h4>Ministry Contributions</h4>
+    <h4>
+      <span class="lang-mne">{{ ui.mne.ministry_contributions }}</span>
+      <span class="lang-en">{{ ui.en.ministry_contributions }}</span>
+    </h4>
     <ul>
       {% for contrib in result.counter_proposal.ministry_contributions %}
       <li>{{ contrib }}</li>
@@ -192,7 +337,45 @@
   {% endif %}
 
   <div class="error-report">
-    <p>Found an error in this analysis? <a href="https://github.com/vindl/ai-government/discussions/categories/corrections">Report an error</a></p>
+    <p>
+      <span class="lang-mne">{{ ui.mne.error_report }}</span>
+      <span class="lang-en">{{ ui.en.error_report }}</span>
+      <a href="https://github.com/vindl/ai-government/discussions/categories/corrections">
+        <span class="lang-mne">{{ ui.mne.report_error }}</span>
+        <span class="lang-en">{{ ui.en.report_error }}</span>
+      </a>
+    </p>
   </div>
 </article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  var STORAGE_KEY = 'aigov-lang';
+  var defaultLang = 'mne';
+
+  function setLang(lang) {
+    document.documentElement.setAttribute('data-lang', lang);
+    try { localStorage.setItem(STORAGE_KEY, lang); } catch(e) {}
+    var btns = document.querySelectorAll('.lang-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-lang') === lang);
+    }
+  }
+
+  // Restore saved preference or use default (Montenegrin)
+  var saved = null;
+  try { saved = localStorage.getItem(STORAGE_KEY); } catch(e) {}
+  setLang(saved || defaultLang);
+
+  // Bind toggle buttons
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.lang-btn');
+    if (btn) {
+      setLang(btn.getAttribute('data-lang'));
+    }
+  });
+})();
+</script>
 {% endblock %}

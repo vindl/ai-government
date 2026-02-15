@@ -27,6 +27,8 @@ class MinistryCounterProposal(BaseModel):
     estimated_feasibility: str = Field(
         default="", description="How feasible this alternative is"
     )
+    # Montenegrin translations (populated by localization step)
+    summary_mne: str = Field(default="", description="Montenegrin translation of summary")
 
 
 class Assessment(BaseModel):
@@ -46,6 +48,11 @@ class Assessment(BaseModel):
     recommendations: list[str] = Field(default_factory=list, description="Recommendations for improvement")
     counter_proposal: MinistryCounterProposal | None = Field(
         default=None, description="Ministry's alternative proposal"
+    )
+    # Montenegrin translations (populated by localization step)
+    summary_mne: str = Field(default="", description="Montenegrin translation of summary")
+    executive_summary_mne: str = Field(
+        default="", description="Montenegrin translation of executive summary"
     )
 
 
@@ -78,6 +85,10 @@ class CounterProposal(BaseModel):
     risks_and_tradeoffs: list[str] = Field(
         default_factory=list, description="Risks and tradeoffs of this approach"
     )
+    # Montenegrin translations (populated by localization step)
+    executive_summary_mne: str = Field(
+        default="", description="Montenegrin translation of executive summary"
+    )
 
 
 class CriticReport(BaseModel):
@@ -89,3 +100,8 @@ class CriticReport(BaseModel):
     blind_spots: list[str] = Field(default_factory=list, description="What the ministries missed")
     overall_analysis: str = Field(description="Critic's independent analysis")
     headline: str = Field(description="Punchy headline for the scorecard")
+    # Montenegrin translations (populated by localization step)
+    headline_mne: str = Field(default="", description="Montenegrin translation of headline")
+    overall_analysis_mne: str = Field(
+        default="", description="Montenegrin translation of overall analysis"
+    )

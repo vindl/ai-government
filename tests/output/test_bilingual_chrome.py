@@ -88,16 +88,12 @@ class TestGlobalLanguageToggle:
         html = self._read(site_dir, "decisions/chrome-001.html")
         assert 'class="lang-toggle"' in html
 
-    def test_toggle_on_about(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "about/index.html")
+    def test_toggle_on_constitution(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "constitution/index.html")
         assert 'class="lang-toggle"' in html
 
     def test_toggle_on_transparency(self, site_dir: Path) -> None:
         html = self._read(site_dir, "transparency/index.html")
-        assert 'class="lang-toggle"' in html
-
-    def test_toggle_on_digest_index(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "digest/index.html")
         assert 'class="lang-toggle"' in html
 
 
@@ -122,22 +118,16 @@ class TestBilingualNav:
         return html[start:end]
 
     def test_nav_contains_mne_links(self, nav_html: str) -> None:
-        assert "Početna" in nav_html
         assert "Odluke" in nav_html
-        assert "Dnevni pregled" in nav_html
         assert "Transparentnost" in nav_html
-        assert "O nama" in nav_html
+        assert "Ustav" in nav_html
         assert "Vijesti" in nav_html
-        assert "Diskusija" in nav_html
 
     def test_nav_contains_en_links(self, nav_html: str) -> None:
-        assert "Home" in nav_html
         assert "Decisions" in nav_html
-        assert "Daily Digest" in nav_html
         assert "Transparency" in nav_html
-        assert "About" in nav_html
+        assert "Constitution" in nav_html
         assert "News" in nav_html
-        assert "Discussion" in nav_html
 
     def test_site_title_bilingual(self, nav_html: str) -> None:
         assert "AI Vlada Crne Gore" in nav_html
@@ -290,53 +280,6 @@ class TestTransparencyPageWithData:
         assert "Actor:" in html
 
 
-class TestDigestIndexBilingual:
-    """digest_index.html has bilingual headings."""
-
-    @pytest.fixture()
-    def html(self, site_dir: Path) -> str:
-        return (site_dir / "digest" / "index.html").read_text()
-
-    def test_mne_heading(self, html: str) -> None:
-        assert "Dnevni pregledi" in html
-
-    def test_en_heading(self, html: str) -> None:
-        assert "Daily Digests" in html
-
-
-class TestDigestPageBilingual:
-    """Individual digest pages have bilingual content."""
-
-    @pytest.fixture()
-    def html(self, site_dir: Path) -> str:
-        # The date from our test result
-        return (site_dir / "digest" / "2026-02-15" / "index.html").read_text()
-
-    def test_mne_heading(self, html: str) -> None:
-        assert "Dnevni pregled:" in html
-
-    def test_en_heading(self, html: str) -> None:
-        assert "Daily Digest:" in html
-
-    def test_mne_summary_heading(self, html: str) -> None:
-        assert "Rezime dana" in html
-
-    def test_en_summary_heading(self, html: str) -> None:
-        assert "Summary of the Day" in html
-
-    def test_mne_stats_heading(self, html: str) -> None:
-        assert "Statistika" in html
-
-    def test_en_stats_heading(self, html: str) -> None:
-        assert "Statistics" in html
-
-    def test_mne_analyzed_decisions(self, html: str) -> None:
-        assert "Analizirane odluke" in html
-
-    def test_en_analyzed_decisions(self, html: str) -> None:
-        assert "Analyzed Decisions" in html
-
-
 class TestBilingualDecisionTitles:
     """Decision titles and summaries are wrapped with lang-mne/lang-en on listing pages."""
 
@@ -391,15 +334,6 @@ class TestBilingualDecisionTitles:
     def test_scorecard_has_en_summary(self, site_dir: Path) -> None:
         html = self._read(site_dir, "decisions/chrome-001.html")
         assert "A test decision." in html
-
-    def test_digest_has_mne_title(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "digest/2026-02-15/index.html")
-        assert "Testna odluka" in html
-
-    def test_digest_has_en_title(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "digest/2026-02-15/index.html")
-        assert "Test Decision" in html
-
 
 class TestBilingualTitlesBackwardCompat:
     """When _mne fields are empty, titles render without lang classes (always visible)."""

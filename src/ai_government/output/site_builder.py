@@ -1,4 +1,4 @@
-"""Static site builder — assembles scorecards, index, about, and feed pages."""
+"""Static site builder — assembles scorecards, index, constitution, and feed pages."""
 
 from __future__ import annotations
 
@@ -6,9 +6,8 @@ import json
 import logging
 import re
 import shutil
-from collections import Counter, defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import markdown as md
 from jinja2 import Environment, FileSystemLoader
@@ -18,9 +17,6 @@ from pydantic import ValidationError
 from ai_government.models.override import HumanOverride, HumanSuggestion
 from ai_government.orchestrator import SessionResult
 from ai_government.output.html import _verdict_css_class, _verdict_label, _verdict_label_mne
-
-if TYPE_CHECKING:
-    import datetime
 
 SITE_DIR = Path(__file__).resolve().parent.parent.parent.parent / "site"
 TEMPLATES_DIR = SITE_DIR / "templates"
@@ -127,9 +123,8 @@ class SiteBuilder:
         self._copy_static()
         self._build_scorecards(results)
         self._build_index(results)
-        self._build_about()
+        self._build_constitution()
         self._build_feed()
-        self._build_digests(results)
 
         # Build transparency page if data_dir is provided
         if data_dir is not None:
@@ -178,21 +173,21 @@ class SiteBuilder:
         )
         (self.output_dir / "index.html").write_text(html, encoding="utf-8")
 
-    def _build_about(self) -> None:
-        about_dir = self.output_dir / "about"
-        about_dir.mkdir(parents=True, exist_ok=True)
+    def _build_constitution(self) -> None:
+        constitution_dir = self.output_dir / "constitution"
+        constitution_dir.mkdir(parents=True, exist_ok=True)
 
         constitution_path = DOCS_DIR / "CONSTITUTION.md"
         constitution_md = constitution_path.read_text(encoding="utf-8")
         constitution_html = Markup(md.markdown(constitution_md))
 
-        template = self.env.get_template("about.html")
+        template = self.env.get_template("constitution.html")
         html = template.render(
             constitution_html=constitution_html,
             css_path="../static/css/style.css",
             base_path="../",
         )
-        (about_dir / "index.html").write_text(html, encoding="utf-8")
+        (constitution_dir / "index.html").write_text(html, encoding="utf-8")
 
     def _build_feed(self) -> None:
         announcements_dir = CONTENT_DIR / "announcements"
@@ -227,132 +222,3 @@ class SiteBuilder:
         )
         (transparency_dir / "index.html").write_text(html, encoding="utf-8")
 
-    # ------------------------------------------------------------------
-    # Daily digests
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _group_results_by_date(
-        results: list[SessionResult],
-    ) -> dict[datetime.date, list[SessionResult]]:
-        """Group session results by decision date."""
-        grouped: dict[datetime.date, list[SessionResult]] = defaultdict(list)
-        for r in results:
-            grouped[r.decision.date].append(r)
-        return dict(grouped)
-
-    @staticmethod
-    def _compose_digest_data(
-        day: datetime.date,
-        results: list[SessionResult],
-    ) -> dict[str, Any]:
-        """Compose template-ready data for a single day's digest."""
-        decisions: list[dict[str, Any]] = []
-        all_concerns: list[str] = []
-        verdict_counts: Counter[str] = Counter()
-        counter_proposal_count = 0
-        score_sum = 0.0
-        score_count = 0
-
-        for r in results:
-            # Determine score: prefer critic_report.decision_score, fall back to
-            # average assessment score, then 0 if nothing available.
-            if r.critic_report is not None:
-                score = r.critic_report.decision_score
-                headline = r.critic_report.headline
-            elif r.assessments:
-                score = round(
-                    sum(a.score for a in r.assessments) / len(r.assessments)
-                )
-                headline = r.decision.summary
-            else:
-                score = 0
-                headline = r.decision.summary
-
-            has_cp = r.counter_proposal is not None
-            if has_cp:
-                counter_proposal_count += 1
-
-            # Determine primary verdict from debate or first assessment
-            verdict = ""
-            if r.debate is not None:
-                verdict = r.debate.overall_verdict.value
-            elif r.assessments:
-                verdict = r.assessments[0].verdict.value
-
-            decisions.append(
-                {
-                    "id": r.decision.id,
-                    "title": r.decision.title,
-                    "title_mne": r.decision.title_mne,
-                    "score": score,
-                    "headline": headline,
-                    "verdict": verdict,
-                    "has_counter_proposal": has_cp,
-                }
-            )
-
-            score_sum += score
-            score_count += 1
-
-            # Collect concerns and verdicts from all assessments
-            for a in r.assessments:
-                all_concerns.extend(a.key_concerns)
-                verdict_counts[a.verdict.value] += 1
-
-        # Sort decisions by score ascending (worst first)
-        decisions.sort(key=lambda d: d["score"])
-
-        avg_score = round(score_sum / score_count, 1) if score_count else 0.0
-
-        # Top 3 most common concerns
-        concern_counter: Counter[str] = Counter(all_concerns)
-        common_concerns = [c for c, _ in concern_counter.most_common(3)]
-
-        lowest = decisions[0] if decisions else None
-        highest = decisions[-1] if decisions and decisions[-1]["score"] >= 7 else None
-
-        return {
-            "date": day,
-            "decision_count": len(results),
-            "avg_score": avg_score,
-            "decisions": decisions,
-            "lowest_score_decision": lowest,
-            "highest_score_decision": highest,
-            "common_concerns": common_concerns,
-            "verdict_distribution": dict(verdict_counts),
-            "counter_proposal_count": counter_proposal_count,
-        }
-
-    def _build_digests(self, results: list[SessionResult]) -> None:
-        """Build daily digest pages and a digest index page."""
-        grouped = self._group_results_by_date(results)
-
-        digest_template = self.env.get_template("digest.html")
-        index_template = self.env.get_template("digest_index.html")
-
-        digests: list[dict[str, Any]] = []
-
-        for day in sorted(grouped):
-            data = self._compose_digest_data(day, grouped[day])
-            digests.append(data)
-
-            day_dir = self.output_dir / "digest" / str(day)
-            day_dir.mkdir(parents=True, exist_ok=True)
-            html = digest_template.render(
-                digest=data,
-                css_path="../../static/css/style.css",
-                base_path="../../",
-            )
-            (day_dir / "index.html").write_text(html, encoding="utf-8")
-
-        # Digest index — always render (shows empty state when no digests)
-        digests.sort(key=lambda d: d["date"], reverse=True)
-        digest_dir = self.output_dir / "digest"
-        digest_dir.mkdir(parents=True, exist_ok=True)
-        html = index_template.render(
-            digests=digests,
-            css_path="../static/css/style.css",
-            base_path="../",
-        )
-        (digest_dir / "index.html").write_text(html, encoding="utf-8")

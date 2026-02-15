@@ -17,7 +17,7 @@
     "timestamp": "2026-02-15T10:18:32Z",
     "issue_number": 173,
     "issue_title": "Add rolling window to telemetry.jsonl and errors.jsonl",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

@@ -1,5 +1,19 @@
 [
   {
+    "timestamp": "2026-02-15T02:05:01Z",
+    "issue_number": 143,
+    "issue_title": "Give Project Director agent staffing authority for technical roles",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T02:04:55Z",
+    "issue_number": 141,
+    "issue_title": "Enrich director context with domain coverage and technical patterns",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T01:58:56Z",
     "issue_number": 139,
     "issue_title": "Add 'do not propose new agents' constraint to PM prompt",
@@ -17,7 +31,7 @@
     "timestamp": "2026-02-15T01:49:19Z",
     "issue_number": 136,
     "issue_title": "Document convention: every task is an issue first, only tweak priorities",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

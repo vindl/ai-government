@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import traceback as _tb
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -66,6 +67,37 @@ class CycleTelemetry(BaseModel):
     skip_improve: bool = False
 
 
+class ErrorEntry(BaseModel):
+    """One structured runtime error, serialized as JSONL."""
+
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    step: str
+    issue_number: int | None = None
+    pr_number: int | None = None
+    error_type: str = ""
+    message: str = ""
+    traceback: str = ""
+
+    @classmethod
+    def from_exception(
+        cls,
+        step: str,
+        exc: BaseException,
+        *,
+        issue_number: int | None = None,
+        pr_number: int | None = None,
+    ) -> ErrorEntry:
+        """Build an ErrorEntry from a caught exception."""
+        return cls(
+            step=step,
+            issue_number=issue_number,
+            pr_number=pr_number,
+            error_type=type(exc).__name__,
+            message=str(exc),
+            traceback="".join(_tb.format_exception(exc)),
+        )
+
+
 # ---------------------------------------------------------------------------
 # JSONL I/O
 # ---------------------------------------------------------------------------
@@ -95,4 +127,31 @@ def load_telemetry(path: Path, *, last_n: int = 0) -> list[CycleTelemetry]:
         line = line.strip()
         if line:
             entries.append(CycleTelemetry.model_validate_json(line))
+    return entries
+
+
+def append_error(path: Path, entry: ErrorEntry) -> None:
+    """Append a single error entry as one JSON line."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as f:
+        f.write(entry.model_dump_json() + "\n")
+
+
+def load_errors(path: Path, *, last_n: int = 0) -> list[ErrorEntry]:
+    """Load error entries from a JSONL file.
+
+    Args:
+        path: Path to the JSONL file.
+        last_n: If > 0, return only the last N entries.
+    """
+    if not path.exists():
+        return []
+    lines = path.read_text().strip().splitlines()
+    if last_n > 0:
+        lines = lines[-last_n:]
+    entries: list[ErrorEntry] = []
+    for line in lines:
+        line = line.strip()
+        if line:
+            entries.append(ErrorEntry.model_validate_json(line))
     return entries

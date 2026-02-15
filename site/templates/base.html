@@ -1,24 +1,24 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="me">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}AI Government of Montenegro{% endblock %}</title>
+  <title>{% block title %}AI Vlada Crne Gore{% endblock %}</title>
   <link rel="stylesheet" href="{{ css_path | default('/static/css/style.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
   <header>
     <nav>
-      <a href="{{ base_path | default('/') }}" class="site-title">AI Government of Montenegro</a>
+      <a href="{{ base_path | default('/') }}" class="site-title">AI Vlada Crne Gore</a>
       <ul>
-        <li><a href="{{ base_path | default('/') }}">Home</a></li>
-        <li><a href="{{ base_path | default('/') }}decisions/">Decisions</a></li>
-        <li><a href="{{ base_path | default('/') }}digest/">Digest</a></li>
-        <li><a href="{{ base_path | default('/') }}transparency/">Transparency</a></li>
-        <li><a href="{{ base_path | default('/') }}about/">About</a></li>
-        <li><a href="{{ base_path | default('/') }}news/">News</a></li>
-        <li><a href="https://github.com/vindl/ai-government/discussions">Discussion</a></li>
+        <li><a href="{{ base_path | default('/') }}">Početna</a></li>
+        <li><a href="{{ base_path | default('/') }}decisions/">Odluke</a></li>
+        <li><a href="{{ base_path | default('/') }}digest/">Dnevni pregled</a></li>
+        <li><a href="{{ base_path | default('/') }}transparency/">Transparentnost</a></li>
+        <li><a href="{{ base_path | default('/') }}about/">O nama</a></li>
+        <li><a href="{{ base_path | default('/') }}news/">Vijesti</a></li>
+        <li><a href="https://github.com/vindl/ai-government/discussions">Diskusija</a></li>
       </ul>
     </nav>
   </header>
@@ -28,8 +28,41 @@
   </main>
 
   <footer>
-    <p>AI Government of Montenegro &mdash; Independent AI analysis of government decisions in the public interest.</p>
-    <p>Source code: <a href="https://github.com/vindl/ai-government">github.com/vindl/ai-government</a></p>
+    <p>AI Vlada Crne Gore &mdash; Nezavisna AI analiza vladinih odluka u javnom interesu.</p>
+    <p>Izvorni kod: <a href="https://github.com/vindl/ai-government">github.com/vindl/ai-government</a></p>
   </footer>
+
+  <script>
+  (function() {
+    var STORAGE_KEY = 'aigov-lang';
+    function getLang() {
+      return localStorage.getItem(STORAGE_KEY) || 'mne';
+    }
+    function setLang(lang) {
+      localStorage.setItem(STORAGE_KEY, lang);
+      document.documentElement.setAttribute('data-lang', lang);
+      var mne = document.querySelectorAll('.lang-mne');
+      var en = document.querySelectorAll('.lang-en');
+      for (var i = 0; i < mne.length; i++) {
+        mne[i].style.display = lang === 'mne' ? '' : 'none';
+      }
+      for (var i = 0; i < en.length; i++) {
+        en[i].style.display = lang === 'en' ? '' : 'none';
+      }
+      var btns = document.querySelectorAll('.lang-toggle button');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-lang') === lang);
+      }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      setLang(getLang());
+      document.addEventListener('click', function(e) {
+        if (e.target.matches('.lang-toggle button')) {
+          setLang(e.target.getAttribute('data-lang'));
+        }
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

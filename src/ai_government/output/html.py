@@ -20,6 +20,17 @@ def _verdict_label(verdict_value: str) -> str:
     return mapping.get(verdict_value, verdict_value)
 
 
+def _verdict_label_mne(verdict_value: str) -> str:
+    mapping = {
+        "strongly_positive": "Izrazito pozitivno",
+        "positive": "Pozitivno",
+        "neutral": "Neutralno",
+        "negative": "Negativno",
+        "strongly_negative": "Izrazito negativno",
+    }
+    return mapping.get(verdict_value, verdict_value)
+
+
 def _verdict_css_class(verdict_value: str) -> str:
     mapping = {
         "strongly_positive": "verdict-strong-pos",
@@ -37,5 +48,6 @@ def _create_env(templates_dir: Path | None = None) -> Environment:
         autoescape=True,
     )
     env.filters["verdict_label"] = _verdict_label
+    env.filters["verdict_label_mne"] = _verdict_label_mne
     env.filters["verdict_css_class"] = _verdict_css_class
     return env

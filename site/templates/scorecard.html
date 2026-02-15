@@ -1,16 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %}{{ result.decision.title }} — AI Government{% endblock %}
+{% block title %}{{ result.decision.title }} — AI Vlada Crne Gore{% endblock %}
 
 {% block content %}
 <article class="scorecard">
+  <div class="lang-toggle">
+    <button data-lang="mne" class="active">MNE</button>
+    <button data-lang="en">EN</button>
+  </div>
+
   <h1>{{ result.decision.title }}</h1>
 
   <div class="decision-meta">
-    <span class="meta-item"><strong>Date:</strong> {{ result.decision.date }}</span>
-    <span class="meta-item"><strong>Category:</strong> {{ result.decision.category }}</span>
+    <span class="meta-item"><strong>Datum / Date:</strong> {{ result.decision.date }}</span>
+    <span class="meta-item"><strong>Kategorija / Category:</strong> {{ result.decision.category }}</span>
     {% if result.decision.source_url %}
-    <span class="meta-item"><a href="{{ result.decision.source_url }}">Source</a></span>
+    <span class="meta-item"><a href="{{ result.decision.source_url }}">Izvor / Source</a></span>
     {% endif %}
   </div>
 
@@ -18,15 +23,20 @@
 
   {% if result.critic_report %}
   <section class="headline-section">
-    <h2>{{ result.critic_report.headline }}</h2>
+    {% if result.critic_report.headline_mne %}
+    <h2 class="lang-mne">{{ result.critic_report.headline_mne }}</h2>
+    {% endif %}
+    <h2 class="lang-en">{{ result.critic_report.headline }}</h2>
     <div class="scores">
       <div class="score-item">
-        <span class="score-label">Decision Score</span>
+        <span class="score-label lang-mne">Ocjena odluke</span>
+        <span class="score-label lang-en">Decision Score</span>
         <span class="score-value">{{ result.critic_report.decision_score }}/10</span>
         <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.decision_score * 10 }}%"></div></div>
       </div>
       <div class="score-item">
-        <span class="score-label">Assessment Quality</span>
+        <span class="score-label lang-mne">Kvalitet analize</span>
+        <span class="score-label lang-en">Assessment Quality</span>
         <span class="score-value">{{ result.critic_report.assessment_quality_score }}/10</span>
         <div class="score-bar"><div class="score-fill" style="width: {{ result.critic_report.assessment_quality_score * 10 }}%"></div></div>
       </div>
@@ -35,47 +45,80 @@
   {% endif %}
 
   <section class="ministry-overview">
-    <h2>Ministry Verdicts</h2>
+    <h2 class="lang-mne">Ocjene ministarstava</h2>
+    <h2 class="lang-en">Ministry Verdicts</h2>
     <div class="ministry-cards">
       {% for a in result.assessments %}
       <div class="ministry-card {{ a.verdict.value | verdict_css_class }}">
         <h3>{{ a.ministry }}</h3>
-        <span class="verdict">{{ a.verdict.value | verdict_label }}</span>
+        <span class="verdict lang-mne">{{ a.verdict.value | verdict_label_mne }}</span>
+        <span class="verdict lang-en">{{ a.verdict.value | verdict_label }}</span>
         <span class="card-score">{{ a.score }}/10</span>
-        <p>{{ a.summary }}</p>
+        {% if a.summary_mne %}
+        <p class="lang-mne">{{ a.summary_mne }}</p>
+        {% endif %}
+        <p class="lang-en">{{ a.summary }}</p>
       </div>
       {% endfor %}
     </div>
   </section>
 
   <section class="ministry-details">
-    <h2>Detailed Analyses</h2>
+    <h2 class="lang-mne">Detaljne analize</h2>
+    <h2 class="lang-en">Detailed Analyses</h2>
     {% for a in result.assessments %}
     <div class="ministry-detail">
-      <h3>Ministry of {{ a.ministry }}</h3>
+      <h3 class="lang-mne">Ministarstvo {{ a.ministry }}</h3>
+      <h3 class="lang-en">Ministry of {{ a.ministry }}</h3>
       <div class="detail-meta">
-        <span class="{{ a.verdict.value | verdict_css_class }}">{{ a.verdict.value | verdict_label }}</span>
+        <span class="{{ a.verdict.value | verdict_css_class }} lang-mne">{{ a.verdict.value | verdict_label_mne }}</span>
+        <span class="{{ a.verdict.value | verdict_css_class }} lang-en">{{ a.verdict.value | verdict_label }}</span>
         <span>{{ a.score }}/10</span>
       </div>
-      {% if a.executive_summary %}
+      {% if a.executive_summary or a.executive_summary_mne %}
       <div class="executive-summary">
-        <strong>Executive Summary:</strong> {{ a.executive_summary }}
+        {% if a.executive_summary_mne %}
+        <div class="lang-mne"><strong>Izvršni sažetak:</strong> {{ a.executive_summary_mne }}</div>
+        {% endif %}
+        {% if a.executive_summary %}
+        <div class="lang-en"><strong>Executive Summary:</strong> {{ a.executive_summary }}</div>
+        {% endif %}
       </div>
       {% endif %}
       <details class="full-analysis">
-        <summary>Read full analysis</summary>
-        <p>{{ a.summary }}</p>
-      {% if a.key_concerns %}
-      <h4>Key Concerns</h4>
-      <ul>
+        <summary class="lang-mne">Pročitaj cijelu analizu</summary>
+        <summary class="lang-en">Read full analysis</summary>
+        {% if a.summary_mne %}
+        <p class="lang-mne">{{ a.summary_mne }}</p>
+        {% endif %}
+        <p class="lang-en">{{ a.summary }}</p>
+      {% if a.key_concerns or a.key_concerns_mne %}
+      <h4 class="lang-mne">Ključni problemi</h4>
+      <h4 class="lang-en">Key Concerns</h4>
+      {% if a.key_concerns_mne %}
+      <ul class="lang-mne">
+        {% for concern in a.key_concerns_mne %}
+        <li>{{ concern }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <ul class="lang-en">
         {% for concern in a.key_concerns %}
         <li>{{ concern }}</li>
         {% endfor %}
       </ul>
       {% endif %}
-      {% if a.recommendations %}
-      <h4>Recommendations</h4>
-      <ul>
+      {% if a.recommendations or a.recommendations_mne %}
+      <h4 class="lang-mne">Preporuke</h4>
+      <h4 class="lang-en">Recommendations</h4>
+      {% if a.recommendations_mne %}
+      <ul class="lang-mne">
+        {% for rec in a.recommendations_mne %}
+        <li>{{ rec }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <ul class="lang-en">
         {% for rec in a.recommendations %}
         <li>{{ rec }}</li>
         {% endfor %}
@@ -83,8 +126,14 @@
       {% endif %}
       {% if a.counter_proposal %}
       <div class="counter-proposal-mini">
-        <h4>Counter-proposal: {{ a.counter_proposal.title }}</h4>
-        <p>{{ a.counter_proposal.summary }}</p>
+        {% if a.counter_proposal.title_mne %}
+        <h4 class="lang-mne">Kontra-prijedlog: {{ a.counter_proposal.title_mne }}</h4>
+        {% endif %}
+        <h4 class="lang-en">Counter-proposal: {{ a.counter_proposal.title }}</h4>
+        {% if a.counter_proposal.summary_mne %}
+        <p class="lang-mne">{{ a.counter_proposal.summary_mne }}</p>
+        {% endif %}
+        <p class="lang-en">{{ a.counter_proposal.summary }}</p>
         {% if a.counter_proposal.key_changes %}
         <ul>
           {% for change in a.counter_proposal.key_changes %}
@@ -93,10 +142,10 @@
         </ul>
         {% endif %}
         {% if a.counter_proposal.expected_benefits %}
-        <p><strong>Expected benefits:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
+        <p><strong class="lang-mne">Očekivane koristi:</strong><strong class="lang-en">Expected benefits:</strong> {{ a.counter_proposal.expected_benefits | join(', ') }}</p>
         {% endif %}
         {% if a.counter_proposal.estimated_feasibility %}
-        <p><strong>Feasibility:</strong> {{ a.counter_proposal.estimated_feasibility }}</p>
+        <p><strong class="lang-mne">Izvodljivost:</strong><strong class="lang-en">Feasibility:</strong> {{ a.counter_proposal.estimated_feasibility }}</p>
         {% endif %}
       </div>
       {% endif %}
@@ -107,37 +156,66 @@
 
   {% if result.debate %}
   <section class="debate">
-    <h2>Parliamentary Debate</h2>
+    <h2 class="lang-mne">Parlamentarna debata</h2>
+    <h2 class="lang-en">Parliamentary Debate</h2>
     <div class="detail-meta">
-      <span class="{{ result.debate.overall_verdict.value | verdict_css_class }}">
+      <span class="{{ result.debate.overall_verdict.value | verdict_css_class }} lang-mne">
+        {{ result.debate.overall_verdict.value | verdict_label_mne }}
+      </span>
+      <span class="{{ result.debate.overall_verdict.value | verdict_css_class }} lang-en">
         {{ result.debate.overall_verdict.value | verdict_label }}
       </span>
     </div>
 
-    <h3>Consensus</h3>
-    <p>{{ result.debate.consensus_summary }}</p>
+    <h3 class="lang-mne">Konsenzus</h3>
+    <h3 class="lang-en">Consensus</h3>
+    {% if result.debate.consensus_summary_mne %}
+    <p class="lang-mne">{{ result.debate.consensus_summary_mne }}</p>
+    {% endif %}
+    <p class="lang-en">{{ result.debate.consensus_summary }}</p>
 
-    {% if result.debate.disagreements %}
-    <h3>Disagreements</h3>
-    <ul>
+    {% if result.debate.disagreements or result.debate.disagreements_mne %}
+    <h3 class="lang-mne">Neslaganja</h3>
+    <h3 class="lang-en">Disagreements</h3>
+    {% if result.debate.disagreements_mne %}
+    <ul class="lang-mne">
+      {% for d in result.debate.disagreements_mne %}
+      <li>{{ d }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
       {% for d in result.debate.disagreements %}
       <li>{{ d }}</li>
       {% endfor %}
     </ul>
     {% endif %}
 
-    <h3>Transcript</h3>
+    <h3 class="lang-mne">Transkript</h3>
+    <h3 class="lang-en">Transcript</h3>
     <div class="transcript">{{ result.debate.debate_transcript }}</div>
   </section>
   {% endif %}
 
   {% if result.critic_report %}
   <section class="critic">
-    <h2>Independent Critical Analysis</h2>
-    <p>{{ result.critic_report.overall_analysis }}</p>
-    {% if result.critic_report.blind_spots %}
-    <h3>Blind Spots</h3>
-    <ul>
+    <h2 class="lang-mne">Nezavisna kritička analiza</h2>
+    <h2 class="lang-en">Independent Critical Analysis</h2>
+    {% if result.critic_report.overall_analysis_mne %}
+    <p class="lang-mne">{{ result.critic_report.overall_analysis_mne }}</p>
+    {% endif %}
+    <p class="lang-en">{{ result.critic_report.overall_analysis }}</p>
+    {% if result.critic_report.blind_spots or result.critic_report.blind_spots_mne %}
+    <h3 class="lang-mne">Slijepe tačke</h3>
+    <h3 class="lang-en">Blind Spots</h3>
+    {% if result.critic_report.blind_spots_mne %}
+    <ul class="lang-mne">
+      {% for bs in result.critic_report.blind_spots_mne %}
+      <li>{{ bs }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
       {% for bs in result.critic_report.blind_spots %}
       <li>{{ bs }}</li>
       {% endfor %}
@@ -148,32 +226,66 @@
 
   {% if result.counter_proposal %}
   <section class="counter-proposal">
-    <h2>AI Government Counter-proposal</h2>
-    <h3>{{ result.counter_proposal.title }}</h3>
-    <p class="executive-summary"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
-    <div class="detailed-proposal">{{ result.counter_proposal.detailed_proposal }}</div>
+    <h2 class="lang-mne">Kontra-prijedlog AI Vlade</h2>
+    <h2 class="lang-en">AI Government Counter-proposal</h2>
+    {% if result.counter_proposal.title_mne %}
+    <h3 class="lang-mne">{{ result.counter_proposal.title_mne }}</h3>
+    {% endif %}
+    <h3 class="lang-en">{{ result.counter_proposal.title }}</h3>
+    {% if result.counter_proposal.executive_summary_mne %}
+    <p class="executive-summary lang-mne"><strong>{{ result.counter_proposal.executive_summary_mne }}</strong></p>
+    {% endif %}
+    <p class="executive-summary lang-en"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
+    {% if result.counter_proposal.detailed_proposal_mne %}
+    <div class="detailed-proposal lang-mne">{{ result.counter_proposal.detailed_proposal_mne }}</div>
+    {% endif %}
+    <div class="detailed-proposal lang-en">{{ result.counter_proposal.detailed_proposal }}</div>
 
-    {% if result.counter_proposal.key_differences %}
-    <h4>Key Differences</h4>
-    <ul>
+    {% if result.counter_proposal.key_differences or result.counter_proposal.key_differences_mne %}
+    <h4 class="lang-mne">Ključne razlike</h4>
+    <h4 class="lang-en">Key Differences</h4>
+    {% if result.counter_proposal.key_differences_mne %}
+    <ul class="lang-mne">
+      {% for diff in result.counter_proposal.key_differences_mne %}
+      <li>{{ diff }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
       {% for diff in result.counter_proposal.key_differences %}
       <li>{{ diff }}</li>
       {% endfor %}
     </ul>
     {% endif %}
 
-    {% if result.counter_proposal.implementation_steps %}
-    <h4>Implementation Steps</h4>
-    <ol>
+    {% if result.counter_proposal.implementation_steps or result.counter_proposal.implementation_steps_mne %}
+    <h4 class="lang-mne">Koraci implementacije</h4>
+    <h4 class="lang-en">Implementation Steps</h4>
+    {% if result.counter_proposal.implementation_steps_mne %}
+    <ol class="lang-mne">
+      {% for step in result.counter_proposal.implementation_steps_mne %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+    <ol class="lang-en">
       {% for step in result.counter_proposal.implementation_steps %}
       <li>{{ step }}</li>
       {% endfor %}
     </ol>
     {% endif %}
 
-    {% if result.counter_proposal.risks_and_tradeoffs %}
-    <h4>Risks and Trade-offs</h4>
-    <ul>
+    {% if result.counter_proposal.risks_and_tradeoffs or result.counter_proposal.risks_and_tradeoffs_mne %}
+    <h4 class="lang-mne">Rizici i kompromisi</h4>
+    <h4 class="lang-en">Risks and Trade-offs</h4>
+    {% if result.counter_proposal.risks_and_tradeoffs_mne %}
+    <ul class="lang-mne">
+      {% for risk in result.counter_proposal.risks_and_tradeoffs_mne %}
+      <li>{{ risk }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
       {% for risk in result.counter_proposal.risks_and_tradeoffs %}
       <li>{{ risk }}</li>
       {% endfor %}
@@ -181,7 +293,8 @@
     {% endif %}
 
     {% if result.counter_proposal.ministry_contributions %}
-    <h4>Ministry Contributions</h4>
+    <h4 class="lang-mne">Doprinosi ministarstava</h4>
+    <h4 class="lang-en">Ministry Contributions</h4>
     <ul>
       {% for contrib in result.counter_proposal.ministry_contributions %}
       <li>{{ contrib }}</li>
@@ -192,7 +305,8 @@
   {% endif %}
 
   <div class="error-report">
-    <p>Found an error in this analysis? <a href="https://github.com/vindl/ai-government/discussions/categories/corrections">Report an error</a></p>
+    <p class="lang-mne">Pronašli ste grešku u ovoj analizi? <a href="https://github.com/vindl/ai-government/discussions/categories/corrections">Prijavite grešku</a></p>
+    <p class="lang-en">Found an error in this analysis? <a href="https://github.com/vindl/ai-government/discussions/categories/corrections">Report an error</a></p>
   </div>
 </article>
 {% endblock %}

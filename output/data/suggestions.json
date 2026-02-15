@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-15T02:17:53Z",
+    "issue_number": 148,
+    "issue_title": "CI health check has race condition: misses failures when loop pushes faster than CI runs",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T02:12:41Z",
     "issue_number": 146,
     "issue_title": "Fix load_results_from_dir to skip non-SessionResult JSON files",
@@ -24,7 +31,7 @@
     "timestamp": "2026-02-15T02:04:55Z",
     "issue_number": 141,
     "issue_title": "Enrich director context with domain coverage and technical patterns",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

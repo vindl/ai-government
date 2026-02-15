@@ -1,0 +1,24 @@
+[
+  {
+    "timestamp": "2026-02-14T16:50:10Z",
+    "issue_number": 51,
+    "pr_number": null,
+    "override_type": "comment",
+    "actor": "vindl",
+    "issue_title": "Respect HUMAN OVERRIDE in issue comments and PRs above all other guidance",
+    "ai_verdict": "AI rejected/proposed changes",
+    "human_action": "Moved to backlog via override",
+    "rationale": "Proposal & Feedback\n\n**Written by PM agent:**\n**Why this is the highest-impact thing to do right now:**\n\nThis change is essential for **human-AI collaboration safety** and **unblocking critical workfl"
+  },
+  {
+    "timestamp": "2026-02-14T16:17:17Z",
+    "issue_number": 51,
+    "pr_number": null,
+    "override_type": "comment",
+    "actor": "vindl",
+    "issue_title": "Respect HUMAN OVERRIDE in issue comments and PRs above all other guidance",
+    "ai_verdict": "AI rejected/proposed changes",
+    "human_action": "Moved to backlog via override",
+    "rationale": "Proposal & Feedback\n\n**Written by PM agent:**\n**What concrete value does this deliver?**\n\nThis improvement prevents wasted agent cycles and ensures human intent is never overridden by stale or incorre"
+  }
+]

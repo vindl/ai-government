@@ -34,7 +34,10 @@ from ai_government.models.override import HumanOverride, HumanSuggestion
 from ai_government.models.telemetry import (
     CyclePhaseResult,
     CycleTelemetry,
+    ErrorEntry,
+    append_error,
     append_telemetry,
+    load_errors,
     load_telemetry,
 )
 from ai_government.orchestrator import Orchestrator, SessionResult
@@ -124,6 +127,7 @@ PRIVILEGED_PERMISSIONS = {"admin", "maintain"}
 
 SEED_DECISIONS_PATH = PROJECT_ROOT / "data" / "seed" / "sample_decisions.json"
 TELEMETRY_PATH = PROJECT_ROOT / "output" / "data" / "telemetry.jsonl"
+ERRORS_PATH = PROJECT_ROOT / "output" / "data" / "errors.jsonl"
 
 NEWS_SCOUT_MAX_TURNS = 20
 NEWS_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
@@ -136,6 +140,32 @@ DEFAULT_MAX_ANALYSES_PER_DAY = int(os.getenv("LOOP_MAX_ANALYSES_PER_DAY", "5"))
 DEFAULT_MIN_ANALYSIS_GAP_HOURS = int(os.getenv("LOOP_MIN_ANALYSIS_GAP_HOURS", "2"))
 
 log = logging.getLogger("main_loop")
+
+
+# ---------------------------------------------------------------------------
+# Structured error logging
+# ---------------------------------------------------------------------------
+
+
+def _log_error(
+    step: str,
+    exc: BaseException,
+    *,
+    issue_number: int | None = None,
+    pr_number: int | None = None,
+) -> None:
+    """Persist a runtime error to the structured error log (errors.jsonl)."""
+    try:
+        entry = ErrorEntry.from_exception(
+            step,
+            exc,
+            issue_number=issue_number,
+            pr_number=pr_number,
+        )
+        append_error(ERRORS_PATH, entry)
+    except Exception:
+        # Never let error logging itself break the main loop
+        log.debug("Failed to persist error entry", exc_info=True)
 
 
 # ---------------------------------------------------------------------------
@@ -1497,6 +1527,7 @@ async def step_execute_analysis(
         reason = f"Analysis failed: {exc}"
         mark_issue_failed(issue_number, reason)
         log.exception("Issue #%d failed", issue_number)
+        _log_error("step_execute_analysis", exc, issue_number=issue_number)
         return False
 
 
@@ -2132,11 +2163,13 @@ async def step_execute_code_change(
         reason = f"PR workflow exited with code {e.code}"
         mark_issue_failed(issue_number, reason)
         log.error("Issue #%d failed: %s", issue_number, reason)
+        _log_error("step_execute_code_change", e, issue_number=issue_number)
         return False
     except Exception as exc:
         reason = f"Unexpected error: {exc}"
         mark_issue_failed(issue_number, reason)
         log.exception("Issue #%d failed", issue_number)
+        _log_error("step_execute_code_change", exc, issue_number=issue_number)
         return False
     finally:
         # Always return to main branch
@@ -2258,6 +2291,17 @@ def _prefetch_director_context(last_n_cycles: int) -> str:
         sections.append(_build_agent_performance_section(entries))
     else:
         sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
+
+    # 1b. Structured runtime errors
+    errors = load_errors(ERRORS_PATH, last_n=last_n_cycles * 3)
+    if errors:
+        err_lines = [e.model_dump_json() for e in errors]
+        sections.append(
+            f"## Recent Runtime Errors ({len(errors)} entries)\n\n"
+            "Each line is a structured error with step, error_type, message, "
+            "issue/PR context, and traceback. Look for recurring patterns.\n\n"
+            + "\n".join(err_lines)
+        )
 
     # 2. Recent issues
     result = _run_gh([
@@ -2454,6 +2498,17 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
         )
     else:
         sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
+
+    # 1b. Structured runtime errors
+    errors = load_errors(ERRORS_PATH, last_n=last_n_cycles * 3)
+    if errors:
+        err_lines = [e.model_dump_json() for e in errors]
+        sections.append(
+            f"## Recent Runtime Errors ({len(errors)} entries)\n\n"
+            "Each line is a structured error with step, error_type, message, "
+            "issue/PR context, and traceback. Look for recurring patterns.\n\n"
+            + "\n".join(err_lines)
+        )
 
     # 2. Recent published analyses + domain/topic distribution
     if DATA_DIR.exists():
@@ -2833,6 +2888,7 @@ async def run_one_cycle(
     except Exception as exc:
         log.exception("CI health check failed")
         telemetry.errors.append(f"CI health check: {exc}")
+        _log_error("ci_health_check", exc)
 
     # --- Phase A: Check for new government decisions ---
     t0 = time.monotonic()
@@ -2853,6 +2909,7 @@ async def run_one_cycle(
             phase_a.success = False
             phase_a.detail = str(exc)
             telemetry.errors.append(f"Phase A: {exc}")
+            _log_error("step_check_decisions", exc)
     phase_a.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase_a)
 
@@ -2890,6 +2947,7 @@ async def run_one_cycle(
                 log.exception("Propose step failed")
                 ai_proposals = []
                 telemetry.errors.append(f"Phase B propose: {exc}")
+                _log_error("step_propose", exc)
 
         telemetry.proposals_made = len(ai_proposals)
 
@@ -2956,6 +3014,7 @@ async def run_one_cycle(
                 log.exception("Debate step failed")
                 accepted, rejected = [], []
                 telemetry.errors.append(f"Phase B debate: {exc}")
+                _log_error("step_debate", exc)
             telemetry.proposals_accepted = len(accepted)
             telemetry.proposals_rejected = len(rejected)
             print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
@@ -3041,6 +3100,11 @@ async def run_one_cycle(
             log.exception("Phase C execution failed")
             success = False
             telemetry.errors.append(f"Phase C: {exc}")
+            _log_error(
+                "step_execute",
+                exc,
+                issue_number=issue.get("number"),
+            )
         telemetry.execution_success = success
         phase_c.success = success
         phase_c.detail = f"#{issue['number']} {'OK' if success else 'FAILED'}"
@@ -3078,6 +3142,7 @@ async def run_one_cycle(
                 phase_d.success = False
                 phase_d.detail = str(exc)
                 telemetry.errors.append(f"Phase D: {exc}")
+                _log_error("step_director", exc)
     else:
         phase_d.detail = "not scheduled"
     phase_d.duration_seconds = time.monotonic() - t0
@@ -3110,6 +3175,7 @@ async def run_one_cycle(
                 phase_e.success = False
                 phase_e.detail = str(exc)
                 telemetry.errors.append(f"Phase E: {exc}")
+                _log_error("step_strategic_director", exc)
     else:
         phase_e.detail = "not scheduled"
     phase_e.duration_seconds = time.monotonic() - t0
@@ -3365,6 +3431,7 @@ def main() -> None:
     except Exception as exc:
         # Layer 1: never crash the loop — record the error and move on
         log.exception("Cycle %d crashed at top level", cycle)
+        _log_error("main_loop_cycle", exc)
         try:
             partial = CycleTelemetry(
                 cycle=cycle,

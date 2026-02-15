@@ -19,6 +19,7 @@ from main_loop import (  # noqa: E402
     _load_analysis_state,
     _record_analysis_completion,
     _save_analysis_state,
+    analysis_wait_seconds,
     should_run_analysis,
 )
 
@@ -303,3 +304,88 @@ class TestShouldRunAnalysis:
         assert should_run_analysis(max_per_day=10, min_gap_hours=5) is False
         # With 1h gap, should be allowed
         assert should_run_analysis(max_per_day=10, min_gap_hours=1) is True
+
+
+# ---------------------------------------------------------------------------
+# analysis_wait_seconds()
+# ---------------------------------------------------------------------------
+
+
+class TestAnalysisWaitSeconds:
+    def test_returns_zero_when_no_state(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("main_loop.ANALYSIS_STATE_PATH", tmp_path / "nonexistent.json")
+        assert analysis_wait_seconds(min_gap_hours=5) == 0
+
+    def test_returns_zero_on_new_day(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr("main_loop.ANALYSIS_STATE_PATH", state_path)
+
+        yesterday = (_dt.date.today() - _dt.timedelta(days=1)).isoformat()
+        state = AnalysisState(
+            analyses_completed_today=3,
+            last_analysis_date=yesterday,
+            last_analysis_completed_at=f"{yesterday}T15:00:00+00:00",
+        )
+        _save_analysis_state(state)
+
+        assert analysis_wait_seconds(min_gap_hours=5) == 0
+
+    def test_returns_remaining_seconds_when_gap_not_met(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr("main_loop.ANALYSIS_STATE_PATH", state_path)
+
+        now = datetime.now(UTC)
+        two_hours_ago = now - timedelta(hours=2)
+        today = _dt.date.today().isoformat()
+        state = AnalysisState(
+            analyses_completed_today=1,
+            last_analysis_date=today,
+            last_analysis_completed_at=two_hours_ago.isoformat(),
+        )
+        _save_analysis_state(state)
+
+        wait = analysis_wait_seconds(min_gap_hours=5)
+        # Should be ~3 hours = ~10800 seconds (allow some tolerance)
+        assert 10700 < wait < 10900
+
+    def test_returns_zero_when_gap_exceeded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr("main_loop.ANALYSIS_STATE_PATH", state_path)
+
+        now = datetime.now(UTC)
+        six_hours_ago = now - timedelta(hours=6)
+        today = _dt.date.today().isoformat()
+        state = AnalysisState(
+            analyses_completed_today=1,
+            last_analysis_date=today,
+            last_analysis_completed_at=six_hours_ago.isoformat(),
+        )
+        _save_analysis_state(state)
+
+        assert analysis_wait_seconds(min_gap_hours=5) == 0
+
+    def test_returns_zero_when_no_gap_required(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        state_path = tmp_path / "state.json"
+        monkeypatch.setattr("main_loop.ANALYSIS_STATE_PATH", state_path)
+
+        now = datetime.now(UTC)
+        one_minute_ago = now - timedelta(minutes=1)
+        today = _dt.date.today().isoformat()
+        state = AnalysisState(
+            analyses_completed_today=1,
+            last_analysis_date=today,
+            last_analysis_completed_at=one_minute_ago.isoformat(),
+        )
+        _save_analysis_state(state)
+
+        assert analysis_wait_seconds(min_gap_hours=0) == 0

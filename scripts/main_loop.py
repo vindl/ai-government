@@ -861,6 +861,34 @@ def should_run_analysis(
     return True
 
 
+def analysis_wait_seconds(
+    min_gap_hours: int = DEFAULT_MIN_ANALYSIS_GAP_HOURS,
+) -> int:
+    """Return seconds until the next analysis is allowed (0 if ready now)."""
+    state = _load_analysis_state()
+    today = _dt.date.today().isoformat()
+
+    if state.last_analysis_date != today:
+        return 0
+
+    if min_gap_hours > 0 and state.last_analysis_completed_at:
+        from datetime import timedelta
+
+        last_completed = datetime.fromisoformat(state.last_analysis_completed_at)
+        elapsed = datetime.now(UTC) - last_completed
+        required_gap = timedelta(hours=min_gap_hours)
+        if elapsed < required_gap:
+            return int((required_gap - elapsed).total_seconds())
+
+    return 0
+
+
+def _backlog_has_executable_tasks() -> bool:
+    """Return True if the backlog has non-analysis tasks that can run now."""
+    issues = list_backlog_issues()
+    return any(not _issue_has_label(issue, LABEL_TASK_ANALYSIS) for issue in issues)
+
+
 def should_fetch_news() -> bool:
     """Return True if news has not been fetched today and analysis queue is empty."""
     # Tighter gate: wait until analysis queue is fully drained
@@ -2143,12 +2171,14 @@ async def run_one_cycle(
     else:
         print("\nPhase B: Self-improvement — proposing and debating...")
 
-        # Check if backlog is empty — only generate AI proposals when backlog is drained
+        # Generate AI proposals only when backlog is drained or when the only
+        # remaining tasks are rate-limited analysis issues (nothing executable).
         backlog = list_backlog_issues()
-        if backlog:
+        has_executable = _backlog_has_executable_tasks()
+        if backlog and has_executable:
             print(
                 f"  AI proposals: Skipped "
-                f"(backlog has {len(backlog)} open issues — draining queue)"
+                f"(backlog has {len(backlog)} executable issues — draining queue)"
             )
             ai_proposals: list[dict[str, str]] = []
         else:
@@ -2221,41 +2251,81 @@ async def run_one_cycle(
     t0 = time.monotonic()
     phase_c = CyclePhaseResult(phase="C")
     print("\nPhase C: Picking next task from backlog...")
+
+    # Pre-check: if analysis is rate-limited, skip analysis tasks during picking
+    analysis_blocked = not should_run_analysis(
+        max_per_day=max_analyses_per_day,
+        min_gap_hours=min_analysis_gap,
+    )
+
     issue = step_pick()
+
+    # If we picked an analysis task but analysis is rate-limited, try to find
+    # a non-analysis task instead of immediately returning it to the backlog.
+    if issue is not None and analysis_blocked and _issue_has_label(issue, LABEL_TASK_ANALYSIS):
+        # Put analysis task back and look for non-analysis work
+        _run_gh(["gh", "issue", "edit", str(issue["number"]),
+                 "--remove-label", LABEL_IN_PROGRESS,
+                 "--add-label", LABEL_BACKLOG], check=False)
+        # Search for a non-analysis task, respecting priority order
+        fallback = None
+        backlog_issues = list_backlog_issues()
+        priority_labels = [LABEL_HUMAN, LABEL_STRATEGY, LABEL_DIRECTOR]
+        for label in priority_labels:
+            for candidate in backlog_issues:
+                is_match = _issue_has_label(candidate, label)
+                is_analysis = _issue_has_label(candidate, LABEL_TASK_ANALYSIS)
+                if is_match and not is_analysis:
+                    fallback = candidate
+                    break
+            if fallback is not None:
+                break
+        # Fall back to FIFO if no priority match
+        if fallback is None:
+            for candidate in backlog_issues:
+                if not _issue_has_label(candidate, LABEL_TASK_ANALYSIS):
+                    fallback = candidate
+                    break
+        if fallback is not None:
+            issue = fallback
+            log.info("Analysis rate-limited; falling back to #%d: %s",
+                     issue["number"], issue["title"])
+        else:
+            wait = analysis_wait_seconds(min_gap_hours=min_analysis_gap)
+            if wait > 0:
+                hours, remainder = divmod(wait, 3600)
+                minutes = remainder // 60
+                print(f"  Analysis rate-limited, no other tasks. "
+                      f"Next analysis window in {hours}h {minutes}m.")
+                phase_c.detail = f"rate limited — {hours}h {minutes}m remaining"
+            else:
+                print("  Analysis rate-limited (daily cap). No other tasks.")
+                phase_c.detail = "rate limited — daily cap"
+            issue = None
+
     if issue is None:
         print("  Backlog empty.")
-        phase_c.detail = "backlog empty"
+        if not phase_c.detail:
+            phase_c.detail = "backlog empty"
     else:
         task_type = "analysis" if _issue_has_label(issue, LABEL_TASK_ANALYSIS) else "code-change"
         print(f"  Picked [{task_type}]: #{issue['number']} — {issue['title']}")
         telemetry.picked_issue_number = issue["number"]
         telemetry.picked_issue_type = task_type
 
-        # Check rate limit before executing analysis
-        if task_type == "analysis" and not should_run_analysis(
-            max_per_day=max_analyses_per_day,
-            min_gap_hours=min_analysis_gap,
-        ):
-            print("  Skipping execution: analysis rate limit reached")
-            phase_c.detail = "rate limited"
-            # Return issue to backlog
-            _run_gh(["gh", "issue", "edit", str(issue["number"]),
-                     "--remove-label", LABEL_IN_PROGRESS,
-                     "--add-label", LABEL_BACKLOG], check=False)
-        else:
-            print(f"\n  Executing issue #{issue['number']}...")
-            try:
-                success = await step_execute(
-                    issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
-                )
-            except Exception as exc:
-                log.exception("Phase C execution failed")
-                success = False
-                telemetry.errors.append(f"Phase C: {exc}")
-            telemetry.execution_success = success
-            phase_c.success = success
-            phase_c.detail = f"#{issue['number']} {'OK' if success else 'FAILED'}"
-            print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
+        print(f"\n  Executing issue #{issue['number']}...")
+        try:
+            success = await step_execute(
+                issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+            )
+        except Exception as exc:
+            log.exception("Phase C execution failed")
+            success = False
+            telemetry.errors.append(f"Phase C: {exc}")
+        telemetry.execution_success = success
+        phase_c.success = success
+        phase_c.detail = f"#{issue['number']} {'OK' if success else 'FAILED'}"
+        print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
     phase_c.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase_c)
 
@@ -2565,11 +2635,19 @@ def main() -> None:
         except Exception:
             log.exception("Failed to write crash telemetry")
 
-    # Cooldown before next cycle
+    # Cooldown before next cycle — sleep longer when rate-limited with nothing to do
     remaining = 0 if args.max_cycles > 0 and cycle >= args.max_cycles else 1
     if remaining:
-        print(f"\nCooling down for {args.cooldown}s...")
-        time.sleep(args.cooldown)
+        wait = analysis_wait_seconds(min_gap_hours=args.min_analysis_gap)
+        has_work = _backlog_has_executable_tasks()
+        if wait > 0 and not has_work:
+            # Nothing executable — use 5-minute cadence so directors/PM still run
+            cooldown = 300
+            print(f"\nRate-limited, no other tasks. Sleeping {cooldown}s...")
+        else:
+            cooldown = args.cooldown
+            print(f"\nCooling down for {cooldown}s...")
+        time.sleep(cooldown)
 
         # Re-exec: pull latest code from main and restart the process.
         # This means if this script was modified during the cycle,

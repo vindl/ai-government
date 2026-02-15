@@ -30,7 +30,7 @@ from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 from pydantic import BaseModel, Field
 
 from ai_government.config import SessionConfig
-from ai_government.models.override import HumanOverride, HumanSuggestion
+from ai_government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from ai_government.models.telemetry import (
     CyclePhaseResult,
     CycleTelemetry,
@@ -970,6 +970,82 @@ def save_suggestion_records(suggestions: list[HumanSuggestion]) -> Path:
     data = [s.model_dump(mode="json") for s in suggestions]
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     log.info("Saved %d human suggestion records to %s", len(suggestions), path)
+    return path
+
+
+def collect_pr_merges() -> list[PRMerge]:
+    """Collect merged PRs by privileged users for transparency reporting.
+
+    Tracks human review and approval of AI-generated code as a form
+    of human intervention.
+    """
+    merges: list[PRMerge] = []
+
+    result = _run_gh(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--state",
+            "merged",
+            "--json",
+            "number,title,mergedAt,mergedBy,body",
+            "--limit",
+            "200",
+        ],
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        log.warning("Could not fetch merged PRs")
+        return merges
+
+    prs = json.loads(result.stdout)
+
+    for pr in prs:
+        merged_by = pr.get("mergedBy", {})
+        actor_login = merged_by.get("login", "") if merged_by else ""
+        if not actor_login or not _is_privileged_user(actor_login):
+            continue
+
+        merged_at = pr.get("mergedAt", "")
+        try:
+            timestamp = datetime.fromisoformat(merged_at.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            timestamp = datetime.now(UTC)
+
+        # Extract linked issue number from PR body
+        issue_number: int | None = None
+        body = pr.get("body", "") or ""
+        # Match patterns like "Closes #123", "Fixes #45", "Resolves #678"
+        issue_match = re.search(
+            r"(?:closes|fixes|resolves)\s+#(\d+)", body, re.IGNORECASE
+        )
+        if issue_match:
+            issue_number = int(issue_match.group(1))
+
+        merges.append(
+            PRMerge(
+                timestamp=timestamp,
+                pr_number=pr["number"],
+                pr_title=pr["title"],
+                actor=actor_login,
+                issue_number=issue_number,
+            )
+        )
+
+    merges.sort(key=lambda m: m.timestamp, reverse=True)
+    return merges
+
+
+def save_pr_merge_records(merges: list[PRMerge]) -> Path:
+    """Save PR merge records to JSON file for site builder."""
+    output_dir = PROJECT_ROOT / "output" / "data"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = output_dir / "pr_merges.json"
+
+    data = [m.model_dump(mode="json") for m in merges]
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    log.info("Saved %d PR merge records to %s", len(merges), path)
     return path
 
 
@@ -3143,6 +3219,14 @@ async def run_one_cycle(
                 print(f"  Collected {count} human-suggested issue(s) for transparency report")
         except Exception:
             log.exception("Human suggestion collection failed (non-fatal)")
+
+        try:
+            pr_merge_records = collect_pr_merges()
+            if pr_merge_records:
+                save_pr_merge_records(pr_merge_records)
+                print(f"  Collected {len(pr_merge_records)} PR merge record(s) for transparency report")
+        except Exception:
+            log.exception("PR merge collection failed (non-fatal)")
 
     # --- Finalize telemetry ---
     telemetry.finished_at = datetime.now(UTC)

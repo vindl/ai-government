@@ -14,7 +14,7 @@ from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 from pydantic import ValidationError
 
-from ai_government.models.override import HumanOverride, HumanSuggestion
+from ai_government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from ai_government.orchestrator import SessionResult
 from ai_government.output.html import _verdict_css_class, _verdict_label, _verdict_label_mne
 
@@ -77,6 +77,16 @@ def load_suggestions_from_file(data_dir: Path) -> list[HumanSuggestion]:
     return [HumanSuggestion.model_validate(item) for item in raw_list]
 
 
+def load_pr_merges_from_file(data_dir: Path) -> list[PRMerge]:
+    """Load PR merge records from pr_merges.json."""
+    merges_path = data_dir / "pr_merges.json"
+    if not merges_path.exists():
+        return []
+
+    raw_list = json.loads(merges_path.read_text(encoding="utf-8"))
+    return [PRMerge.model_validate(item) for item in raw_list]
+
+
 def save_result_json(result: SessionResult, output_dir: Path) -> Path:
     """Serialize a SessionResult to JSON. Returns the written path."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -130,7 +140,8 @@ class SiteBuilder:
         if data_dir is not None:
             overrides = load_overrides_from_file(data_dir)
             suggestions = load_suggestions_from_file(data_dir)
-            self._build_transparency(overrides, suggestions)
+            pr_merges = load_pr_merges_from_file(data_dir)
+            self._build_transparency(overrides, suggestions, pr_merges)
 
     def _copy_static(self) -> None:
         dest = self.output_dir / "static"
@@ -207,18 +218,23 @@ class SiteBuilder:
         (feed_dir / "index.html").write_text(html, encoding="utf-8")
 
     def _build_transparency(
-        self, overrides: list[HumanOverride], suggestions: list[HumanSuggestion]
+        self,
+        overrides: list[HumanOverride],
+        suggestions: list[HumanSuggestion],
+        pr_merges: list[PRMerge] | None = None,
     ) -> None:
         """Build the human overrides transparency report page."""
         transparency_dir = self.output_dir / "transparency"
         transparency_dir.mkdir(parents=True, exist_ok=True)
 
-        # Merge overrides and suggestions into a single chronological list
+        # Merge overrides, suggestions, and PR merges into a single chronological list
         interventions: list[dict[str, Any]] = []
         for o in overrides:
             interventions.append({"type": "override", "item": o, "timestamp": o.timestamp})
         for s in suggestions:
             interventions.append({"type": "suggestion", "item": s, "timestamp": s.timestamp})
+        for m in pr_merges or []:
+            interventions.append({"type": "pr_merge", "item": m, "timestamp": m.timestamp})
         interventions.sort(key=lambda x: x["timestamp"], reverse=True)
 
         template = self.env.get_template("transparency.html")

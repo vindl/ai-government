@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 from ai_government.models.assessment import Assessment, CriticReport, Verdict
 from ai_government.models.decision import GovernmentDecision
-from ai_government.models.override import HumanOverride, HumanSuggestion
+from ai_government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from ai_government.orchestrator import SessionResult
 from ai_government.output.site_builder import SiteBuilder
 
@@ -216,11 +216,11 @@ class TestTransparencyPageBilingual:
     def test_en_heading(self, html: str) -> None:
         assert "Human Influence Transparency Report" in html
 
-    def test_mne_how_overrides(self, html: str) -> None:
-        assert "Kako zamjene funkcionišu" in html
+    def test_mne_how_interventions(self, html: str) -> None:
+        assert "Kako funkcionišu ljudske intervencije" in html
 
-    def test_en_how_overrides(self, html: str) -> None:
-        assert "How Overrides Work" in html
+    def test_en_how_interventions(self, html: str) -> None:
+        assert "How Human Interventions Work" in html
 
     def test_mne_no_records(self, html: str) -> None:
         assert "Još nijesu zabilježene ljudske intervencije" in html
@@ -255,13 +255,23 @@ class TestTransparencyPageWithData:
                 creator="vindl",
             )
         ]
+        pr_merges = [
+            PRMerge(
+                timestamp=datetime(2026, 2, 15, 16, 0, tzinfo=UTC),
+                pr_number=77,
+                pr_title="Improve scoring",
+                actor="vindl",
+                issue_number=55,
+            )
+        ]
         builder = SiteBuilder(output_dir)
-        builder._build_transparency(overrides, suggestions)
+        builder._build_transparency(overrides, suggestions, pr_merges)
         return (output_dir / "transparency" / "index.html").read_text()
 
-    def test_unified_list_contains_both(self, html: str) -> None:
+    def test_unified_list_contains_all(self, html: str) -> None:
         assert "Test issue" in html
         assert "Suggested task" in html
+        assert "Improve scoring" in html
 
     def test_override_has_type_label(self, html: str) -> None:
         assert "HUMAN OVERRIDE" in html
@@ -269,16 +279,22 @@ class TestTransparencyPageWithData:
     def test_suggestion_has_type_label(self, html: str) -> None:
         assert "Human-directed task" in html
 
+    def test_pr_merge_has_type_label(self, html: str) -> None:
+        assert "PR merged" in html
+        assert "PR spojen" in html
+
     def test_mne_labels(self, html: str) -> None:
         assert "Akter" in html
         assert "Podnio" in html
+        assert "Spojio" in html
 
     def test_en_labels(self, html: str) -> None:
         assert "Actor:" in html
         assert "Filed by:" in html
+        assert "Merged by:" in html
 
     def test_all_entries_use_override_record_class(self, html: str) -> None:
-        assert html.count("override-record") == 2
+        assert html.count("override-record") == 3
 
 
 class TestBilingualDecisionTitles:

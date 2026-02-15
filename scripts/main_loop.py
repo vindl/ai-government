@@ -2124,7 +2124,7 @@ async def step_execute_code_change(
     _run_gh(["git", "pull", "--ff-only"], check=False)
 
     try:
-        await run_workflow(task, max_rounds=max_pr_rounds, model=model)
+        await run_workflow(task, max_rounds=max_pr_rounds, model=model, issue=issue_number)
         mark_issue_done(issue_number)
         log.info("Issue #%d completed successfully", issue_number)
         return True
@@ -2750,16 +2750,27 @@ def step_post_tweet() -> bool:
         log.debug("No unposted results — skipping X post")
         return False
 
-    text = compose_daily_tweet(unposted)
-    if not text:
+    tweets = compose_daily_tweet(unposted)
+    if not tweets:
         return False
 
-    log.info("Composed X post:\n%s", text)
+    # BilingualTweet or empty string
+    if isinstance(tweets, str):
+        return False
 
-    tweet_id = post_tweet(text)
+    log.info("Composed X post (MNE):\n%s", tweets.me)
+    log.info("Composed X post (EN):\n%s", tweets.en)
+
+    tweet_id = post_tweet(tweets.me)
     if tweet_id is None:
         # Content was logged above — useful for dev when creds aren't set
         return False
+
+    # Post English reply in thread
+    if tweets.en:
+        reply_id = post_tweet(tweets.en, in_reply_to_tweet_id=tweet_id)
+        if reply_id is None:
+            log.warning("Failed to post English reply — primary tweet still posted")
 
     # Update state
     state.last_posted_at = datetime.now(UTC)

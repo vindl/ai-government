@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -21,6 +21,7 @@ from ai_government.orchestrator import SessionResult
 from ai_government.output.twitter import (
     MAX_TWEET_LENGTH,
     MONTHLY_POST_LIMIT,
+    BilingualTweet,
     TwitterState,
     _current_month,
     _truncate_at_word_boundary,
@@ -31,6 +32,7 @@ from ai_government.output.twitter import (
     record_post,
     save_state,
     should_post,
+    translate_headline,
     try_post_analysis,
 )
 
@@ -283,72 +285,158 @@ class TestTruncateAtWordBoundary:
         assert result.endswith("\u2026")
 
 
+class TestTranslateHeadline:
+    def test_empty_headline(self) -> None:
+        """Empty headline should be returned as-is."""
+        assert translate_headline("") == ""
+
+    def test_successful_translation(self) -> None:
+        """Successful translation returns translated text."""
+        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = "Prevedeni naslov\n"
+            mock_run.return_value.returncode = 0
+            result = translate_headline("Translated headline")
+        assert result == "Prevedeni naslov"
+
+    def test_failed_translation_falls_back(self) -> None:
+        """Failed translation returns the original English headline."""
+        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("claude not found")
+            result = translate_headline("Original headline")
+        assert result == "Original headline"
+
+    def test_empty_output_falls_back(self) -> None:
+        """Empty translation output returns the original headline."""
+        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = ""
+            mock_run.return_value.returncode = 0
+            result = translate_headline("Original headline")
+        assert result == "Original headline"
+
+    def test_nonzero_returncode_falls_back(self) -> None:
+        """Non-zero return code falls back to original headline."""
+        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = "something"
+            mock_run.return_value.returncode = 1
+            result = translate_headline("Original headline")
+        assert result == "Original headline"
+
+
 class TestComposeAnalysisTweet:
-    def test_leads_with_headline(self) -> None:
-        """Tweet should start with the headline, not the title."""
+    def test_returns_bilingual_tweet(self) -> None:
+        """compose_analysis_tweet should return a BilingualTweet."""
         result = _make_result(
-            "d1",
-            "Budget Law",
-            date(2026, 2, 14),
-            critic_score=7,
-            headline="Strong fiscal policy for Montenegro",
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
         )
-        tweet = compose_analysis_tweet(result)
-        assert tweet.startswith("Strong fiscal policy for Montenegro")
+        tweets = compose_analysis_tweet(result)
+        assert isinstance(tweets, BilingualTweet)
+        assert isinstance(tweets.me, str)
+        assert isinstance(tweets.en, str)
+
+    def test_me_tweet_has_montenegrin_hashtags(self) -> None:
+        """Montenegrin tweet should use #AIVlada #CrnaGora."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "#AIVlada" in tweets.me
+        assert "#CrnaGora" in tweets.me
+        assert "#AIGovernment" not in tweets.me
+
+    def test_en_tweet_has_english_hashtags(self) -> None:
+        """English reply should use #AIGovernment #Montenegro."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "#AIGovernment" in tweets.en
+        assert "#Montenegro" in tweets.en
+        assert "#AIVlada" not in tweets.en
+
+    def test_me_tweet_uses_ocjena(self) -> None:
+        """Montenegrin tweet should use 'Ocjena' instead of 'Score'."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "Ocjena: 7/10" in tweets.me
+        assert "Score:" not in tweets.me
+
+    def test_en_tweet_uses_score(self) -> None:
+        """English reply should use 'Score'."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "Score: 7/10" in tweets.en
+
+    def test_en_tweet_has_globe_prefix(self) -> None:
+        """English reply should start with a globe emoji."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert tweets.en.startswith("\U0001f310")
+
+    def test_me_tweet_leads_with_headline(self) -> None:
+        """Montenegrin tweet should start with the headline."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy for Montenegro",
+        )
+        tweets = compose_analysis_tweet(
+            result, headline_me="Jaka fiskalna politika",
+        )
+        assert tweets.me.startswith("Jaka fiskalna politika")
 
     def test_no_official_title(self) -> None:
-        """Official decision title should NOT appear in the tweet."""
+        """Official decision title should NOT appear in either tweet."""
         result = _make_result(
-            "d1",
-            "Budget Law",
-            date(2026, 2, 14),
-            critic_score=7,
-            headline="Strong fiscal policy",
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
         )
-        tweet = compose_analysis_tweet(result)
-        assert "Budget Law" not in tweet
+        tweets = compose_analysis_tweet(result)
+        assert "Budget Law" not in tweets.me
+        assert "Budget Law" not in tweets.en
 
     def test_no_counter_proposal_tag(self) -> None:
         """Counter-proposal tag should NOT appear in analysis tweets."""
         result = _make_result(
-            "d1",
-            "Budget Law",
-            date(2026, 2, 14),
-            critic_score=5,
-            has_counter_proposal=True,
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=5, has_counter_proposal=True,
         )
-        tweet = compose_analysis_tweet(result)
-        assert "[+counter-proposal]" not in tweet
+        tweets = compose_analysis_tweet(result)
+        assert "[+counter-proposal]" not in tweets.me
+        assert "[+counter-proposal]" not in tweets.en
 
-    def test_score_format(self) -> None:
-        """Score should be formatted as 'Score: X/10'."""
+    def test_both_tweets_contain_link(self) -> None:
+        """Both tweets should contain the decision link."""
         result = _make_result(
-            "d1",
-            "Budget Law",
-            date(2026, 2, 14),
-            critic_score=7,
-            headline="Strong fiscal policy",
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
         )
-        tweet = compose_analysis_tweet(result)
-        assert "Score: 7/10" in tweet
+        tweets = compose_analysis_tweet(result)
+        assert "/decisions/d1.html" in tweets.me
+        assert "/decisions/d1.html" in tweets.en
 
-    def test_contains_link_and_hashtags(self) -> None:
-        """Tweet should contain the decision link and hashtags."""
+    def test_both_tweets_fit_280_chars(self) -> None:
+        """Both tweets must independently fit within 280 characters."""
         result = _make_result(
-            "d1",
-            "Budget Law",
-            date(2026, 2, 14),
-            critic_score=7,
-            headline="Strong fiscal policy",
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
         )
-        tweet = compose_analysis_tweet(result)
-        assert "/decisions/d1.html" in tweet
-        assert "#AIGovernment" in tweet
-        assert "#Montenegro" in tweet
-        assert len(tweet) <= MAX_TWEET_LENGTH
+        tweets = compose_analysis_tweet(result)
+        assert len(tweets.me) <= MAX_TWEET_LENGTH
+        assert len(tweets.en) <= MAX_TWEET_LENGTH
 
     def test_truncates_long_headline_at_word_boundary(self) -> None:
-        """Long headlines are truncated at a word boundary, not mid-word."""
+        """Long headlines are truncated at a word boundary in both tweets."""
         long_headline = (
             "Montenegro's Parliament Rubber-Stamps 25 Laws in One Day "
             "Raising Serious Questions About Democratic Oversight and "
@@ -357,35 +445,29 @@ class TestComposeAnalysisTweet:
             "More Transparent Legislative Processes"
         )
         result = _make_result(
-            "d1",
-            "Budget Law",
-            date(2026, 2, 14),
-            critic_score=5,
-            headline=long_headline,
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=5, headline=long_headline,
         )
-        tweet = compose_analysis_tweet(result)
-        assert len(tweet) <= MAX_TWEET_LENGTH
-        # Should use ellipsis character for truncation
-        assert "\u2026" in tweet
-        # Ellipsis should not appear mid-word — the char before it should be
-        # a letter or punctuation, and it should be preceded by a space-delimited word
-        ellipsis_pos = tweet.index("\u2026")
-        before_ellipsis = tweet[:ellipsis_pos].rstrip()
-        assert before_ellipsis[-1] != " "
+        tweets = compose_analysis_tweet(result)
+        assert len(tweets.me) <= MAX_TWEET_LENGTH
+        assert len(tweets.en) <= MAX_TWEET_LENGTH
+        # Should use ellipsis character for truncation in both
+        assert "\u2026" in tweets.me
+        assert "\u2026" in tweets.en
 
     def test_no_headline(self) -> None:
         """Tweet without headline should still have score and link."""
         result = _make_result(
-            "d1",
-            "Budget Law",
-            date(2026, 2, 14),
-            critic_score=7,
-            headline="",
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="",
         )
-        tweet = compose_analysis_tweet(result)
-        assert "Score: 7/10" in tweet
-        assert "/decisions/d1.html" in tweet
-        assert len(tweet) <= MAX_TWEET_LENGTH
+        tweets = compose_analysis_tweet(result)
+        assert "Ocjena: 7/10" in tweets.me
+        assert "Score: 7/10" in tweets.en
+        assert "/decisions/d1.html" in tweets.me
+        assert "/decisions/d1.html" in tweets.en
+        assert len(tweets.me) <= MAX_TWEET_LENGTH
+        assert len(tweets.en) <= MAX_TWEET_LENGTH
 
     def test_no_critic_report(self) -> None:
         """Tweet without critic report should show '?' score."""
@@ -399,28 +481,61 @@ class TestComposeAnalysisTweet:
             reasoning="Reasoning",
         )
         result = SessionResult(decision=decision, assessments=[assessment])
-        tweet = compose_analysis_tweet(result)
-        assert "Score: ?/10" in tweet
-        assert len(tweet) <= MAX_TWEET_LENGTH
+        tweets = compose_analysis_tweet(result)
+        assert "Ocjena: ?/10" in tweets.me
+        assert "Score: ?/10" in tweets.en
+        assert len(tweets.me) <= MAX_TWEET_LENGTH
+        assert len(tweets.en) <= MAX_TWEET_LENGTH
+
+    def test_headline_me_used_for_montenegrin(self) -> None:
+        """When headline_me is provided, it should be used for the MNE tweet."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="English headline",
+        )
+        tweets = compose_analysis_tweet(
+            result, headline_me="Crnogorski naslov",
+        )
+        assert "Crnogorski naslov" in tweets.me
+        assert "English headline" not in tweets.me
+        assert "English headline" in tweets.en
+
+    def test_fallback_headline_when_no_me(self) -> None:
+        """When no headline_me, English headline is used for both."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Shared headline",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "Shared headline" in tweets.me
+        assert "Shared headline" in tweets.en
 
 
 class TestTryPostAnalysis:
-    def test_successful_post(self) -> None:
-        """Test try_post_analysis successful post."""
+    def test_successful_post_creates_thread(self) -> None:
+        """try_post_analysis should post MNE primary and EN reply."""
         with (
             patch("ai_government.output.twitter.load_state") as mock_load,
             patch("ai_government.output.twitter.save_state") as mock_save,
             patch("ai_government.output.twitter.post_tweet") as mock_post,
+            patch("ai_government.output.twitter.translate_headline") as mock_translate,
         ):
             mock_load.return_value = TwitterState()
-            mock_post.return_value = "12345"  # Tweet ID
+            mock_post.side_effect = ["12345", "67890"]
+            mock_translate.return_value = "Prevedeni naslov"
             result = _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=7)
             success = try_post_analysis(result)
 
         assert success is True
-        mock_post.assert_called_once()
+        # Should post twice: primary MNE + EN reply
+        assert mock_post.call_count == 2
+        # Second call should be a reply to the first tweet
+        second_call = mock_post.call_args_list[1]
+        assert second_call == call(
+            mock_post.call_args_list[1][0][0],
+            in_reply_to_tweet_id="12345",
+        )
         mock_save.assert_called_once()
-        # Check the state that was saved
         saved_state = mock_save.call_args[0][0]
         assert "d1" in saved_state.posted_decision_ids
         assert saved_state.last_posted_at is not None
@@ -456,78 +571,180 @@ class TestTryPostAnalysis:
         assert success is False
         mock_post.assert_not_called()
 
-    def test_post_tweet_fails(self) -> None:
-        """Test try_post_analysis handles post_tweet failure."""
+    def test_primary_post_fails(self) -> None:
+        """Test try_post_analysis handles primary tweet failure."""
         with (
             patch("ai_government.output.twitter.load_state") as mock_load,
             patch("ai_government.output.twitter.post_tweet") as mock_post,
+            patch("ai_government.output.twitter.translate_headline") as mock_translate,
         ):
             mock_load.return_value = TwitterState()
             mock_post.return_value = None  # Failure
+            mock_translate.return_value = "Naslov"
             result = _make_result("d1", "Budget Law", date(2026, 2, 14))
             success = try_post_analysis(result)
 
         assert success is False
         mock_post.assert_called_once()
 
+    def test_reply_failure_still_succeeds(self) -> None:
+        """If the EN reply fails, the post is still considered successful."""
+        with (
+            patch("ai_government.output.twitter.load_state") as mock_load,
+            patch("ai_government.output.twitter.save_state") as mock_save,
+            patch("ai_government.output.twitter.post_tweet") as mock_post,
+            patch("ai_government.output.twitter.translate_headline") as mock_translate,
+        ):
+            mock_load.return_value = TwitterState()
+            mock_post.side_effect = ["12345", None]  # Primary OK, reply fails
+            mock_translate.return_value = "Naslov"
+            result = _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=7)
+            success = try_post_analysis(result)
+
+        assert success is True
+        assert mock_post.call_count == 2
+        mock_save.assert_called_once()
+
+    def test_counts_as_single_post(self) -> None:
+        """Both tweets should count as a single post toward monthly limit."""
+        with (
+            patch("ai_government.output.twitter.load_state") as mock_load,
+            patch("ai_government.output.twitter.save_state") as mock_save,
+            patch("ai_government.output.twitter.post_tweet") as mock_post,
+            patch("ai_government.output.twitter.translate_headline") as mock_translate,
+        ):
+            mock_load.return_value = TwitterState()
+            mock_post.side_effect = ["12345", "67890"]
+            mock_translate.return_value = "Naslov"
+            result = _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=7)
+            try_post_analysis(result)
+
+        saved_state = mock_save.call_args[0][0]
+        assert saved_state.monthly_post_count == 1  # Not 2
+
 
 class TestComposeDailyTweet:
-    def test_basic_digest(self) -> None:
-        """Test compose_daily_tweet basic format."""
+    def test_returns_bilingual_tweet(self) -> None:
+        """compose_daily_tweet should return a BilingualTweet."""
+        results = [
+            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
+        ]
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+
+    def test_me_tweet_has_montenegrin_header(self) -> None:
+        """Montenegrin digest should use 'AI Vlada — dnevni pregled'."""
+        results = [
+            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
+        ]
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert "AI Vlada \u2014 dnevni pregled" in tweets.me
+
+    def test_en_tweet_has_english_header(self) -> None:
+        """English digest should use 'AI Government — daily digest'."""
+        results = [
+            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
+        ]
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert "AI Government \u2014 daily digest" in tweets.en
+
+    def test_me_tweet_has_montenegrin_hashtags(self) -> None:
+        """Montenegrin digest should use #AIVlada #CrnaGora."""
+        results = [
+            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
+        ]
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert "#AIVlada" in tweets.me
+        assert "#CrnaGora" in tweets.me
+
+    def test_en_tweet_has_english_hashtags(self) -> None:
+        """English digest should use #AIGovernment #Montenegro."""
+        results = [
+            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
+        ]
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert "#AIGovernment" in tweets.en
+        assert "#Montenegro" in tweets.en
+
+    def test_both_tweets_fit_280_chars(self) -> None:
+        """Both tweets must independently fit within 280 characters."""
         results = [
             _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
             _make_result("d2", "Education Reform", date(2026, 2, 14), critic_score=8),
         ]
-        tweet = compose_daily_tweet(results)
-        assert "AI Government — daily digest" in tweet
-        assert "Budget Law: 4/10" in tweet
-        assert "Education Reform: 8/10" in tweet
-        assert "#AIGovernment" in tweet
-        assert len(tweet) <= MAX_TWEET_LENGTH
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert len(tweets.me) <= MAX_TWEET_LENGTH
+        assert len(tweets.en) <= MAX_TWEET_LENGTH
 
     def test_sorts_by_score_ascending(self) -> None:
-        """Test compose_daily_tweet sorts by score (lowest first)."""
+        """compose_daily_tweet sorts by score (lowest first) in both tweets."""
         results = [
             _make_result("d1", "High Score", date(2026, 2, 14), critic_score=8),
             _make_result("d2", "Low Score", date(2026, 2, 14), critic_score=3),
             _make_result("d3", "Mid Score", date(2026, 2, 14), critic_score=5),
         ]
-        tweet = compose_daily_tweet(results)
-        # Low score should appear first
-        low_pos = tweet.find("Low Score")
-        mid_pos = tweet.find("Mid Score")
-        high_pos = tweet.find("High Score")
-        assert low_pos < mid_pos < high_pos
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        for tweet_text in [tweets.me, tweets.en]:
+            low_pos = tweet_text.find("Low Score")
+            mid_pos = tweet_text.find("Mid Score")
+            high_pos = tweet_text.find("High Score")
+            assert low_pos < mid_pos < high_pos
 
     def test_max_three_results(self) -> None:
-        """Test compose_daily_tweet limits to 3 results."""
+        """compose_daily_tweet limits to 3 results."""
         results = [
             _make_result(f"d{i}", f"Decision {i}", date(2026, 2, 14), critic_score=i)
             for i in range(1, 6)
         ]
-        tweet = compose_daily_tweet(results)
-        # Should only contain first 3 (lowest scores: 1, 2, 3)
-        assert "Decision 1" in tweet
-        assert "Decision 2" in tweet
-        assert "Decision 3" in tweet
-        assert "Decision 4" not in tweet
-        assert "Decision 5" not in tweet
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        for tweet_text in [tweets.me, tweets.en]:
+            assert "Decision 1" in tweet_text
+            assert "Decision 2" in tweet_text
+            assert "Decision 3" in tweet_text
+            assert "Decision 4" not in tweet_text
+            assert "Decision 5" not in tweet_text
 
     def test_empty_results(self) -> None:
-        """Test compose_daily_tweet with empty results."""
+        """compose_daily_tweet with empty results returns empty string."""
         tweet = compose_daily_tweet([])
         assert tweet == ""
 
-    def test_counter_proposal_tag(self) -> None:
-        """Test compose_daily_tweet includes counter-proposal tag."""
+    def test_counter_proposal_tag_montenegrin(self) -> None:
+        """Montenegrin digest uses '[+kontra-prijedlog]'."""
         results = [
             _make_result(
-                "d1",
-                "Budget Law",
-                date(2026, 2, 14),
-                critic_score=5,
-                has_counter_proposal=True,
+                "d1", "Budget Law", date(2026, 2, 14),
+                critic_score=5, has_counter_proposal=True,
             ),
         ]
-        tweet = compose_daily_tweet(results)
-        assert "[+counter-proposal]" in tweet
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert "[+kontra-prijedlog]" in tweets.me
+
+    def test_counter_proposal_tag_english(self) -> None:
+        """English digest uses '[+counter-proposal]'."""
+        results = [
+            _make_result(
+                "d1", "Budget Law", date(2026, 2, 14),
+                critic_score=5, has_counter_proposal=True,
+            ),
+        ]
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert "[+counter-proposal]" in tweets.en
+
+    def test_en_tweet_has_globe_prefix(self) -> None:
+        """English daily tweet should start with globe emoji."""
+        results = [
+            _make_result("d1", "Budget Law", date(2026, 2, 14), critic_score=4),
+        ]
+        tweets = compose_daily_tweet(results)
+        assert isinstance(tweets, BilingualTweet)
+        assert tweets.en.startswith("\U0001f310")

@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-15T02:09:53Z",
+    "issue_number": 145,
+    "issue_title": "Add gap observation flow: PM identifies gaps, directors act on them",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T02:05:01Z",
     "issue_number": 143,
     "issue_title": "Give Project Director agent staffing authority for technical roles",
@@ -24,7 +31,7 @@
     "timestamp": "2026-02-15T01:56:13Z",
     "issue_number": 138,
     "issue_title": "Set DEFAULT_MODEL to claude-opus-4-6 and add regression test",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

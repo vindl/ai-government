@@ -34,12 +34,14 @@ def step_pick_impl(issues: list[dict[str, Any]]) -> dict[str, Any] | None:
         return None
 
     # Priority label constants (matching main_loop.py)
+    label_urgent = "priority:urgent"
     label_human = "human-suggestion"
     label_task_analysis = "task:analysis"
     label_strategy = "strategy-suggestion"
     label_director = "director-suggestion"
 
     priority_labels = [
+        label_urgent,
         label_human,
         label_task_analysis,
         label_strategy,
@@ -129,8 +131,20 @@ def test_empty_backlog_returns_none() -> None:
     assert picked is None
 
 
-def test_five_tier_priority_order() -> None:
-    """Verify complete 5-tier priority order."""
+def test_urgent_beats_human_suggestion() -> None:
+    """Urgent issues should be picked before human suggestions."""
+    issues = [
+        make_issue(1, "2024-01-01T00:00:00Z", labels=["self-improve:backlog", "human-suggestion"]),
+        make_issue(2, "2024-01-02T00:00:00Z", labels=["self-improve:backlog", "priority:urgent"]),
+    ]
+
+    picked = step_pick_impl(issues)
+    assert picked is not None
+    assert picked["number"] == 2  # Urgent wins over human suggestion
+
+
+def test_six_tier_priority_order() -> None:
+    """Verify complete 6-tier priority order."""
     issues = [
         # Tier 5: FIFO
         make_issue(1, "2024-01-01T00:00:00Z", labels=["self-improve:backlog"]),
@@ -149,13 +163,18 @@ def test_five_tier_priority_order() -> None:
             4, "2024-01-04T00:00:00Z",
             labels=["self-improve:backlog", "task:analysis"],
         ),
-        # Tier 1: Human (highest priority)
+        # Tier 1: Human
         make_issue(
             5, "2024-01-05T00:00:00Z",
             labels=["self-improve:backlog", "human-suggestion"],
+        ),
+        # Tier 0: Urgent (highest priority)
+        make_issue(
+            6, "2024-01-06T00:00:00Z",
+            labels=["self-improve:backlog", "priority:urgent"],
         ),
     ]
 
     picked = step_pick_impl(issues)
     assert picked is not None
-    assert picked["number"] == 5  # Human suggestion wins
+    assert picked["number"] == 6  # Urgent wins

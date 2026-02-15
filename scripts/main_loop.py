@@ -80,6 +80,7 @@ LABEL_REJECTED = "self-improve:rejected"
 LABEL_IN_PROGRESS = "self-improve:in-progress"
 LABEL_DONE = "self-improve:done"
 LABEL_FAILED = "self-improve:failed"
+LABEL_URGENT = "priority:urgent"
 LABEL_HUMAN = "human-suggestion"
 LABEL_DIRECTOR = "director-suggestion"
 LABEL_STRATEGY = "strategy-suggestion"
@@ -98,6 +99,7 @@ ALL_LABELS: dict[str, str] = {
     LABEL_IN_PROGRESS: "fbca04",  # yellow
     LABEL_DONE: "6f42c1",       # purple
     LABEL_FAILED: "d73a4a",     # red
+    LABEL_URGENT: "e11d48",     # urgent red (drop everything)
     LABEL_HUMAN: "0075ca",      # blue
     LABEL_DIRECTOR: "d876e3",    # purple (sage)
     LABEL_STRATEGY: "f9a825",    # amber (reserved for #83)
@@ -2029,10 +2031,10 @@ def step_pick() -> dict[str, Any] | None:
         log.info("No backlog issues to pick")
         return None
 
-    # Priority order: human suggestions first, then other categories.
-    # This ensures human feedback doesn't wait behind AI proposals.
+    # Priority order: urgent first, then human suggestions, then other categories.
     priority_labels = [
-        LABEL_HUMAN,           # Tier 1: Human suggestions (highest priority)
+        LABEL_URGENT,          # Tier 0: Drop everything (CI broken, site down, etc.)
+        LABEL_HUMAN,           # Tier 1: Human suggestions
         LABEL_TASK_ANALYSIS,   # Tier 2: Government decision analysis
         LABEL_STRATEGY,        # Tier 3: Strategic guidance (reserved)
         LABEL_DIRECTOR,        # Tier 4: Director-identified issues
@@ -2952,7 +2954,7 @@ async def run_one_cycle(
         # Search for a non-analysis task, respecting priority order
         fallback = None
         backlog_issues = list_backlog_issues()
-        priority_labels = [LABEL_HUMAN, LABEL_STRATEGY, LABEL_DIRECTOR]
+        priority_labels = [LABEL_URGENT, LABEL_HUMAN, LABEL_STRATEGY, LABEL_DIRECTOR]
         for label in priority_labels:
             for candidate in backlog_issues:
                 is_match = _issue_has_label(candidate, label)

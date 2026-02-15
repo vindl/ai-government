@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-15T02:12:41Z",
+    "issue_number": 146,
+    "issue_title": "Fix load_results_from_dir to skip non-SessionResult JSON files",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T02:09:53Z",
     "issue_number": 145,
     "issue_title": "Add gap observation flow: PM identifies gaps, directors act on them",
@@ -24,7 +31,7 @@
     "timestamp": "2026-02-15T01:58:56Z",
     "issue_number": 139,
     "issue_title": "Add 'do not propose new agents' constraint to PM prompt",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

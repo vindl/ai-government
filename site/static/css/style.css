@@ -40,7 +40,7 @@ nav {
   margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: 1.25rem;
 }
 
 .site-title {
@@ -48,6 +48,7 @@ nav {
   font-size: 1.25rem;
   text-decoration: none;
   color: var(--color-text);
+  white-space: nowrap;
 }
 
 nav ul {
@@ -55,13 +56,15 @@ nav ul {
   margin: 0;
   padding: 0;
   display: flex;
-  gap: 1.25rem;
+  gap: 1rem;
+  white-space: nowrap;
 }
 
 nav a {
   color: var(--color-muted);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 nav a:hover {
@@ -711,7 +714,12 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
   background: var(--color-bg);
 }
 
-/* Hide English content by default (Montenegrin is primary) */
-.lang-en {
+/* Language visibility — driven by data-lang attribute on <html> */
+/* Default (before JS runs or MNE selected): show MNE, hide EN */
+html:not([data-lang="en"]) .lang-en {
+  display: none;
+}
+/* When EN selected: show EN, hide MNE */
+html[data-lang="en"] .lang-mne {
   display: none;
 }

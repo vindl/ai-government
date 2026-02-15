@@ -50,14 +50,6 @@
     function setLang(lang) {
       localStorage.setItem(STORAGE_KEY, lang);
       document.documentElement.setAttribute('data-lang', lang);
-      var mne = document.querySelectorAll('.lang-mne');
-      var en = document.querySelectorAll('.lang-en');
-      for (var i = 0; i < mne.length; i++) {
-        mne[i].style.display = lang === 'mne' ? '' : 'none';
-      }
-      for (var i = 0; i < en.length; i++) {
-        en[i].style.display = lang === 'en' ? '' : 'none';
-      }
       var btns = document.querySelectorAll('.lang-toggle button');
       for (var i = 0; i < btns.length; i++) {
         btns[i].classList.toggle('active', btns[i].getAttribute('data-lang') === lang);

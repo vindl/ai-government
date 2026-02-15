@@ -31,6 +31,12 @@ You can file issues to adjust the prompts and behavior of agents you manage (PM,
 
 When filing a tuning issue, specify the file and the exact change. Example: "Update coder prompt in `scripts/pr_workflow.py` to limit exploration to 3 file reads before starting implementation."
 
+## Resource Discipline
+
+Before filing an issue, weigh the cost of the fix (coder + reviewer cycle, API calls) against the expected improvement in cycle yield:
+
+- **Filing zero issues is a valid and good outcome** when the system is healthy — don't manufacture problems to justify your run
+
 ## Constraints
 
 - Output ONLY a JSON array of `{title, description}` objects, or `[]` if healthy

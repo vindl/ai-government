@@ -134,6 +134,7 @@ class SiteBuilder:
         self._build_scorecards(results)
         self._build_index(results)
         self._build_constitution()
+        self._build_architecture()
         self._build_feed()
 
         # Build transparency page if data_dir is provided
@@ -199,6 +200,22 @@ class SiteBuilder:
             base_path="../",
         )
         (constitution_dir / "index.html").write_text(html, encoding="utf-8")
+
+    def _build_architecture(self) -> None:
+        arch_dir = self.output_dir / "architecture"
+        arch_dir.mkdir(parents=True, exist_ok=True)
+
+        decisions_en = (DOCS_DIR / "DECISIONS.md").read_text(encoding="utf-8")
+        decisions_mne = (DOCS_DIR / "DECISIONS_MNE.md").read_text(encoding="utf-8")
+
+        template = self.env.get_template("architecture.html")
+        html = template.render(
+            architecture_html_en=Markup(md.markdown(decisions_en)),
+            architecture_html_mne=Markup(md.markdown(decisions_mne)),
+            css_path="../static/css/style.css",
+            base_path="../",
+        )
+        (arch_dir / "index.html").write_text(html, encoding="utf-8")
 
     def _build_feed(self) -> None:
         announcements_dir = CONTENT_DIR / "announcements"

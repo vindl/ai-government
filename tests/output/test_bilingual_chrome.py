@@ -29,6 +29,8 @@ def _make_result() -> SessionResult:
         summary="A test decision.",
         date=date(2026, 2, 15),
         category="test",
+        title_mne="Testna odluka",
+        summary_mne="Testna odluka opis.",
     )
     assessment = Assessment(
         ministry="Finance",
@@ -333,3 +335,116 @@ class TestDigestPageBilingual:
 
     def test_en_analyzed_decisions(self, html: str) -> None:
         assert "Analyzed Decisions" in html
+
+
+class TestBilingualDecisionTitles:
+    """Decision titles and summaries are wrapped with lang-mne/lang-en on listing pages."""
+
+    def _read(self, site_dir: Path, rel: str) -> str:
+        return (site_dir / rel).read_text()
+
+    def test_index_has_mne_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "index.html")
+        assert '<span class="lang-mne">Testna odluka</span>' in html
+
+    def test_index_has_en_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "index.html")
+        assert '<span class="lang-en">Test Decision</span>' in html
+
+    def test_index_has_mne_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "index.html")
+        assert "lang-mne" in html
+        assert "Testna odluka opis." in html
+
+    def test_index_has_en_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "index.html")
+        assert "A test decision." in html
+
+    def test_decisions_index_has_mne_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/index.html")
+        assert '<span class="lang-mne">Testna odluka</span>' in html
+
+    def test_decisions_index_has_en_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/index.html")
+        assert '<span class="lang-en">Test Decision</span>' in html
+
+    def test_decisions_index_has_mne_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/index.html")
+        assert "Testna odluka opis." in html
+
+    def test_decisions_index_has_en_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/index.html")
+        assert "A test decision." in html
+
+    def test_scorecard_has_mne_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/chrome-001.html")
+        assert '<h1 class="lang-mne">Testna odluka</h1>' in html
+
+    def test_scorecard_has_en_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/chrome-001.html")
+        assert '<h1 class="lang-en">Test Decision</h1>' in html
+
+    def test_scorecard_has_mne_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/chrome-001.html")
+        assert "Testna odluka opis." in html
+
+    def test_scorecard_has_en_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "decisions/chrome-001.html")
+        assert "A test decision." in html
+
+    def test_digest_has_mne_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "digest/2026-02-15/index.html")
+        assert "Testna odluka" in html
+
+    def test_digest_has_en_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "digest/2026-02-15/index.html")
+        assert "Test Decision" in html
+
+
+class TestBilingualTitlesBackwardCompat:
+    """When _mne fields are empty, titles render without lang classes (always visible)."""
+
+    @pytest.fixture()
+    def site_dir_no_mne(self, tmp_path: Path) -> Path:
+        output_dir = tmp_path / "site"
+        decision = GovernmentDecision(
+            id="compat-001",
+            title="English Only Title",
+            summary="English only summary.",
+            date=date(2026, 2, 15),
+            category="test",
+        )
+        assessment = Assessment(
+            ministry="Finance",
+            decision_id="compat-001",
+            verdict=Verdict.POSITIVE,
+            score=7,
+            summary="Good decision.",
+            reasoning="Sound reasoning.",
+        )
+        critic = CriticReport(
+            decision_id="compat-001",
+            decision_score=7,
+            assessment_quality_score=6,
+            overall_analysis="Good.",
+            headline="Test Headline",
+        )
+        result = SessionResult(
+            decision=decision,
+            assessments=[assessment],
+            critic_report=critic,
+        )
+        builder = SiteBuilder(output_dir)
+        builder.build([result])
+        return output_dir
+
+    def test_index_no_lang_class_when_empty(self, site_dir_no_mne: Path) -> None:
+        html = (site_dir_no_mne / "index.html").read_text()
+        # Title should be present without lang-en class wrapping
+        assert "English Only Title" in html
+        # No lang-mne span for the title since title_mne is empty
+        assert "lang-mne" not in html or '<span class="lang-mne">English Only Title' not in html
+
+    def test_decisions_index_no_lang_class_when_empty(self, site_dir_no_mne: Path) -> None:
+        html = (site_dir_no_mne / "decisions" / "index.html").read_text()
+        assert "English Only Title" in html

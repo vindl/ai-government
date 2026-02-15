@@ -12,9 +12,13 @@
 <ul class="decision-feed">
   {% for r in results %}
   <li>
-    <h3><a href="{{ r.decision.id }}.html">{{ r.decision.title }}</a></h3>
+    <h3><a href="{{ r.decision.id }}.html">
+      {% if r.decision.title_mne %}<span class="lang-mne">{{ r.decision.title_mne }}</span>{% endif %}
+      <span class="{% if r.decision.title_mne %}lang-en{% endif %}">{{ r.decision.title }}</span>
+    </a></h3>
     <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal lang-mne">Kontra-prijedlog dostupan</span><span class="feed-counter-proposal lang-en">Counter-proposal available</span>{% endif %}</div>
-    <p class="feed-summary">{{ r.decision.summary }}</p>
+    {% if r.decision.summary_mne %}<p class="feed-summary lang-mne">{{ r.decision.summary_mne }}</p>{% endif %}
+    <p class="feed-summary {% if r.decision.summary_mne %}lang-en{% endif %}">{{ r.decision.summary }}</p>
   </li>
   {% endfor %}
 </ul>

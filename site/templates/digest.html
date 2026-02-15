@@ -22,12 +22,12 @@
     <h2 class="lang-en">Summary of the Day</h2>
     <p class="lang-mne">
       {% if digest.lowest_score_decision %}
-      Najlošije ocjenjena odluka dana je <strong>{{ digest.lowest_score_decision.title }}</strong>
+      Najlošije ocjenjena odluka dana je <strong>{{ digest.lowest_score_decision.title_mne or digest.lowest_score_decision.title }}</strong>
       sa ocjenom {{ digest.lowest_score_decision.score }}/10{% if digest.lowest_score_decision.headline %} —
       {{ digest.lowest_score_decision.headline }}{% endif %}.
       {% endif %}
       {% if digest.highest_score_decision and digest.highest_score_decision != digest.lowest_score_decision %}
-      Najbolje ocjenjena odluka je <strong>{{ digest.highest_score_decision.title }}</strong>
+      Najbolje ocjenjena odluka je <strong>{{ digest.highest_score_decision.title_mne or digest.highest_score_decision.title }}</strong>
       ({{ digest.highest_score_decision.score }}/10).
       {% endif %}
       Prosječna ocjena analiziranih odluka je {{ digest.avg_score }}/10.
@@ -78,7 +78,8 @@
           <span class="card-score">{{ d.score }}/10</span>
           {% if d.has_counter_proposal %}<span class="feed-counter-proposal lang-mne">Kontra-prijedlog</span><span class="feed-counter-proposal lang-en">Counter-proposal</span>{% endif %}
         </div>
-        <h3>{{ d.title }}</h3>
+        {% if d.title_mne %}<h3 class="lang-mne">{{ d.title_mne }}</h3>{% endif %}
+        <h3 class="{% if d.title_mne %}lang-en{% endif %}">{{ d.title }}</h3>
         <p class="digest-card-headline">{{ d.headline }}</p>
         {% if d.verdict %}
         <span class="verdict lang-mne">{{ d.verdict | verdict_label_mne }}</span>

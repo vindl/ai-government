@@ -284,6 +284,7 @@ class SiteBuilder:
                 {
                     "id": r.decision.id,
                     "title": r.decision.title,
+                    "title_mne": r.decision.title_mne,
                     "score": score,
                     "headline": headline,
                     "verdict": verdict,

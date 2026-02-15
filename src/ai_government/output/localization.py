@@ -72,6 +72,15 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-5
     Uses a cost-effective model (Sonnet) by default since translation doesn't
     require deep reasoning.
     """
+    # Translate decision title and summary
+    dec_fields: dict[str, Any] = {
+        "title": result.decision.title,
+        "summary": result.decision.summary,
+    }
+    dec_translated = await _translate_fields(dec_fields, model)
+    result.decision.title_mne = dec_translated.get("title", result.decision.title)
+    result.decision.summary_mne = dec_translated.get("summary", result.decision.summary)
+
     # Translate critic report fields
     if result.critic_report is not None:
         cr_fields = {

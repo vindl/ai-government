@@ -57,7 +57,14 @@
         <span class="{{ a.verdict.value | verdict_css_class }}">{{ a.verdict.value | verdict_label }}</span>
         <span>{{ a.score }}/10</span>
       </div>
-      <p>{{ a.summary }}</p>
+      {% if a.executive_summary %}
+      <div class="executive-summary">
+        <strong>Executive Summary:</strong> {{ a.executive_summary }}
+      </div>
+      {% endif %}
+      <details class="full-analysis">
+        <summary>Read full analysis</summary>
+        <p>{{ a.summary }}</p>
       {% if a.key_concerns %}
       <h4>Key Concerns</h4>
       <ul>
@@ -93,6 +100,7 @@
         {% endif %}
       </div>
       {% endif %}
+      </details>
     </div>
     {% endfor %}
   </section>

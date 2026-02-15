@@ -37,7 +37,7 @@ from ai_government.models.telemetry import (
     append_telemetry,
     load_telemetry,
 )
-from ai_government.orchestrator import Orchestrator
+from ai_government.orchestrator import Orchestrator, SessionResult
 from ai_government.output.scorecard import render_scorecard
 from ai_government.output.site_builder import load_results_from_dir, save_result_json
 from ai_government.output.twitter import (
@@ -70,6 +70,7 @@ DEFAULT_DIRECTOR_INTERVAL = 5
 DEFAULT_STRATEGIC_DIRECTOR_INTERVAL = 10
 DIRECTOR_MAX_TURNS = 10
 STRATEGIC_DIRECTOR_MAX_TURNS = 10
+EDITORIAL_DIRECTOR_MAX_TURNS = 8
 ERROR_PATTERN_WINDOW = 5
 ERROR_PATTERN_THRESHOLD = 3
 
@@ -82,6 +83,7 @@ LABEL_FAILED = "self-improve:failed"
 LABEL_HUMAN = "human-suggestion"
 LABEL_DIRECTOR = "director-suggestion"
 LABEL_STRATEGY = "strategy-suggestion"
+LABEL_EDITORIAL = "editorial-quality"
 LABEL_TASK_ANALYSIS = "task:analysis"
 LABEL_TASK_CODE = "task:code-change"
 
@@ -95,6 +97,7 @@ ALL_LABELS: dict[str, str] = {
     LABEL_HUMAN: "0075ca",      # blue
     LABEL_DIRECTOR: "d876e3",    # purple (sage)
     LABEL_STRATEGY: "f9a825",    # amber (reserved for #83)
+    LABEL_EDITORIAL: "c5def5",   # pale blue
     LABEL_TASK_ANALYSIS: "1d76db",  # light blue
     LABEL_TASK_CODE: "5319e7",      # violet
 }
@@ -150,6 +153,17 @@ class StrategicDirectorOutput(BaseModel):
 
     title: str = Field(min_length=1, max_length=120)
     description: str = Field(min_length=1)
+
+
+class EditorialReview(BaseModel):
+    """Validated output from Editorial Director agent."""
+
+    approved: bool
+    quality_score: int = Field(ge=1, le=10)
+    strengths: list[str] = Field(default_factory=list)
+    issues: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    engagement_insights: list[str] = Field(default_factory=list)
 
 
 class NewsScoutState(BaseModel):
@@ -1178,6 +1192,39 @@ async def step_execute_analysis(
         saved = save_result_json(results[0], data_dir)
         log.info("Saved result JSON to %s", saved)
 
+        # Editorial Director review (non-fatal)
+        review = None
+        try:
+            review = await step_editorial_review(
+                result=results[0],
+                issue_number=issue_number,
+                model=model,
+            )
+        except Exception:
+            log.exception("Editorial review failed (non-fatal)")
+
+        # If review failed or was not approved, file a quality issue
+        if review is not None and not review.approved:
+            log.warning("Editorial Director did not approve analysis #%d (score: %d/10)",
+                       issue_number, review.quality_score)
+            try:
+                quality_issue_num = create_editorial_quality_issue(
+                    original_issue=issue_number,
+                    review=review,
+                    decision_id=results[0].decision.id,
+                )
+                _run_gh(["gh", "issue", "comment", str(issue_number),
+                        "--body", f"⚠️ Editorial review flagged quality issues. "
+                                 f"See #{quality_issue_num} for details.\n\n"
+                                 f"**Quality score**: {review.quality_score}/10\n"
+                                 f"**Issues**: {len(review.issues)}\n"
+                                 f"**Recommendations**: {len(review.recommendations)}"])
+            except Exception:
+                log.exception("Failed to create editorial quality issue (non-fatal)")
+        elif review is not None:
+            log.info("Editorial Director approved analysis #%d (score: %d/10)",
+                    issue_number, review.quality_score)
+
         # Post analysis tweet (non-fatal)
         try:
             if try_post_analysis(results[0]):
@@ -1194,6 +1241,143 @@ async def step_execute_analysis(
         mark_issue_failed(issue_number, reason)
         log.exception("Issue #%d failed", issue_number)
         return False
+
+
+async def step_editorial_review(
+    *,
+    result: SessionResult,
+    issue_number: int,
+    model: str,
+) -> EditorialReview | None:
+    """Run Editorial Director review of a completed analysis.
+
+    Returns EditorialReview if successful, None if review failed.
+    """
+    system_prompt = _load_role_prompt("editorial-director")
+
+    # Serialize the result to JSON for the reviewer to inspect
+    result_json = result.model_dump_json(indent=2, exclude_none=True)
+
+    prompt = f"""Review the analysis below for quality and public impact.
+
+## Analysis Result
+
+```json
+{result_json}
+```
+
+Based on this analysis, output a JSON object with your editorial review:
+
+{{
+  "approved": true,  // or false if improvements needed
+  "quality_score": 8,  // 1-10 scale
+  "strengths": [
+    "Clear explanation of fiscal impacts on ordinary citizens",
+    "Strong Constitutional grounding in transparency principles"
+  ],
+  "issues": [
+    "Finance ministry claim about €5M cost is not supported by decision text",
+    "Parliament debate section is dense and hard to follow for general readers"
+  ],
+  "recommendations": [
+    "Verify the €5M radar cost estimate or remove unsupported claim",
+    "Simplify parliament debate summary — use bullet points for key positions"
+  ],
+  "engagement_insights": [
+    // Add insights about engagement patterns when metrics are available
+  ]
+}}
+
+Review criteria:
+1. Factual accuracy — are claims supported by the decision text?
+2. Narrative quality — clear, engaging, coherent for general readers?
+3. Public relevance — addresses citizen concerns, actionable insights?
+4. Constitutional alignment — transparency, anti-corruption, fiscal responsibility?
+
+Most analyses should pass. Only block publication for clear factual errors or Constitution violations.
+"""
+
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=EDITORIAL_DIRECTOR_MAX_TURNS,
+        allowed_tools=[],
+    )
+
+    log.info("Running Editorial Director review for issue #%d...", issue_number)
+    try:
+        stream = claude_code_sdk.query(prompt=prompt, options=opts)
+        output = await _collect_agent_output(stream)
+
+        # Parse JSON object from output
+        json_match = re.search(r"\{.*\}", output, re.DOTALL)
+        if not json_match:
+            log.warning("Editorial Director output missing JSON object")
+            return None
+
+        review_data = json.loads(json_match.group(0))
+        review = EditorialReview.model_validate(review_data)
+
+        log.info(
+            "Editorial review complete: %s (score: %d/10)",
+            "APPROVED" if review.approved else "NEEDS IMPROVEMENT",
+            review.quality_score,
+        )
+        return review
+
+    except Exception:
+        log.exception("Editorial review failed for issue #%d", issue_number)
+        return None
+
+
+def create_editorial_quality_issue(
+    original_issue: int,
+    review: EditorialReview,
+    decision_id: str,
+) -> int:
+    """File an editorial quality issue based on review feedback."""
+    title = f"Editorial quality issues in analysis: {decision_id}"
+
+    issues_section = "\n".join(f"- {issue}" for issue in review.issues)
+    recs_section = "\n".join(f"- {rec}" for rec in review.recommendations)
+    strengths_list = "\n".join(f"- {strength}" for strength in review.strengths)
+    strengths_section = strengths_list if review.strengths else "None noted"
+
+    body = f"""**Editorial Director flagged quality issues in analysis #{original_issue}**
+
+**Quality Score**: {review.quality_score}/10
+
+**Issues Identified**:
+{issues_section}
+
+**Recommendations**:
+{recs_section}
+
+**Strengths**:
+{strengths_section}
+
+---
+Original analysis issue: #{original_issue}
+Decision ID: {decision_id}
+"""
+
+    result = _run_gh([
+        "gh", "issue", "create",
+        "--title", title,
+        "--body", body,
+        "--label", LABEL_EDITORIAL,
+        "--label", LABEL_BACKLOG,
+    ])
+
+    # Parse issue number from output
+    match = re.search(r"/issues/(\d+)", result.stdout)
+    if match:
+        num = int(match.group(1))
+        log.info("Created editorial quality issue #%d", num)
+        return num
+
+    log.warning("Could not parse issue number from gh output")
+    return 0
 
 
 # ---------------------------------------------------------------------------

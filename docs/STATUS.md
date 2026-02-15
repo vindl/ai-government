@@ -159,8 +159,18 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `--director-interval` CLI arg + `LOOP_DIRECTOR_INTERVAL` Docker env var
 - [x] `strategy-suggestion` label reserved for future Strategic Director (#83)
 
+### Editorial Director (Analysis Quality Review)
+- [x] `dev-fleet/editorial-director/CLAUDE.md` role prompt — analysis quality and public impact focus
+- [x] `EditorialReview` Pydantic model with approval flag, quality score (1-10), strengths, issues, recommendations
+- [x] `step_editorial_review()` — invokes Editorial Director to review completed analyses
+- [x] Integration into `step_execute_analysis()` — runs after analysis completion, before publication
+- [x] `create_editorial_quality_issue()` — files issues when analysis does not meet quality standards
+- [x] `editorial-quality` label for tracking quality improvement issues
+- [x] Non-blocking: review failures are non-fatal, publication proceeds with quality issue filed
+- [x] Tests in `tests/test_editorial_director.py` — model validation, bounds checking, JSON roundtrip
+
 ### Tests
-- [x] 38 tests passing
+- [x] 154 tests passing
 - [x] `tests/models/test_decision.py` — model creation, validation, JSON roundtrip, seed data loading
 - [x] `tests/agents/test_base.py` — config, prompt building, response parsing (valid/invalid/surrounded), factory functions
 - [x] `tests/conftest.py` — shared fixtures with realistic Montenegrin data

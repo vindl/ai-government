@@ -299,3 +299,38 @@ All new model fields are optional (`None` default) for backwards compatibility w
 - Third-party news APIs — rejected: limited coverage of Montenegrin government decisions
 
 **Consequences**: No scraping code to maintain. The agent adapts to site changes automatically. Trade-off is reliance on Claude's web search quality for Montenegrin sources and higher per-fetch cost (one agent invocation vs. deterministic HTTP requests). Capping at 3 decisions per day bounds the cost.
+
+---
+
+## ADR-017: Editorial Director for Analysis Quality Control
+**Date**: 2026-02-15
+**Status**: Accepted
+
+**Context**: No agent monitors whether published analyses are accurate, compelling, or resonating with the public. Without quality oversight, we risk publishing low-impact or flawed content. Strategic Director (#122) identified this capability gap.
+
+**Decision**: Add Editorial Director agent that reviews completed analyses for:
+1. **Factual accuracy** — no errors, misinterpretations, or unsupported claims
+2. **Narrative quality** — clear structure, logical flow, engaging for general readers
+3. **Public relevance** — addresses citizen concerns, actionable insights
+4. **Constitutional alignment** — transparency, anti-corruption, fiscal responsibility
+5. **Engagement potential** — tracks which topics/framing resonate (when metrics available)
+
+**Implementation**:
+- Role prompt: `dev-fleet/editorial-director/CLAUDE.md`
+- Model: `EditorialReview` (approval flag, quality score 1-10, strengths, issues, recommendations)
+- Integration: Runs in `step_execute_analysis()` after orchestrator completes but before marking issue done
+- Non-blocking: Review failures are non-fatal. If not approved, files an `editorial-quality` issue and proceeds with publication
+- Output: JSON review with approval status, quality score, and actionable feedback
+
+**Alternatives considered**:
+- Manual human review — rejected: doesn't scale, adds latency
+- Post-publication quality analysis — rejected: better to catch issues before publication
+- Quality checks in existing agents — rejected: dilutes each agent's focus, no unified quality standard
+- Blocking publication on failure — rejected: creates bottleneck, better to flag and continue
+
+**Consequences**:
+- One additional API call per analysis (runs after analysis completion)
+- Quality issues tracked via GitHub issues with `editorial-quality` label
+- Feedback loop enables continuous improvement of analysis quality
+- When social/engagement metrics are available, Editorial Director can identify which topics/framing generate most public interest
+- Non-blocking design ensures system keeps running even if review fails

@@ -1016,7 +1016,7 @@ def create_analysis_issue(decision: GovernmentDecision) -> int:
     Embeds the full GovernmentDecision JSON in the issue body so the
     execution step can parse it directly without re-loading from file.
     """
-    title = f"Analyze: {decision.title[:60]}"
+    title = f"Analyze: {decision.title[:110]}"
     decision_json = decision.model_dump_json(indent=2)
     body = (
         f"**Decision ID**: {decision.id}\n"

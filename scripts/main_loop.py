@@ -44,13 +44,6 @@ from ai_government.orchestrator import Orchestrator, SessionResult
 from ai_government.output.scorecard import render_scorecard
 from ai_government.output.site_builder import load_results_from_dir, save_result_json
 from ai_government.output.twitter import (
-    compose_daily_tweet,
-    get_unposted_results,
-    load_state,
-    post_tweet,
-    record_post,
-    save_state,
-    should_post,
     try_post_analysis,
 )
 from ai_government.session import load_decisions
@@ -128,6 +121,7 @@ PRIVILEGED_PERMISSIONS = {"admin", "maintain"}
 SEED_DECISIONS_PATH = PROJECT_ROOT / "data" / "seed" / "sample_decisions.json"
 TELEMETRY_PATH = PROJECT_ROOT / "output" / "data" / "telemetry.jsonl"
 ERRORS_PATH = PROJECT_ROOT / "output" / "data" / "errors.jsonl"
+DATA_DIR = PROJECT_ROOT / "output" / "data"
 
 NEWS_SCOUT_MAX_TURNS = 20
 NEWS_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
@@ -2774,66 +2768,6 @@ def _commit_output_data() -> None:
         log.exception("Output data commit failed (non-fatal)")
 
 
-# ---------------------------------------------------------------------------
-# X daily digest
-# ---------------------------------------------------------------------------
-
-
-DATA_DIR = PROJECT_ROOT / "output" / "data"
-
-
-def step_post_tweet() -> bool:
-    """Post a daily digest to X if enough time has elapsed.
-
-    Returns True if a post was published, False otherwise.
-    Non-fatal: returns False on any error (missing creds, API failure, etc.).
-    """
-    state = load_state()
-
-    if not should_post(state):
-        log.debug("X post cooldown has not elapsed — skipping")
-        return False
-
-    if not DATA_DIR.exists():
-        log.debug("No data directory — skipping X post")
-        return False
-
-    results = load_results_from_dir(DATA_DIR)
-    unposted = get_unposted_results(results, state)
-
-    if not unposted:
-        log.debug("No unposted results — skipping X post")
-        return False
-
-    tweets = compose_daily_tweet(unposted)
-    if not tweets:
-        return False
-
-    # BilingualTweet or empty string
-    if isinstance(tweets, str):
-        return False
-
-    log.info("Composed X post (MNE):\n%s", tweets.me)
-    log.info("Composed X post (EN):\n%s", tweets.en)
-
-    tweet_id = post_tweet(tweets.me)
-    if tweet_id is None:
-        # Content was logged above — useful for dev when creds aren't set
-        return False
-
-    # Post English reply in thread
-    if tweets.en:
-        reply_id = post_tweet(tweets.en, in_reply_to_tweet_id=tweet_id)
-        if reply_id is None:
-            log.warning("Failed to post English reply — primary tweet still posted")
-
-    # Update state
-    state.last_posted_at = datetime.now(UTC)
-    state.posted_decision_ids.extend(r.decision.id for r in unposted[:3])
-    record_post(state)
-    save_state(state)
-    return True
-
 
 # ---------------------------------------------------------------------------
 # Main loop
@@ -3180,16 +3114,6 @@ async def run_one_cycle(
         phase_e.detail = "not scheduled"
     phase_e.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase_e)
-
-    # --- Post daily X digest (if due) ---
-    if not dry_run:
-        try:
-            posted = step_post_tweet()
-            if posted:
-                print("  Posted daily X digest")
-                telemetry.tweet_posted = True
-        except Exception:
-            log.exception("X posting failed (non-fatal)")
 
     # --- Collect and save transparency records ---
     if not dry_run:

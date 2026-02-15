@@ -13,7 +13,7 @@ import markdown as md
 from jinja2 import Environment, FileSystemLoader
 from markupsafe import Markup
 
-from ai_government.models.override import HumanOverride
+from ai_government.models.override import HumanOverride, HumanSuggestion
 from ai_government.orchestrator import SessionResult
 from ai_government.output.html import _verdict_css_class, _verdict_label
 
@@ -58,6 +58,16 @@ def load_overrides_from_file(data_dir: Path) -> list[HumanOverride]:
 
     raw_list = json.loads(overrides_path.read_text(encoding="utf-8"))
     return [HumanOverride.model_validate(item) for item in raw_list]
+
+
+def load_suggestions_from_file(data_dir: Path) -> list[HumanSuggestion]:
+    """Load human suggestion records from suggestions.json."""
+    suggestions_path = data_dir / "suggestions.json"
+    if not suggestions_path.exists():
+        return []
+
+    raw_list = json.loads(suggestions_path.read_text(encoding="utf-8"))
+    return [HumanSuggestion.model_validate(item) for item in raw_list]
 
 
 def save_result_json(result: SessionResult, output_dir: Path) -> Path:
@@ -113,7 +123,8 @@ class SiteBuilder:
         # Build transparency page if data_dir is provided
         if data_dir is not None:
             overrides = load_overrides_from_file(data_dir)
-            self._build_transparency(overrides)
+            suggestions = load_suggestions_from_file(data_dir)
+            self._build_transparency(overrides, suggestions)
 
     def _copy_static(self) -> None:
         dest = self.output_dir / "static"
@@ -189,7 +200,9 @@ class SiteBuilder:
         )
         (feed_dir / "index.html").write_text(html, encoding="utf-8")
 
-    def _build_transparency(self, overrides: list[HumanOverride]) -> None:
+    def _build_transparency(
+        self, overrides: list[HumanOverride], suggestions: list[HumanSuggestion]
+    ) -> None:
         """Build the human overrides transparency report page."""
         transparency_dir = self.output_dir / "transparency"
         transparency_dir.mkdir(parents=True, exist_ok=True)
@@ -197,6 +210,7 @@ class SiteBuilder:
         template = self.env.get_template("transparency.html")
         html = template.render(
             overrides=overrides,
+            suggestions=suggestions,
             css_path="../static/css/style.css",
             base_path="../",
         )

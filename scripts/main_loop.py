@@ -2109,6 +2109,7 @@ def step_post_tweet() -> bool:
 async def run_one_cycle(
     *,
     cycle: int,
+    productive_cycles: int,
     proposals_per_cycle: int = DEFAULT_PROPOSALS_PER_CYCLE,
     model: str = DEFAULT_MODEL,
     max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
@@ -2119,8 +2120,10 @@ async def run_one_cycle(
     dry_run: bool = False,
     skip_analysis: bool = False,
     skip_improve: bool = False,
-) -> None:
-    """Run a single main loop cycle with five phases."""
+) -> int:
+    """Run a single main loop cycle with five phases.
+
+    Returns the updated productive_cycles count."""
     telemetry = CycleTelemetry(
         cycle=cycle,
         dry_run=dry_run,
@@ -2329,13 +2332,18 @@ async def run_one_cycle(
     phase_c.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase_c)
 
+    # Update productive_cycles counter: only count cycles where Phase C executed a task
+    phase_c_was_productive = issue is not None
+    if phase_c_was_productive:
+        productive_cycles += 1
+
     # --- Phase D: Project Director ---
     t0 = time.monotonic()
     phase_d = CyclePhaseResult(phase="D")
     should_run_director = (
         director_interval > 0
-        and cycle % director_interval == 0
-        and len(load_telemetry(TELEMETRY_PATH)) >= director_interval
+        and productive_cycles % director_interval == 0
+        and productive_cycles >= director_interval
     )
     if should_run_director:
         if dry_run:
@@ -2364,8 +2372,8 @@ async def run_one_cycle(
     phase_e = CyclePhaseResult(phase="E")
     should_run_strategic = (
         strategic_director_interval > 0
-        and cycle % strategic_director_interval == 0
-        and len(load_telemetry(TELEMETRY_PATH)) >= strategic_director_interval
+        and productive_cycles % strategic_director_interval == 0
+        and productive_cycles >= strategic_director_interval
     )
     if should_run_strategic:
         if dry_run:
@@ -2425,10 +2433,13 @@ async def run_one_cycle(
     append_telemetry(TELEMETRY_PATH, telemetry)
     _check_error_patterns()
 
+    return productive_cycles
+
 
 def _reexec(
     *,
     cycle_offset: int,
+    productive_cycles_offset: int,
     max_cycles: int,
     cooldown: int,
     proposals: int,
@@ -2464,6 +2475,7 @@ def _reexec(
     argv: list[str] = [
         sys.executable, str(Path(__file__).resolve()),
         "--_cycle-offset", str(cycle_offset),
+        "--_productive-cycles-offset", str(productive_cycles_offset),
     ]
     if max_cycles > 0:
         argv += ["--max-cycles", str(max_cycles)]
@@ -2578,9 +2590,13 @@ def main() -> None:
         "-v", "--verbose", action="store_true",
         help="Enable verbose (debug) logging",
     )
-    # Internal arg: tracks completed cycles across re-execs
+    # Internal args: track completed cycles across re-execs
     parser.add_argument(
         "--_cycle-offset", type=int, default=0, dest="cycle_offset",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--_productive-cycles-offset", type=int, default=0, dest="productive_cycles_offset",
         help=argparse.SUPPRESS,
     )
 
@@ -2593,15 +2609,17 @@ def main() -> None:
     )
 
     cycle = args.cycle_offset + 1
+    productive_cycles = args.productive_cycles_offset
 
     # Check if we've exceeded max_cycles (across re-execs)
     if args.max_cycles > 0 and cycle > args.max_cycles:
         print(f"Reached max cycles ({args.max_cycles}). Stopping.")
         return
 
-    async def _run() -> None:
-        await run_one_cycle(
+    async def _run() -> int:
+        return await run_one_cycle(
             cycle=cycle,
+            productive_cycles=productive_cycles,
             proposals_per_cycle=args.proposals,
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
@@ -2615,7 +2633,7 @@ def main() -> None:
         )
 
     try:
-        anyio.run(_run)
+        productive_cycles = anyio.run(_run)
     except KeyboardInterrupt:
         print("\nMain loop interrupted.")
         sys.exit(1)
@@ -2654,6 +2672,7 @@ def main() -> None:
         # the next cycle runs the new version.
         _reexec(
             cycle_offset=cycle,
+            productive_cycles_offset=productive_cycles,
             max_cycles=args.max_cycles,
             cooldown=args.cooldown,
             proposals=args.proposals,

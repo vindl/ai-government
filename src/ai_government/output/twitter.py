@@ -93,27 +93,48 @@ def get_unposted_results(
     return [r for r in results if r.decision.id not in posted]
 
 
+def _truncate_at_word_boundary(text: str, max_len: int) -> str:
+    """Truncate *text* to *max_len* characters at a word boundary.
+
+    If truncation is needed the result ends with ``…`` (single char ellipsis)
+    and never breaks mid-word.
+    """
+    if len(text) <= max_len:
+        return text
+    # Reserve one char for the ellipsis
+    truncated = text[: max_len - 1]
+    # Find last space to avoid cutting mid-word
+    last_space = truncated.rfind(" ")
+    if last_space > 0:
+        truncated = truncated[:last_space]
+    return truncated.rstrip() + "\u2026"
+
+
 def compose_analysis_tweet(result: SessionResult) -> str:
-    """Build a tweet for a single completed analysis."""
-    title = result.decision.title
+    """Build a tweet for a single completed analysis.
+
+    Format — headline-first, no official title, no counter-proposal tag::
+
+        <headline>
+
+        Score: X/10
+
+        <link>
+
+        #AIGovernment #Montenegro
+    """
     score = result.critic_report.decision_score if result.critic_report else "?"
     headline = result.critic_report.headline if result.critic_report else ""
-    cp_tag = " [+counter-proposal]" if result.counter_proposal else ""
     link = f"{SITE_BASE_URL}/decisions/{result.decision.id}.html"
 
-    text = f"{title}: {score}/10{cp_tag}"
-    if headline:
-        text += f"\n\n{headline}"
-    text += f"\n\n{link}\n\n#AIGovernment #Montenegro"
+    suffix = f"\n\nScore: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"
 
-    if len(text) > MAX_TWEET_LENGTH:
-        # Trim headline to fit
-        overhead = len(text) - MAX_TWEET_LENGTH
-        if headline and len(headline) > overhead + 3:
-            headline = headline[: len(headline) - overhead - 3] + "..."
-            text = f"{title}: {score}/10{cp_tag}\n\n{headline}\n\n{link}\n\n#AIGovernment #Montenegro"
-        else:
-            text = f"{title}: {score}/10{cp_tag}\n\n{link}\n\n#AIGovernment #Montenegro"
+    if headline:
+        max_headline = MAX_TWEET_LENGTH - len(suffix)
+        headline = _truncate_at_word_boundary(headline, max_headline)
+        text = headline + suffix
+    else:
+        text = f"Score: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"
 
     return text[:MAX_TWEET_LENGTH]
 

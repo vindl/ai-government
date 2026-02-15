@@ -46,6 +46,7 @@ Before proposing a feature or task, consider whether the expected value justifie
 ## What You Do NOT Do
 - Do NOT write code (that's the Coder's job)
 - Do NOT review code quality (that's the Reviewer's job)
+- Do NOT propose new agents or new agent roles (that's the Strategic Director's job)
 
 ## Key Context
 - This system mirrors the Montenegrin government

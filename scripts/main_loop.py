@@ -2267,12 +2267,25 @@ async def run_one_cycle(
         _run_gh(["gh", "issue", "edit", str(issue["number"]),
                  "--remove-label", LABEL_IN_PROGRESS,
                  "--add-label", LABEL_BACKLOG], check=False)
-        # Search for a non-analysis task
+        # Search for a non-analysis task, respecting priority order
         fallback = None
-        for candidate in list_backlog_issues():
-            if not _issue_has_label(candidate, LABEL_TASK_ANALYSIS):
-                fallback = candidate
+        backlog_issues = list_backlog_issues()
+        priority_labels = [LABEL_HUMAN, LABEL_STRATEGY, LABEL_DIRECTOR]
+        for label in priority_labels:
+            for candidate in backlog_issues:
+                is_match = _issue_has_label(candidate, label)
+                is_analysis = _issue_has_label(candidate, LABEL_TASK_ANALYSIS)
+                if is_match and not is_analysis:
+                    fallback = candidate
+                    break
+            if fallback is not None:
                 break
+        # Fall back to FIFO if no priority match
+        if fallback is None:
+            for candidate in backlog_issues:
+                if not _issue_has_label(candidate, LABEL_TASK_ANALYSIS):
+                    fallback = candidate
+                    break
         if fallback is not None:
             issue = fallback
             log.info("Analysis rate-limited; falling back to #%d: %s",
@@ -2283,8 +2296,8 @@ async def run_one_cycle(
                 hours, remainder = divmod(wait, 3600)
                 minutes = remainder // 60
                 print(f"  Analysis rate-limited, no other tasks. "
-                      f"Sleeping {hours}h {minutes}m until next analysis window...")
-                phase_c.detail = f"rate limited — sleeping {hours}h {minutes}m"
+                      f"Next analysis window in {hours}h {minutes}m.")
+                phase_c.detail = f"rate limited — {hours}h {minutes}m remaining"
             else:
                 print("  Analysis rate-limited (daily cap). No other tasks.")
                 phase_c.detail = "rate limited — daily cap"
@@ -2628,11 +2641,9 @@ def main() -> None:
         wait = analysis_wait_seconds(min_gap_hours=args.min_analysis_gap)
         has_work = _backlog_has_executable_tasks()
         if wait > 0 and not has_work:
-            # Nothing to do until the rate limit clears — sleep until then
-            cooldown = wait + 60  # small buffer after the gap expires
-            hours, remainder = divmod(cooldown, 3600)
-            mins = remainder // 60
-            print(f"\nRate-limited, no other tasks. Sleeping {hours}h {mins}m...")
+            # Nothing executable — use 5-minute cadence so directors/PM still run
+            cooldown = 300
+            print(f"\nRate-limited, no other tasks. Sleeping {cooldown}s...")
         else:
             cooldown = args.cooldown
             print(f"\nCooling down for {cooldown}s...")

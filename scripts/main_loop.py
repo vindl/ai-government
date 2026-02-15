@@ -842,8 +842,8 @@ def should_run_analysis(
         )
         return False
 
-    # Check minimum gap
-    if state.last_analysis_completed_at:
+    # Check minimum gap (skip if no gap required)
+    if min_gap_hours > 0 and state.last_analysis_completed_at:
         from datetime import timedelta
         last_completed = datetime.fromisoformat(state.last_analysis_completed_at)
         elapsed = datetime.now(UTC) - last_completed

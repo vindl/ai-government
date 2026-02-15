@@ -88,6 +88,8 @@ LABEL_TASK_ANALYSIS = "task:analysis"
 LABEL_TASK_CODE = "task:code-change"
 LABEL_CI_FAILURE = "ci-failure"
 LABEL_TASK_FIX = "task:fix"
+LABEL_GAP_CONTENT = "gap:content"
+LABEL_GAP_TECHNICAL = "gap:technical"
 
 ALL_LABELS: dict[str, str] = {
     LABEL_PROPOSED: "808080",    # gray
@@ -104,6 +106,8 @@ ALL_LABELS: dict[str, str] = {
     LABEL_TASK_CODE: "5319e7",      # violet
     LABEL_CI_FAILURE: "b60205",     # red (CI failure)
     LABEL_TASK_FIX: "ff6347",       # tomato (high-priority fix task)
+    LABEL_GAP_CONTENT: "c2e0c6",    # light green (content gap observation)
+    LABEL_GAP_TECHNICAL: "d4c5f9",  # light purple (technical gap observation)
 }
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
@@ -522,7 +526,11 @@ def _issue_has_debate_comment(issue_number: int) -> bool:
 
 
 def list_backlog_issues() -> list[dict[str, Any]]:
-    """Return backlog issues, oldest first."""
+    """Return backlog issues, oldest first.
+
+    Excludes gap observation issues (gap:content, gap:technical) which are
+    director input, not executable tasks.
+    """
     result = _run_gh([
         "gh", "issue", "list",
         "--label", LABEL_BACKLOG,
@@ -531,6 +539,15 @@ def list_backlog_issues() -> list[dict[str, Any]]:
         "--limit", "50",
     ])
     issues: list[dict[str, Any]] = json.loads(result.stdout) if result.stdout.strip() else []
+    # Filter out gap observation issues — they're director input, not coder tasks
+    gap_labels = {LABEL_GAP_CONTENT, LABEL_GAP_TECHNICAL}
+    issues = [
+        i for i in issues
+        if not any(
+            lbl.get("name") in gap_labels
+            for lbl in i.get("labels", [])
+        )
+    ]
     issues.sort(key=lambda i: i.get("createdAt", ""))
     return issues
 
@@ -2225,6 +2242,31 @@ def _prefetch_director_context(last_n_cycles: int) -> str:
     # 5. Recent CI run results
     sections.append(_build_ci_results_section())
 
+    # 6. Open technical gap observations from PM
+    gap_result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_GAP_TECHNICAL,
+        "--state", "open",
+        "--json", "number,title,body,createdAt",
+        "--limit", "10",
+    ], check=False)
+    if gap_result.returncode == 0 and gap_result.stdout.strip():
+        gap_issues = json.loads(gap_result.stdout)
+        if gap_issues:
+            gap_lines = []
+            for gi in gap_issues:
+                gap_lines.append(
+                    f"- #{gi['number']}: {gi['title']}\n  {gi.get('body', '')[:200]}"
+                )
+            sections.append(
+                "## Open Technical Gap Observations (from PM)\n\n"
+                "The PM has identified the following technical/operational gaps.\n"
+                "Review each one and decide whether to act (file a fix/staffing issue) "
+                "or dismiss. Close the gap issue either way, with a comment explaining "
+                "your decision.\n\n"
+                + "\n".join(gap_lines)
+            )
+
     return "\n\n".join(sections)
 
 
@@ -2411,6 +2453,31 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
 
     # 5. Skipped/rejected news items (topics we saw but didn't analyze)
     sections.append(_build_skipped_news_section())
+
+    # 6. Open content gap observations from PM
+    gap_result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_GAP_CONTENT,
+        "--state", "open",
+        "--json", "number,title,body,createdAt",
+        "--limit", "10",
+    ], check=False)
+    if gap_result.returncode == 0 and gap_result.stdout.strip():
+        gap_issues = json.loads(gap_result.stdout)
+        if gap_issues:
+            gap_lines = []
+            for gi in gap_issues:
+                gap_lines.append(
+                    f"- #{gi['number']}: {gi['title']}\n  {gi.get('body', '')[:200]}"
+                )
+            sections.append(
+                "## Open Content Gap Observations (from PM)\n\n"
+                "The PM has identified the following content/coverage gaps.\n"
+                "Review each one and decide whether to act (file a staffing/fix issue) "
+                "or dismiss. Close the gap issue either way, with a comment explaining "
+                "your decision.\n\n"
+                + "\n".join(gap_lines)
+            )
 
     # Placeholder for future metrics
     sections.append(

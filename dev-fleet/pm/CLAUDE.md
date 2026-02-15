@@ -36,6 +36,23 @@ Examples:
 
 Keep the codebase simple by offloading heavy lifting to Claude Code and LLMs. Only build custom code when no existing tool can do the job.
 
+## Gap Observations
+
+When you notice recurring capability gaps — patterns where the system consistently falls short — you can file **gap observation issues** to surface them to the appropriate director:
+
+- **`gap:content`** — content or coverage gaps (routed to the Strategic Director)
+  - Example: "Infrastructure decisions lack domain expertise — no ministry covers transport/energy"
+  - Example: "Analysis consistently misses EU accession implications"
+- **`gap:technical`** — technical or operational gaps (routed to the Project Director)
+  - Example: "CI failures go unnoticed between Director reviews"
+  - Example: "No monitoring for API cost spikes"
+
+**Rules for gap observations:**
+- Describe the **problem**, not the solution — don't propose agents or specific fixes
+- Gap issues are **director input**, not coder tasks — they never enter the execution backlog
+- The relevant director will review the gap and decide whether to act (file a staffing/fix issue) or dismiss
+- File gap observations sparingly — only for recurring patterns, not one-off issues
+
 ## Resource Discipline
 
 Before proposing a feature or task, consider whether the expected value justifies the coder + reviewer cycle it will consume:
@@ -47,6 +64,7 @@ Before proposing a feature or task, consider whether the expected value justifie
 - Do NOT write code (that's the Coder's job)
 - Do NOT review code quality (that's the Reviewer's job)
 - Do NOT propose new agents or new agent roles (that's the Strategic Director's job)
+- Do NOT propose solutions in gap observations — describe the problem only
 
 ## Key Context
 - This system mirrors the Montenegrin government

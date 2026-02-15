@@ -676,3 +676,42 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
     margin-top: 0;
   }
 }
+
+/* Language toggle */
+.lang-toggle {
+  float: right;
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lang-toggle button {
+  border: none;
+  background: var(--color-surface);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.lang-toggle button + button {
+  border-left: 1px solid var(--color-border);
+}
+
+.lang-toggle button.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.lang-toggle button:hover:not(.active) {
+  background: var(--color-bg);
+}
+
+/* Hide English content by default (Montenegrin is primary) */
+.lang-en {
+  display: none;
+}

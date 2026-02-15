@@ -334,3 +334,132 @@ All new model fields are optional (`None` default) for backwards compatibility w
 - Feedback loop enables continuous improvement of analysis quality
 - When social/engagement metrics are available, Editorial Director can identify which topics/framing generate most public interest
 - Non-blocking design ensures system keeps running even if review fails
+
+---
+
+## ADR-018: Zero-Budget Constraint as Design Driver
+
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: This project has no funding. No grants, no sponsors, no revenue. Every tool choice must account for the fact that the project operates on the maintainer's personal resources and free tiers.
+
+**Decision**: Treat zero-budget as a first-class architectural constraint, not a temporary limitation:
+- **GitHub as platform**: Issues (task tracking), Actions (CI/CD), Pages (hosting), Projects (kanban), Discussions (community) — all free for public repos
+- **No paid infrastructure**: No databases, no servers, no SaaS subscriptions. State lives in git, files, and GitHub's free tier
+- **Docker for local execution**: The main loop runs on personal hardware or free CI minutes, not cloud VMs
+- **Claude API is the only variable cost**: All other tooling is zero-cost. This focuses cost management on a single dimension
+
+**Consequences**: The project is reproducible by anyone with a Claude API key and a GitHub account. No vendor lock-in beyond GitHub (which is also the transparency mechanism — see ADR-019). The constraint forces simplicity: if a feature requires paid infrastructure, it must justify itself against the alternative of not existing. Trade-off: free tiers have rate limits (GitHub API: 5,000 requests/hour authenticated, 500 content-creation/hour; Actions: 2,000 minutes/month) which bound throughput.
+
+---
+
+## ADR-019: GitHub as Transparency Mechanism, Not Just Convenience
+
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The project uses GitHub Issues for agent coordination, PRs for code changes, and Actions for automation. This could be seen as a default engineering choice — GitHub is what developers reach for. But for this project, the choice is load-bearing.
+
+**Decision**: GitHub is the coordination layer *because it is public by default*. This directly serves the Constitution (Art. 5: "show your reasoning", Art. 22: "methodology, source code, prompts, and analytical framework are public"):
+- Every agent proposal, debate, and verdict is a GitHub Issue comment — visible to anyone
+- Every code change goes through a PR with reviewer feedback — auditable
+- The self-improvement loop's decisions are traceable: why was this task proposed? What was the debate? Who approved it?
+- The project board shows what the system is working on, right now, in real time
+
+This is a form of **stigmergy** — indirect coordination through a shared, observable environment. Agents don't message each other; they leave traces (issues, labels, comments) that other agents read. The public reads the same traces.
+
+**Alternatives considered**:
+- Internal task queue (Redis, SQLite) — rejected: faster, but opaque. Citizens can't see the queue
+- Linear/Jira — rejected: adds cost, moves coordination behind a login wall
+- File-based coordination — rejected: not observable without reading the repo directly
+
+**Consequences**: The project's operational transparency is automatic, not performative. There's no separate "transparency report" to write — the work *is* the report. Trade-off: GitHub API latency (200-500ms per call vs <1ms for file I/O), rate limits, and the fact that GitHub is a US corporation hosting a Montenegrin public interest project. The transparency benefit outweighs these costs.
+
+---
+
+## ADR-020: Model Selection — Quality vs Cost Trade-off
+
+**Date**: 2026-02-15
+**Status**: Proposed
+
+**Context**: The project uses Claude models for all agent work. The highest-quality models (Opus) produce the best analysis but cost significantly more per token. Routine tasks (label management, template formatting, issue parsing) don't need frontier-model reasoning.
+
+**Decision**: Tiered model selection based on task criticality:
+- **Analysis agents** (ministries, parliament, critic, synthesizer): Use the best available model. These produce the public-facing output that defines the project's credibility. Cutting quality here undermines the mission
+- **Dev fleet** (coder, reviewer, PM): Use capable but cost-effective models. Code quality matters but is verified by CI and review loops — errors get caught
+- **Directors** (project, strategic, editorial): Use high-quality models. These make judgment calls about what to work on and whether output meets standards
+- **News Scout**: Use capable models. Needs web comprehension and news judgment, but output is reviewed before publication
+- **Routine operations** (issue parsing, label transitions, template rendering): No LLM call where deterministic code suffices
+
+**Consequences**: The most expensive operations are the ones that matter most — public-facing analysis. Cost scales primarily with the number of decisions analyzed per day (capped at 3 by the News Scout). Self-improvement cycles are the secondary cost driver and can be throttled via `--max-cycles` and `--cooldown`. The project should track per-cycle costs in telemetry to inform future model selection decisions.
+
+---
+
+## ADR-021: Monorepo — Engine and Application Are One Organism
+
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The project has two conceptual layers: (1) the government analysis agents that produce public-facing output, and (2) the self-improving meta-layer (directors, PM, coder, reviewer, main loop) that evolves the system. These could be separated into two repositories — a reusable "self-improving agent engine" and a domain-specific "government analysis application."
+
+**Decision**: Keep everything in one repository. The layers are not separable in practice:
+- **The engine modifies the application**: The coder agent creates PRs that change ministry prompts, analysis models, and output templates. Cross-repo PRs would add significant complexity
+- **`_reexec()` assumes one repo**: `git pull --ff-only && os.execv()` restarts the process with new code. Coordinating pulls across two repos breaks this
+- **GitHub Issues span both layers**: A single issue might touch analysis quality (application) and prompt tuning (engine). One issue tracker is simpler than cross-repo references
+- **The transparency mechanism is repo-scoped**: One public repo = one place for citizens to observe the entire system
+- **The engine isn't domain-neutral**: Key design choices (GitHub for transparency, Constitution as reward signal, public observability) are driven by the government-analysis mission. Extracting a "generic" engine would strip out its most distinctive properties
+
+**Alternatives considered**:
+- Two repos (engine + application) — rejected: cross-repo self-modification is significantly more complex; the engine's design is mission-specific; no second domain exists to justify the extraction
+- Monorepo with hard internal boundaries (separate packages) — considered for future: if the engine proves generalizable, extract then, with the benefit of knowing where the real boundaries are
+
+**Consequences**: Simpler operations, simpler CI, single audit trail. The cost is that the project looks like one large system rather than a composable toolkit. This is acceptable because it *is* one system — the self-improvement and the analysis co-evolve.
+
+---
+
+## ADR-022: Engagement Metrics as Validation, Not Optimization Target
+
+**Date**: 2026-02-15
+**Status**: Proposed
+
+**Context**: The project posts daily digests to X and publishes scorecards on the website. Social media engagement (likes, retweets, replies) and website traffic are measurable signals. The temptation is to optimize for these metrics — chase engagement to "prove" impact.
+
+**Decision**: Treat engagement metrics as a **validation signal** (are people reading this?) not an **optimization target** (how do we get more clicks?):
+- Track engagement data when available, but do not feed it into agent reward loops
+- Do not modify analysis framing, topic selection, or tone to increase engagement
+- The Constitution (Art. 4: "never distort, omit, or spin") explicitly prohibits optimizing for attention at the cost of accuracy
+- Engagement is a lagging indicator — early engagement will be low or zero. This is not a signal to change course
+- When engagement data exists, use it as a **dashboard** (which topics resonate?) not a **score** (are we doing well?)
+
+**Rationale (Goodhart's Law)**: Once engagement becomes a target, the system will find ways to game it — sensationalist framing, partisan hot-takes, outrage-driven topic selection. These are the exact behaviors the Constitution prohibits. The project's credibility depends on *not* optimizing for attention.
+
+**Consequences**: The project may grow slowly. Early engagement will be negligible. This is acceptable — the goal is a trustworthy institution, not a viral account. The Editorial Director tracks engagement potential as one of several quality dimensions, but it does not override factual accuracy or constitutional alignment.
+
+---
+
+## ADR-023: AGPL-3.0 Licensing
+
+**Date**: 2026-02-14
+**Status**: Accepted
+
+**Context**: The project's code, prompts, and methodology are public (Constitution Art. 22). The license must allow anyone to reuse, modify, and learn from the work — but prevent commercial exploitation or closed-source forks. A government transparency tool should not become someone's proprietary product.
+
+**Decision**: License under **AGPL-3.0** (GNU Affero General Public License v3.0):
+- **Allows**: copying, modification, redistribution, running the software for any purpose
+- **Requires**: any modified version — including one deployed as a network service — must release its full source code under AGPL-3.0
+- **Effectively prevents closed-source use**: the copyleft obligation makes proprietary forks legally impossible
+- **Effectively deters commercial exploitation**: most companies will not adopt AGPL code because they cannot keep modifications proprietary. This is a practical barrier, not a legal prohibition
+
+**Why not an explicit non-commercial clause**:
+- Licenses with non-commercial restrictions (CC BY-NC-SA, Polyform Noncommercial) are not recognized as "open source" by OSI. This limits community adoption and creates ambiguity (what counts as "commercial"?)
+- AGPL achieves the same practical outcome — deterring commercial capture — while remaining a recognized free software license
+- If another government, NGO, or civic tech project wants to adapt this for their country, AGPL lets them. A non-commercial clause might block legitimate civic reuse by organizations that technically operate commercially
+
+**Alternatives considered**:
+- MIT/Apache — rejected: allows closed-source forks and commercial exploitation with no obligations
+- GPL-3.0 — rejected: copyleft applies to distribution but has the "SaaS loophole" — deploying as a web service doesn't trigger source disclosure. AGPL closes this gap
+- CC BY-NC-SA 4.0 — rejected: not designed for software (no patent grant, no linking semantics), discouraged by FSF and OSI for code
+- Polyform Noncommercial 1.0.0 — rejected: explicitly non-commercial but doesn't require derivative works to stay open source
+
+**Consequences**: Anyone can fork, adapt, and deploy this project — for Montenegro, for another country, for any civic purpose — as long as they keep it open. Companies can use it too, but they must open-source their modifications. The AGPL's reputation as "the license companies avoid" is a feature, not a bug, for this project.

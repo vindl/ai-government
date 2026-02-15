@@ -328,6 +328,50 @@ def merge_pr(pr_number: int) -> None:
     log.info("Merged PR #%d", pr_number)
 
 
+def sync_local_main() -> None:
+    """Sync local main branch with remote.
+
+    Ensures subsequent PR branches are created from the latest remote state.
+    This is critical after merge attempts — even failed ones — because a
+    "ghost merge" (API error but server-side success) can leave local main
+    stale, causing merge conflicts on every subsequent PR.
+    """
+    _run_gh(["git", "checkout", "main"])
+    _run_gh(["git", "fetch", "origin", "main"])
+    _run_gh(["git", "reset", "--hard", "origin/main"])
+    log.info("Synced local main with origin/main")
+
+
+def _merge_pr_safe(pr_number: int) -> None:
+    """Merge a PR with ghost-merge detection and local main sync.
+
+    Handles the case where ``gh pr merge`` returns a transient API error
+    (e.g. GraphQL timeout) but the merge actually succeeded server-side.
+    Always syncs local main afterward via a ``finally`` block so that
+    subsequent PR branches start from a clean state.
+    """
+    try:
+        merge_pr(pr_number)
+    except subprocess.CalledProcessError:
+        # Check if the merge actually succeeded despite the API error
+        result = _run_gh(
+            ["gh", "pr", "view", str(pr_number), "--json", "state", "-q", ".state"],
+            check=False,
+        )
+        if result.stdout.strip() == "MERGED":
+            log.warning(
+                "gh pr merge returned error but PR #%d is merged — continuing",
+                pr_number,
+            )
+        else:
+            # Genuine failure — close the orphaned PR so retry starts clean
+            _run_gh(["gh", "pr", "close", str(pr_number)], check=False)
+            raise
+    finally:
+        # Always sync local main so subsequent PRs start clean
+        sync_local_main()
+
+
 def _get_owner_repo() -> str:
     """Get owner/repo for the current repository.
 
@@ -625,6 +669,11 @@ async def run_workflow(
         print(f"Reviewing existing PR #{pr_number} on branch {branch_name}")
     else:
         # --- New task: coder implements and opens PR ---
+        # Sync local main first so the new branch starts from latest remote state.
+        # This prevents merge conflicts caused by stale local main (e.g. after
+        # a ghost merge where the API errored but the merge succeeded).
+        sync_local_main()
+
         branch_name = branch or make_branch_name(task)
 
         current = get_current_branch()
@@ -717,13 +766,13 @@ async def run_workflow(
                 f"\nWARNING: Reviewer failed to post verdict for {consecutive_missing_verdicts} rounds. "
                 "Assuming no blocking issues and merging PR."
             )
-            merge_pr(pr_number)
+            _merge_pr_safe(pr_number)
             print(f"Done! PR merged after {round_num} rounds (auto-approved due to missing verdicts).")
             return
 
         if state == "APPROVED":
             print(f"\nPR #{pr_number} approved! Merging...")
-            merge_pr(pr_number)
+            _merge_pr_safe(pr_number)
             print(f"Done! PR merged after {round_num} rounds.")
             return
 

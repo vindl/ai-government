@@ -247,13 +247,21 @@ async def _collect_agent_output(
 # ---------------------------------------------------------------------------
 
 
+_GH_TIMEOUT_SECONDS = 30
+
+
 def _run_gh(
     args: list[str], *, check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     log.debug("Running: %s", " ".join(args))
-    result = subprocess.run(  # noqa: S603
-        args, capture_output=True, text=True, cwd=PROJECT_ROOT, check=False,
-    )
+    try:
+        result = subprocess.run(  # noqa: S603
+            args, capture_output=True, text=True, cwd=PROJECT_ROOT, check=False,
+            timeout=_GH_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        log.error("Command timed out after %ds: %s", _GH_TIMEOUT_SECONDS, " ".join(args))
+        return subprocess.CompletedProcess(args, returncode=1, stdout="", stderr="timeout")
     if check and result.returncode != 0:
         log.error("Command failed: %s\nstderr: %s", " ".join(args), result.stderr.strip())
         raise subprocess.CalledProcessError(result.returncode, args, result.stdout, result.stderr)

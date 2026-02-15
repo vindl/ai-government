@@ -12,6 +12,12 @@ Montenegro is a small country with an active government making consequential dec
 3. **Public Interest**: Format output for social media engagement (scorecards, thread-ready content)
 4. **Automation**: Run daily sessions automatically, processing new decisions
 
+## Constraints
+1. **Zero budget**: No funding, no sponsors. All infrastructure must be free-tier or personal resources. The only variable cost is Claude API usage.
+2. **Public by default**: Every operational decision is visible on GitHub. This is not a transparency feature — it is the architecture. (See ADR-019)
+3. **Quality over growth**: The project optimizes for analytical credibility, not audience size. Engagement metrics are observed, not optimized. (See ADR-022)
+4. **Single operator**: One maintainer. The system must run autonomously with minimal human intervention, but all autonomous actions must be publicly traceable.
+
 ## Current State
 - **Phase**: Initial scaffold (v0.1.0)
 - **Status**: Repository structure created, core models and agent framework in place

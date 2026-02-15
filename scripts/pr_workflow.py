@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+DEFAULT_MODEL = "claude-opus-4-6"
 DEFAULT_MAX_ROUNDS = 0  # 0 = unlimited, loop until approved
 
 CODER_MAX_TURNS = 200  # generous cap to prevent infinite loops

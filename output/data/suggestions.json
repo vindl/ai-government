@@ -1,0 +1,156 @@
+[
+  {
+    "timestamp": "2026-02-15T01:18:19Z",
+    "issue_number": 130,
+    "issue_title": "Gate human-suggestion ingestion on privileged user check",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T01:13:23Z",
+    "issue_number": 129,
+    "issue_title": "Show all human-suggested issues on the transparency report",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T00:57:28Z",
+    "issue_number": 126,
+    "issue_title": "Add operational cost awareness to director and PM prompts",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T00:49:18Z",
+    "issue_number": 124,
+    "issue_title": "Only count productive cycles toward director intervals",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-15T00:09:50Z",
+    "issue_number": 118,
+    "issue_title": "Fix truncated GitHub issue titles for analysis tasks",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T23:30:54Z",
+    "issue_number": 112,
+    "issue_title": "Rate-limit analysis: max 3/day, 5h apart, gate news scout on completion",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T18:45:29Z",
+    "issue_number": 83,
+    "issue_title": "Add Strategic Director agent for external impact and project growth",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T18:15:49Z",
+    "issue_number": 82,
+    "issue_title": "Add Project Director agent with telemetry-driven process improvement",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T17:57:52Z",
+    "issue_number": 79,
+    "issue_title": "Remove unused code: social_media.py, render_scorecard_html, MCP stubs",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T17:33:09Z",
+    "issue_number": 75,
+    "issue_title": "Coder writes tests, reviewer checks for them \u2014 remove unused dev fleet roles",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T17:18:16Z",
+    "issue_number": 73,
+    "issue_title": "Fix reviewer agent failing to post verdict \u2014 increase max_turns and handle missing verdict",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T17:14:44Z",
+    "issue_number": 72,
+    "issue_title": "Add guidance: use Claude Code tools instead of building bespoke implementations",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T17:14:42Z",
+    "issue_number": 71,
+    "issue_title": "Remove language encouraging 1:1 replication of Montenegro's government structure",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T16:24:26Z",
+    "issue_number": 64,
+    "issue_title": "Skip debate for human-suggestion issues \u2014 move straight to backlog",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T16:18:13Z",
+    "issue_number": 62,
+    "issue_title": "Verify issues are still open before debating them",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T16:15:44Z",
+    "issue_number": 61,
+    "issue_title": "Skip Phase B (proposals) when backlog is not empty",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T16:12:11Z",
+    "issue_number": 59,
+    "issue_title": "Change default proposals per cycle from 3 to 1",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T16:06:57Z",
+    "issue_number": 56,
+    "issue_title": "Prioritize human-suggestion issues over AI-generated proposals in backlog",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T16:05:18Z",
+    "issue_number": 55,
+    "issue_title": "Deduplicate proposals against existing open issues before creating new ones",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T16:01:00Z",
+    "issue_number": 54,
+    "issue_title": "Publish human overrides in a transparency report on the site",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T15:57:59Z",
+    "issue_number": 51,
+    "issue_title": "Respect HUMAN OVERRIDE in issue comments and PRs above all other guidance",
+    "status": "closed",
+    "creator": "vindl"
+  },
+  {
+    "timestamp": "2026-02-14T15:47:36Z",
+    "issue_number": 46,
+    "issue_title": "Remove code related to GitHub projects",
+    "status": "closed",
+    "creator": "vindl"
+  }
+]

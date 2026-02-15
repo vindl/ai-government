@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-15T11:30:58Z",
+    "issue_number": 179,
+    "issue_title": "Remove daily digest tweet, keep only per-analysis tweets",
+    "status": "open",
+    "creator": "vindl"
+  },
+  {
     "timestamp": "2026-02-15T10:35:17Z",
     "issue_number": 176,
     "issue_title": "Sync local main with remote before each PR branch to prevent merge conflicts",
@@ -24,7 +31,7 @@
     "timestamp": "2026-02-15T09:59:29Z",
     "issue_number": 169,
     "issue_title": "Site i18n: bilingual navigation and chrome",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

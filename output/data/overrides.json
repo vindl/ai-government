@@ -1,5 +1,16 @@
 [
   {
+    "timestamp": "2026-02-15T01:01:08Z",
+    "issue_number": 126,
+    "pr_number": null,
+    "override_type": "comment",
+    "actor": "vindl",
+    "issue_title": "Add operational cost awareness to director and PM prompts",
+    "ai_verdict": "AI rejected/proposed changes",
+    "human_action": "Moved to backlog via override",
+    "rationale": null
+  },
+  {
     "timestamp": "2026-02-14T16:50:10Z",
     "issue_number": 51,
     "pr_number": null,

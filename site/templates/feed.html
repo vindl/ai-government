@@ -1,9 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}News — AI Government{% endblock %}
+{% block title %}
+  <span class="lang-mne">Vijesti — AI Vlada</span>
+  <span class="lang-en">News — AI Government</span>
+{% endblock %}
 
 {% block content %}
-<h1>News</h1>
+<h1 class="lang-mne">Vijesti</h1>
+<h1 class="lang-en">News</h1>
 
 {% if announcements %}
 <ul class="announcements">
@@ -16,6 +20,7 @@
   {% endfor %}
 </ul>
 {% else %}
-<p>No news available.</p>
+<p class="lang-mne">Nema dostupnih vijesti.</p>
+<p class="lang-en">No news available.</p>
 {% endif %}
 {% endblock %}

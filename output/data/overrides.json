@@ -1,5 +1,16 @@
 [
   {
+    "timestamp": "2026-02-15T09:12:17Z",
+    "issue_number": 158,
+    "pr_number": null,
+    "override_type": "comment",
+    "actor": "vindl",
+    "issue_title": "Add timeout to _run_gh() to prevent cycle hangs from stalled API calls",
+    "ai_verdict": "AI rejected/proposed changes",
+    "human_action": "Moved to backlog via override",
+    "rationale": null
+  },
+  {
     "timestamp": "2026-02-15T02:34:47Z",
     "issue_number": 152,
     "pr_number": null,

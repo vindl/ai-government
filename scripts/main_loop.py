@@ -2124,7 +2124,7 @@ async def step_execute_code_change(
     _run_gh(["git", "pull", "--ff-only"], check=False)
 
     try:
-        await run_workflow(task, max_rounds=max_pr_rounds, model=model)
+        await run_workflow(task, max_rounds=max_pr_rounds, model=model, issue=issue_number)
         mark_issue_done(issue_number)
         log.info("Issue #%d completed successfully", issue_number)
         return True

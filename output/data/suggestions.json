@@ -24,7 +24,7 @@
     "timestamp": "2026-02-15T10:18:23Z",
     "issue_number": 172,
     "issue_title": "Persist runtime errors to structured error log for Project Director",
-    "status": "open",
+    "status": "closed",
     "creator": "vindl"
   },
   {

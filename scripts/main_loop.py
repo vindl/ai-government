@@ -132,8 +132,8 @@ NEWS_SCOUT_MAX_DECISIONS = 3
 ANALYSIS_STATE_PATH = PROJECT_ROOT / "output" / "analysis_state.json"
 
 # Analysis rate limiting — can be overridden via CLI or env vars
-DEFAULT_MAX_ANALYSES_PER_DAY = int(os.getenv("LOOP_MAX_ANALYSES_PER_DAY", "3"))
-DEFAULT_MIN_ANALYSIS_GAP_HOURS = int(os.getenv("LOOP_MIN_ANALYSIS_GAP_HOURS", "5"))
+DEFAULT_MAX_ANALYSES_PER_DAY = int(os.getenv("LOOP_MAX_ANALYSES_PER_DAY", "5"))
+DEFAULT_MIN_ANALYSIS_GAP_HOURS = int(os.getenv("LOOP_MIN_ANALYSIS_GAP_HOURS", "2"))
 
 log = logging.getLogger("main_loop")
 
@@ -1137,9 +1137,19 @@ def analysis_wait_seconds(
 
 
 def _backlog_has_executable_tasks() -> bool:
-    """Return True if the backlog has non-analysis tasks that can run now."""
+    """Return True if the backlog has tasks that can run now.
+
+    Analysis tasks count as executable when the analysis rate limiter allows.
+    """
     issues = list_backlog_issues()
-    return any(not _issue_has_label(issue, LABEL_TASK_ANALYSIS) for issue in issues)
+    if not issues:
+        return False
+    # Non-analysis tasks are always executable
+    if any(not _issue_has_label(issue, LABEL_TASK_ANALYSIS) for issue in issues):
+        return True
+    # Analysis tasks are executable when rate limiter allows
+    has_analysis = any(_issue_has_label(issue, LABEL_TASK_ANALYSIS) for issue in issues)
+    return bool(has_analysis and should_run_analysis())
 
 
 def should_fetch_news() -> bool:
@@ -2836,15 +2846,21 @@ async def run_one_cycle(
     else:
         print("\nPhase B: Self-improvement — proposing and debating...")
 
-        # Generate AI proposals only when backlog is drained or when the only
-        # remaining tasks are rate-limited analysis issues (nothing executable).
+        # Generate AI proposals only when backlog is fully drained.
+        # Analysis tasks in the backlog also suppress proposals — even if
+        # rate-limited — to prevent self-improvement from crowding out
+        # the analysis pipeline.
         backlog = list_backlog_issues()
-        has_executable = _backlog_has_executable_tasks()
-        if backlog and has_executable:
-            print(
-                f"  AI proposals: Skipped "
-                f"(backlog has {len(backlog)} executable issues — draining queue)"
+        if backlog:
+            has_analysis = any(
+                _issue_has_label(i, LABEL_TASK_ANALYSIS) for i in backlog
             )
+            reason = (
+                "analysis issues waiting"
+                if has_analysis
+                else f"{len(backlog)} executable issues — draining queue"
+            )
+            print(f"  AI proposals: Skipped ({reason})")
             ai_proposals: list[dict[str, str]] = []
         else:
             try:

@@ -425,7 +425,7 @@ def list_human_suggestions() -> list[dict[str, Any]]:
         "gh", "issue", "list",
         "--label", LABEL_HUMAN,
         "--state", "open",
-        "--json", "number,title,body,createdAt",
+        "--json", "number,title,body,createdAt,author",
         "--limit", "50",
     ])
     return json.loads(result.stdout) if result.stdout.strip() else []
@@ -2450,6 +2450,25 @@ async def run_one_cycle(
         human_accepted = 0
         for h in human_issues:
             issue_num = h["number"]
+            # Verify author is a privileged user (admin/maintainer)
+            author = h.get("author", {}).get("login", "")
+            if not _is_privileged_user(author):
+                # Close the issue and log the rejection
+                _run_gh([
+                    "gh", "issue", "close", str(issue_num),
+                    "--comment",
+                    "Closed: human-suggestion issues are restricted to project maintainers.",
+                ], check=False)
+                # Remove the label to prevent re-processing
+                _run_gh([
+                    "gh", "issue", "edit", str(issue_num),
+                    "--remove-label", LABEL_HUMAN,
+                ], check=False)
+                log.warning(
+                    "Rejected human-suggestion #%d from non-privileged user %s",
+                    issue_num, author,
+                )
+                continue
             # Check if already in backlog (avoid redundant API calls)
             result = _run_gh([
                 "gh", "issue", "view", str(issue_num),

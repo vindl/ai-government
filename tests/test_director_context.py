@@ -12,14 +12,13 @@ from unittest.mock import patch
 scripts_path = Path(__file__).parent.parent / "scripts"
 sys.path.insert(0, str(scripts_path))
 
+from government.models.telemetry import CyclePhaseResult, CycleTelemetry  # noqa: E402
 from main_loop import (  # noqa: E402
     _build_agent_performance_section,
     _build_ci_results_section,
     _build_error_distribution_section,
     _build_skipped_news_section,
 )
-
-from ai_government.models.telemetry import CyclePhaseResult, CycleTelemetry  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # _build_error_distribution_section

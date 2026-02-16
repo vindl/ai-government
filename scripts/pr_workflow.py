@@ -394,8 +394,8 @@ def _get_owner_repo() -> str:
 
 
 def _load_role_prompt(role: str) -> str:
-    """Load a theseus-fleet role prompt from disk."""
-    path = PROJECT_ROOT / "theseus-fleet" / role / "CLAUDE.md"
+    """Load a theseus role prompt from disk."""
+    path = PROJECT_ROOT / "theseus" / role / "CLAUDE.md"
     if path.exists():
         return path.read_text()
     log.warning("Role prompt not found: %s", path)

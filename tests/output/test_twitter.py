@@ -9,16 +9,16 @@ from unittest.mock import call, patch
 if TYPE_CHECKING:
     from pathlib import Path
 
-from ai_government.models.assessment import (
+from government.models.assessment import (
     Assessment,
     CounterProposal,
     CriticReport,
     ParliamentDebate,
     Verdict,
 )
-from ai_government.models.decision import GovernmentDecision
-from ai_government.orchestrator import SessionResult
-from ai_government.output.twitter import (
+from government.models.decision import GovernmentDecision
+from government.orchestrator import SessionResult
+from government.output.twitter import (
     MAX_TWEET_LENGTH,
     MONTHLY_POST_LIMIT,
     BilingualTweet,
@@ -243,7 +243,7 @@ class TestTranslateHeadline:
 
     def test_successful_translation(self) -> None:
         """Successful translation returns translated text."""
-        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+        with patch("government.output.twitter.subprocess.run") as mock_run:
             mock_run.return_value.stdout = "Prevedeni naslov\n"
             mock_run.return_value.returncode = 0
             result = translate_headline("Translated headline")
@@ -251,14 +251,14 @@ class TestTranslateHeadline:
 
     def test_failed_translation_falls_back(self) -> None:
         """Failed translation returns the original English headline."""
-        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+        with patch("government.output.twitter.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("claude not found")
             result = translate_headline("Original headline")
         assert result == "Original headline"
 
     def test_empty_output_falls_back(self) -> None:
         """Empty translation output returns the original headline."""
-        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+        with patch("government.output.twitter.subprocess.run") as mock_run:
             mock_run.return_value.stdout = ""
             mock_run.return_value.returncode = 0
             result = translate_headline("Original headline")
@@ -266,7 +266,7 @@ class TestTranslateHeadline:
 
     def test_nonzero_returncode_falls_back(self) -> None:
         """Non-zero return code falls back to original headline."""
-        with patch("ai_government.output.twitter.subprocess.run") as mock_run:
+        with patch("government.output.twitter.subprocess.run") as mock_run:
             mock_run.return_value.stdout = "something"
             mock_run.return_value.returncode = 1
             result = translate_headline("Original headline")
@@ -466,10 +466,10 @@ class TestTryPostAnalysis:
     def test_successful_post_creates_thread(self) -> None:
         """try_post_analysis should post MNE primary and EN reply."""
         with (
-            patch("ai_government.output.twitter.load_state") as mock_load,
-            patch("ai_government.output.twitter.save_state") as mock_save,
-            patch("ai_government.output.twitter.post_tweet") as mock_post,
-            patch("ai_government.output.twitter.translate_headline") as mock_translate,
+            patch("government.output.twitter.load_state") as mock_load,
+            patch("government.output.twitter.save_state") as mock_save,
+            patch("government.output.twitter.post_tweet") as mock_post,
+            patch("government.output.twitter.translate_headline") as mock_translate,
         ):
             mock_load.return_value = TwitterState()
             mock_post.side_effect = ["12345", "67890"]
@@ -495,8 +495,8 @@ class TestTryPostAnalysis:
     def test_already_posted(self) -> None:
         """Test try_post_analysis skips already-posted decision."""
         with (
-            patch("ai_government.output.twitter.load_state") as mock_load,
-            patch("ai_government.output.twitter.post_tweet") as mock_post,
+            patch("government.output.twitter.load_state") as mock_load,
+            patch("government.output.twitter.post_tweet") as mock_post,
         ):
             mock_load.return_value = TwitterState(posted_decision_ids=["d1"])
             result = _make_result("d1", "Budget Law", date(2026, 2, 14))
@@ -509,8 +509,8 @@ class TestTryPostAnalysis:
         """Test try_post_analysis respects monthly limit."""
         current = _current_month()
         with (
-            patch("ai_government.output.twitter.load_state") as mock_load,
-            patch("ai_government.output.twitter.post_tweet") as mock_post,
+            patch("government.output.twitter.load_state") as mock_load,
+            patch("government.output.twitter.post_tweet") as mock_post,
         ):
             mock_load.return_value = TwitterState(
                 monthly_post_month=current,
@@ -525,9 +525,9 @@ class TestTryPostAnalysis:
     def test_primary_post_fails(self) -> None:
         """Test try_post_analysis handles primary tweet failure."""
         with (
-            patch("ai_government.output.twitter.load_state") as mock_load,
-            patch("ai_government.output.twitter.post_tweet") as mock_post,
-            patch("ai_government.output.twitter.translate_headline") as mock_translate,
+            patch("government.output.twitter.load_state") as mock_load,
+            patch("government.output.twitter.post_tweet") as mock_post,
+            patch("government.output.twitter.translate_headline") as mock_translate,
         ):
             mock_load.return_value = TwitterState()
             mock_post.return_value = None  # Failure
@@ -541,10 +541,10 @@ class TestTryPostAnalysis:
     def test_reply_failure_still_succeeds(self) -> None:
         """If the EN reply fails, the post is still considered successful."""
         with (
-            patch("ai_government.output.twitter.load_state") as mock_load,
-            patch("ai_government.output.twitter.save_state") as mock_save,
-            patch("ai_government.output.twitter.post_tweet") as mock_post,
-            patch("ai_government.output.twitter.translate_headline") as mock_translate,
+            patch("government.output.twitter.load_state") as mock_load,
+            patch("government.output.twitter.save_state") as mock_save,
+            patch("government.output.twitter.post_tweet") as mock_post,
+            patch("government.output.twitter.translate_headline") as mock_translate,
         ):
             mock_load.return_value = TwitterState()
             mock_post.side_effect = ["12345", None]  # Primary OK, reply fails
@@ -559,10 +559,10 @@ class TestTryPostAnalysis:
     def test_counts_as_single_post(self) -> None:
         """Both tweets should count as a single post toward monthly limit."""
         with (
-            patch("ai_government.output.twitter.load_state") as mock_load,
-            patch("ai_government.output.twitter.save_state") as mock_save,
-            patch("ai_government.output.twitter.post_tweet") as mock_post,
-            patch("ai_government.output.twitter.translate_headline") as mock_translate,
+            patch("government.output.twitter.load_state") as mock_load,
+            patch("government.output.twitter.save_state") as mock_save,
+            patch("government.output.twitter.post_tweet") as mock_post,
+            patch("government.output.twitter.translate_headline") as mock_translate,
         ):
             mock_load.return_value = TwitterState()
             mock_post.side_effect = ["12345", "67890"]

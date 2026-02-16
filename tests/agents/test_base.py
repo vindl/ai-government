@@ -3,10 +3,10 @@
 import json
 from datetime import date
 
-from ai_government.agents.base import GovernmentAgent, MinistryConfig
-from ai_government.config import SessionConfig
-from ai_government.models.assessment import Assessment, Verdict
-from ai_government.models.decision import GovernmentDecision
+from government.agents.base import GovernmentAgent, MinistryConfig
+from government.config import SessionConfig
+from government.models.assessment import Assessment, Verdict
+from government.models.decision import GovernmentDecision
 
 
 class TestMinistryConfig:
@@ -198,11 +198,11 @@ class TestGovernmentAgent:
         assert "key_changes" in prompt
 
     def test_ministry_agent_factories(self) -> None:
-        from ai_government.agents.ministry_eu import create_eu_agent
-        from ai_government.agents.ministry_finance import create_finance_agent
-        from ai_government.agents.ministry_health import create_health_agent
-        from ai_government.agents.ministry_interior import create_interior_agent
-        from ai_government.agents.ministry_justice import create_justice_agent
+        from government.agents.ministry_eu import create_eu_agent
+        from government.agents.ministry_finance import create_finance_agent
+        from government.agents.ministry_health import create_health_agent
+        from government.agents.ministry_interior import create_interior_agent
+        from government.agents.ministry_justice import create_justice_agent
 
         agents = [
             create_finance_agent(),

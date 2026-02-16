@@ -7,8 +7,8 @@ on:
       - 'site/**'
       - 'output/data/**'
       - 'scripts/build_site.py'
-      - 'src/ai_government/output/html.py'
-      - 'src/ai_government/output/site_builder.py'
+      - 'government/output/html.py'
+      - 'government/output/site_builder.py'
   workflow_dispatch:
 
 permissions:

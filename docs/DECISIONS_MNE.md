@@ -316,7 +316,7 @@ Sva nova polja modela su opciona (`None` podrazumijevano) radi kompatibilnosti u
 5. **Potencijal angažovanja** — prati koje teme/okviri rezonuju (kada metrike budu dostupne)
 
 **Implementacija**:
-- Prompt uloge: `theseus-fleet/editorial-director/CLAUDE.md`
+- Prompt uloge: `theseus/editorial-director/CLAUDE.md`
 - Model: `EditorialReview` (oznaka odobrenja, ocjena kvaliteta 1-10, prednosti, problemi, preporuke)
 - Integracija: Pokreće se u `step_execute_analysis()` nakon završetka orkestratora, ali prije označavanja issue-a kao završenog
 - Neblokirajuće: Greške pregleda su nefatalne. Ako nije odobreno, prijavljuje `editorial-quality` issue i nastavlja sa objavljivanjem

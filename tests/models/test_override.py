@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from ai_government.models.override import HumanOverride, HumanSuggestion
+from government.models.override import HumanOverride, HumanSuggestion
 
 
 def test_override_creation() -> None:

@@ -5,8 +5,7 @@ from datetime import date
 from pathlib import Path
 
 import pytest
-
-from ai_government.models.assessment import (
+from government.models.assessment import (
     Assessment,
     CounterProposal,
     CriticReport,
@@ -14,7 +13,7 @@ from ai_government.models.assessment import (
     ParliamentDebate,
     Verdict,
 )
-from ai_government.models.decision import GovernmentDecision
+from government.models.decision import GovernmentDecision
 
 
 @pytest.fixture

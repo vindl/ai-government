@@ -1,6 +1,6 @@
 """Tests for assessment models including counter-proposals."""
 
-from ai_government.models.assessment import (
+from government.models.assessment import (
     Assessment,
     CounterProposal,
     MinistryCounterProposal,

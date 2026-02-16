@@ -27,11 +27,9 @@ from typing import TYPE_CHECKING, Any
 import anyio
 import claude_code_sdk
 from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
-from pydantic import BaseModel, Field
-
-from ai_government.config import SessionConfig
-from ai_government.models.override import HumanOverride, HumanSuggestion, PRMerge
-from ai_government.models.telemetry import (
+from government.config import SessionConfig
+from government.models.override import HumanOverride, HumanSuggestion, PRMerge
+from government.models.telemetry import (
     CyclePhaseResult,
     CycleTelemetry,
     ErrorEntry,
@@ -40,18 +38,19 @@ from ai_government.models.telemetry import (
     load_errors,
     load_telemetry,
 )
-from ai_government.orchestrator import Orchestrator, SessionResult
-from ai_government.output.scorecard import render_scorecard
-from ai_government.output.site_builder import load_results_from_dir, save_result_json
-from ai_government.output.twitter import (
+from government.orchestrator import Orchestrator, SessionResult
+from government.output.scorecard import render_scorecard
+from government.output.site_builder import load_results_from_dir, save_result_json
+from government.output.twitter import (
     try_post_analysis,
 )
-from ai_government.session import load_decisions
+from government.session import load_decisions
+from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
-    from ai_government.models.decision import GovernmentDecision
+    from government.models.decision import GovernmentDecision
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1192,7 +1191,7 @@ def get_all_issue_titles() -> dict[str, list[str]]:
 
 
 def _load_role_prompt(role: str) -> str:
-    path = PROJECT_ROOT / "theseus-fleet" / role / "CLAUDE.md"
+    path = PROJECT_ROOT / "theseus" / role / "CLAUDE.md"
     if path.exists():
         return path.read_text()
     log.warning("Role prompt not found: %s", path)
@@ -1407,7 +1406,7 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
     Returns a list of GovernmentDecision objects (empty on failure).
     Non-fatal — logs errors and returns empty list.
     """
-    from ai_government.models.decision import GovernmentDecision
+    from government.models.decision import GovernmentDecision
 
     try:
         system_prompt = _load_role_prompt("news-scout")
@@ -1566,7 +1565,7 @@ async def step_execute_analysis(
         return True
 
     # Try to parse GovernmentDecision from embedded JSON in issue body
-    from ai_government.models.decision import GovernmentDecision
+    from government.models.decision import GovernmentDecision
 
     decision: GovernmentDecision | None = None
 
@@ -1879,7 +1878,7 @@ Consider:
 - If a feature touches more than 5 files, break it into smaller issues.
 - Include concrete acceptance criteria a reviewer can verify.
 - Bad: "Improve language consistency across all agents"
-- Good: "Rename English ministry names to Montenegrin in src/ai_government/agents/ministry_*.py"
+- Good: "Rename English ministry names to Montenegrin in government/agents/ministry_*.py"
 
 Return ONLY a JSON array (no markdown fences) of exactly {num_proposals} objects:
 [
@@ -2566,13 +2565,13 @@ Format:
 
 def _build_agent_roster_section() -> str:
     """Return a markdown section listing current ministry agents and their domains."""
-    from ai_government.agents.ministry_economy import create_economy_agent
-    from ai_government.agents.ministry_education import create_education_agent
-    from ai_government.agents.ministry_eu import create_eu_agent
-    from ai_government.agents.ministry_finance import create_finance_agent
-    from ai_government.agents.ministry_health import create_health_agent
-    from ai_government.agents.ministry_interior import create_interior_agent
-    from ai_government.agents.ministry_justice import create_justice_agent
+    from government.agents.ministry_economy import create_economy_agent
+    from government.agents.ministry_education import create_education_agent
+    from government.agents.ministry_eu import create_eu_agent
+    from government.agents.ministry_finance import create_finance_agent
+    from government.agents.ministry_health import create_health_agent
+    from government.agents.ministry_interior import create_interior_agent
+    from government.agents.ministry_justice import create_justice_agent
 
     factories = [
         create_finance_agent,

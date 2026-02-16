@@ -4,9 +4,8 @@ import json
 from datetime import date
 
 import pytest
+from government.models.decision import GovernmentDecision
 from pydantic import ValidationError
-
-from ai_government.models.decision import GovernmentDecision
 
 
 class TestGovernmentDecision:

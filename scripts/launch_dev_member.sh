@@ -17,11 +17,11 @@ if [[ -z "$ROLE" ]]; then
     exit 1
 fi
 
-ROLE_DIR="$PROJECT_ROOT/theseus-fleet/$ROLE"
+ROLE_DIR="$PROJECT_ROOT/theseus/$ROLE"
 
 if [[ ! -d "$ROLE_DIR" ]]; then
     echo "Error: Unknown role '$ROLE'. Available roles:"
-    ls "$PROJECT_ROOT/theseus-fleet/"
+    ls "$PROJECT_ROOT/theseus/"
     exit 1
 fi
 

@@ -250,14 +250,13 @@ def _sdk_options(
     max_turns: int,
     allowed_tools: list[str],
 ) -> ClaudeAgentOptions:
-    # Agents WITH tools: append to the default Claude Code prompt so they get
+    # Agents WITH tools: use SystemPromptPreset with "append" so they get
     # built-in tool instructions, safety guards, and CLAUDE.md project context.
     # Agents WITHOUT tools: replace the system prompt entirely (no point loading
     # tool instructions they can't use).
     if allowed_tools:
         return ClaudeAgentOptions(
-            system_prompt={"type": "preset", "preset": "claude_code"},
-            append_system_prompt=system_prompt,
+            system_prompt={"type": "preset", "preset": "claude_code", "append": system_prompt},
             model=model,
             max_turns=max_turns,
             allowed_tools=allowed_tools,

@@ -56,14 +56,14 @@ def _sdk_options(
 ) -> ClaudeAgentOptions:
     """Build ClaudeAgentOptions with shared defaults.
 
-    Agents WITH tools get ``append_system_prompt`` so Claude Code's built-in
-    tool instructions, safety guards, and CLAUDE.md project context are
-    preserved.  Agents WITHOUT tools get a full ``system_prompt`` replacement.
+    Agents WITH tools use a ``SystemPromptPreset`` with ``append`` so Claude
+    Code's built-in tool instructions, safety guards, and CLAUDE.md project
+    context are preserved.  Agents WITHOUT tools get a full ``system_prompt``
+    replacement.
     """
     if allowed_tools:
         return ClaudeAgentOptions(
-            system_prompt={"type": "preset", "preset": "claude_code"},
-            append_system_prompt=system_prompt,
+            system_prompt={"type": "preset", "preset": "claude_code", "append": system_prompt},
             model=model,
             max_turns=max_turns,
             allowed_tools=allowed_tools,

@@ -128,6 +128,7 @@ NEWS_SCOUT_MAX_TURNS = 20
 NEWS_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
 NEWS_SCOUT_STATE_PATH = PROJECT_ROOT / "output" / "news_scout_state.json"
 NEWS_SCOUT_MAX_DECISIONS = 3
+MAX_PENDING_ANALYSIS_FOR_NEWS = 5
 ANALYSIS_STATE_PATH = PROJECT_ROOT / "output" / "analysis_state.json"
 
 RESEARCH_SCOUT_MAX_TURNS = 15
@@ -1295,13 +1296,14 @@ def _backlog_has_executable_tasks() -> bool:
 
 
 def should_fetch_news() -> bool:
-    """Return True if news has not been fetched today and analysis queue is empty."""
-    # Tighter gate: wait until analysis queue is fully drained
+    """Return True if news has not been fetched today and analysis queue is manageable."""
+    # Allow news fetching as long as the backlog hasn't grown too large
     pending = _count_pending_analysis_issues()
-    if pending > 0:
+    if pending > MAX_PENDING_ANALYSIS_FOR_NEWS:
         log.info(
-            "Skipping News Scout: %d analysis issue(s) still open (must be 0)",
+            "Skipping News Scout: %d analysis issue(s) still open (max %d)",
             pending,
+            MAX_PENDING_ANALYSIS_FOR_NEWS,
         )
         return False
 

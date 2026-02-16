@@ -85,19 +85,31 @@ class TestShouldFetchNews:
         monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 0)
         assert should_fetch_news() is True
 
-    def test_returns_false_when_backlog_not_empty(
+    def test_returns_true_when_backlog_within_cap(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """News scout waits until analysis queue is fully drained."""
-        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
-        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 1)
-        assert should_fetch_news() is False
-
-    def test_returns_false_when_backlog_has_multiple(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
+        """News scout allowed when pending count is within the cap."""
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
         monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 3)
+        assert should_fetch_news() is True
+
+    def test_returns_true_when_backlog_at_cap(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """News scout allowed when pending count equals the cap."""
+        from main_loop import MAX_PENDING_ANALYSIS_FOR_NEWS
+        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: MAX_PENDING_ANALYSIS_FOR_NEWS)
+        assert should_fetch_news() is True
+
+    def test_returns_false_when_backlog_exceeds_cap(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """News scout blocked when pending count exceeds the cap."""
+        from main_loop import MAX_PENDING_ANALYSIS_FOR_NEWS
+        over_cap = MAX_PENDING_ANALYSIS_FOR_NEWS + 1
+        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: over_cap)
         assert should_fetch_news() is False
 
 

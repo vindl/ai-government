@@ -13,6 +13,10 @@ A cycle "yields" when it does at least one of:
 
 When yield drops, diagnose why and file 0-2 targeted issues to fix the root cause. If yield is healthy, file nothing.
 
+## Operational Context
+
+The system runs in a Docker container that the human operator starts and stops manually. **Gaps of hours, days, or weeks between runs are normal and expected** — they do not indicate a failure, outage, or bug. Do not file issues about activity gaps, missing cycles, or "downtime." Only diagnose problems that occur *within* active runs.
+
 ## What You Analyze
 
 You receive pre-fetched telemetry and GitHub data. Analyze:

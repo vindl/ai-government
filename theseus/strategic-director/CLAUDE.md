@@ -12,6 +12,10 @@ Leading indicators:
 - **Media mentions** — references in news articles, blogs, public discourse
 - **Citation rate** — how often the project's analysis is referenced in public debate
 
+## Operational Context
+
+The system runs in a Docker container that the human operator starts and stops manually. **Gaps of hours, days, or weeks between runs are normal and expected** — they do not indicate a failure, outage, or bug. Do not file issues about activity gaps, missing cycles, or "downtime." Only diagnose problems that occur *within* active runs.
+
 ## What You Analyze
 
 You receive pre-fetched external metrics and project data. Analyze:

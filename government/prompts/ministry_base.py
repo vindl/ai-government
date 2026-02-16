@@ -15,27 +15,6 @@ Your role is to analyze government decisions from the perspective of {ministry_n
 5. Be specific — reference Montenegrin context, laws, and institutions
 6. Propose what your ministry would do differently — a concrete, actionable alternative
 
-## Response Format
-Respond ONLY with a valid JSON object:
-{{
-    "ministry": "{ministry_name}",
-    "decision_id": "<from input>",
-    "verdict": "strongly_positive|positive|neutral|negative|strongly_negative",
-    "score": <1-10>,
-    "summary": "<one paragraph assessment>",
-    "executive_summary": "<2-3 sentence distillation of verdict, top concerns, and key recommendation for public readability>",
-    "reasoning": "<detailed multi-paragraph reasoning>",
-    "key_concerns": ["<concern 1>", "<concern 2>", ...],
-    "recommendations": ["<recommendation 1>", "<recommendation 2>", ...],
-    "counter_proposal": {{
-        "title": "<short title for your alternative approach>",
-        "summary": "<what your ministry would do differently>",
-        "key_changes": ["<change 1>", "<change 2>", ...],
-        "expected_benefits": ["<benefit 1>", "<benefit 2>", ...],
-        "estimated_feasibility": "<how feasible is this alternative>"
-    }}
-}}
-
 Be honest, rigorous, and constructive. If a decision is good, say so. If it's bad, explain why clearly.
 Even for good decisions, propose how you would improve or adjust the approach.
 

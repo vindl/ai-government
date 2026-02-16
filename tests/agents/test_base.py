@@ -1,9 +1,8 @@
 """Tests for base agent classes and configurations."""
 
-import json
 from datetime import date
 
-from government.agents.base import GovernmentAgent, MinistryConfig
+from government.agents.base import GovernmentAgent, MinistryConfig, _output_format_for
 from government.config import SessionConfig
 from government.models.assessment import Assessment, Verdict
 from government.models.decision import GovernmentDecision
@@ -61,9 +60,27 @@ class TestGovernmentAgent:
         )
         prompt = agent._build_prompt(decision)
         assert "Ministry of Finance" in prompt
-        assert "test-001" in prompt
         assert "Test Decision" in prompt
         assert "budget, taxes" in prompt
+
+    def test_build_prompt_no_inline_json_schema(self) -> None:
+        """Prompt should NOT contain inline JSON schema (SDK handles output format)."""
+        ministry_config = MinistryConfig(
+            name="Finance",
+            slug="finance",
+            focus_areas=["budget"],
+            system_prompt="prompt",
+        )
+        agent = GovernmentAgent(ministry_config)
+        decision = GovernmentDecision(
+            id="test-001",
+            title="Test",
+            summary="A test.",
+            date=date(2025, 12, 15),
+        )
+        prompt = agent._build_prompt(decision)
+        assert "Respond with a JSON" not in prompt
+        assert "counter_proposal" not in prompt
 
     def test_parse_valid_response(self) -> None:
         ministry_config = MinistryConfig(
@@ -73,7 +90,7 @@ class TestGovernmentAgent:
             system_prompt="prompt",
         )
         agent = GovernmentAgent(ministry_config)
-        response = json.dumps({
+        data = {
             "ministry": "Finance",
             "decision_id": "test-001",
             "verdict": "positive",
@@ -82,14 +99,14 @@ class TestGovernmentAgent:
             "reasoning": "Solid fiscal reasoning.",
             "key_concerns": ["Budget impact"],
             "recommendations": ["Monitor spending"],
-        })
-        assessment = agent._parse_response(response, "test-001")
+        }
+        assessment = agent._parse_response(data, "test-001")
         assert isinstance(assessment, Assessment)
         assert assessment.verdict == Verdict.POSITIVE
         assert assessment.score == 7
         assert assessment.ministry == "Finance"
 
-    def test_parse_invalid_response(self) -> None:
+    def test_parse_none_response(self) -> None:
         ministry_config = MinistryConfig(
             name="Finance",
             slug="finance",
@@ -97,36 +114,10 @@ class TestGovernmentAgent:
             system_prompt="prompt",
         )
         agent = GovernmentAgent(ministry_config)
-        assessment = agent._parse_response("This is not JSON at all.", "test-001")
+        assessment = agent._parse_response(None, "test-001")
         assert assessment.score == 5
         assert assessment.verdict == Verdict.NEUTRAL
         assert "parsing failed" in assessment.summary.lower() or "Finance" in assessment.summary
-
-    def test_parse_response_with_surrounding_text(self) -> None:
-        ministry_config = MinistryConfig(
-            name="Justice",
-            slug="justice",
-            focus_areas=["law"],
-            system_prompt="prompt",
-        )
-        agent = GovernmentAgent(ministry_config)
-        response = (
-            'Here is my analysis:\n\n'
-            + json.dumps({
-                "ministry": "Justice",
-                "decision_id": "test-002",
-                "verdict": "negative",
-                "score": 3,
-                "summary": "Problematic.",
-                "reasoning": "Legal issues.",
-                "key_concerns": [],
-                "recommendations": [],
-            })
-            + '\n\nI hope this helps.'
-        )
-        assessment = agent._parse_response(response, "test-002")
-        assert assessment.verdict == Verdict.NEGATIVE
-        assert assessment.score == 3
 
     def test_parse_response_with_counter_proposal(self) -> None:
         ministry_config = MinistryConfig(
@@ -136,7 +127,7 @@ class TestGovernmentAgent:
             system_prompt="prompt",
         )
         agent = GovernmentAgent(ministry_config)
-        response = json.dumps({
+        data = {
             "ministry": "Finance",
             "decision_id": "test-001",
             "verdict": "positive",
@@ -152,8 +143,8 @@ class TestGovernmentAgent:
                 "expected_benefits": ["Benefit 1"],
                 "estimated_feasibility": "High",
             },
-        })
-        assessment = agent._parse_response(response, "test-001")
+        }
+        assessment = agent._parse_response(data, "test-001")
         assert assessment.counter_proposal is not None
         assert assessment.counter_proposal.title == "Alternative approach"
         assert len(assessment.counter_proposal.key_changes) == 1
@@ -166,7 +157,7 @@ class TestGovernmentAgent:
             system_prompt="prompt",
         )
         agent = GovernmentAgent(ministry_config)
-        response = json.dumps({
+        data = {
             "ministry": "Finance",
             "decision_id": "test-001",
             "verdict": "positive",
@@ -175,11 +166,12 @@ class TestGovernmentAgent:
             "reasoning": "Solid reasoning.",
             "key_concerns": [],
             "recommendations": [],
-        })
-        assessment = agent._parse_response(response, "test-001")
+        }
+        assessment = agent._parse_response(data, "test-001")
         assert assessment.counter_proposal is None
 
-    def test_build_prompt_includes_counter_proposal_schema(self) -> None:
+    def test_parse_response_defaults_decision_id(self) -> None:
+        """decision_id should be filled in if missing from structured output."""
         ministry_config = MinistryConfig(
             name="Finance",
             slug="finance",
@@ -187,15 +179,17 @@ class TestGovernmentAgent:
             system_prompt="prompt",
         )
         agent = GovernmentAgent(ministry_config)
-        decision = GovernmentDecision(
-            id="test-001",
-            title="Test",
-            summary="A test.",
-            date=date(2025, 12, 15),
-        )
-        prompt = agent._build_prompt(decision)
-        assert "counter_proposal" in prompt
-        assert "key_changes" in prompt
+        data = {
+            "ministry": "Finance",
+            "verdict": "neutral",
+            "score": 5,
+            "summary": "OK.",
+            "reasoning": "Acceptable.",
+            "key_concerns": [],
+            "recommendations": [],
+        }
+        assessment = agent._parse_response(data, "test-099")
+        assert assessment.decision_id == "test-099"
 
     def test_ministry_agent_factories(self) -> None:
         from government.agents.ministry_economy import create_economy_agent
@@ -229,3 +223,19 @@ class TestGovernmentAgent:
         assert "Economy" in names
         assert "Tourism" in names
         assert "Environment" in names
+
+
+class TestOutputFormatFor:
+    def test_returns_json_schema_dict(self) -> None:
+        result = _output_format_for(Assessment)
+        assert result["type"] == "json_schema"
+        assert "schema" in result
+        assert result["schema"]["type"] == "object"
+
+    def test_schema_has_required_fields(self) -> None:
+        result = _output_format_for(Assessment)
+        schema = result["schema"]
+        assert "properties" in schema
+        assert "ministry" in schema["properties"]
+        assert "verdict" in schema["properties"]
+        assert "score" in schema["properties"]

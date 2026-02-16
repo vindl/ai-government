@@ -59,3 +59,28 @@ def test_pr_workflow_sdk_options_without_tools() -> None:
         allowed_tools=[],
     )
     assert isinstance(opts, ClaudeAgentOptions)
+
+
+def test_main_loop_sdk_options_with_output_format() -> None:
+    """main_loop._sdk_options with output_format returns valid options."""
+    schema = {"type": "json_schema", "schema": {"type": "object", "properties": {}}}
+    opts = main_loop._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=[],
+        output_format=schema,
+    )
+    assert isinstance(opts, ClaudeAgentOptions)
+    assert opts.output_format == schema
+
+
+def test_main_loop_sdk_options_output_format_none_by_default() -> None:
+    """output_format defaults to None when not specified."""
+    opts = main_loop._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=[],
+    )
+    assert opts.output_format is None

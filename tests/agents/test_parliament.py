@@ -1,4 +1,4 @@
-"""Tests for ParliamentAgent parsing and retry logic."""
+"""Tests for ParliamentAgent parsing and structured output."""
 
 import json
 from datetime import date
@@ -41,16 +41,20 @@ def assessments() -> list[Assessment]:
     ]
 
 
-VALID_DEBATE_JSON = json.dumps({
+VALID_DEBATE_DATA = {
     "decision_id": "test-001",
     "consensus_summary": "All ministries agree on fiscal prudence.",
     "disagreements": ["Budget allocation approach"],
     "overall_verdict": "positive",
     "debate_transcript": "Finance argues for spending controls...",
-})
+}
+
+VALID_DEBATE_JSON = json.dumps(VALID_DEBATE_DATA)
 
 
 class TestParseResponse:
+    """Test legacy _parse_response (uses extract_json for backward compat)."""
+
     def test_valid_json(self, agent: ParliamentAgent) -> None:
         result = agent._parse_response(VALID_DEBATE_JSON, "test-001")
         assert isinstance(result, ParliamentDebate)
@@ -73,50 +77,43 @@ class TestParseResponse:
         assert result.consensus_summary == "Debate could not be fully parsed."
 
 
-class TestDebateRetry:
+class TestBuildDebate:
+    def test_builds_from_dict(self, agent: ParliamentAgent) -> None:
+        result = agent._build_debate(dict(VALID_DEBATE_DATA), "test-001")
+        assert isinstance(result, ParliamentDebate)
+        assert result.overall_verdict == Verdict.POSITIVE
+
+    def test_defaults_decision_id(self, agent: ParliamentAgent) -> None:
+        data = {k: v for k, v in VALID_DEBATE_DATA.items() if k != "decision_id"}
+        result = agent._build_debate(data, "test-099")
+        assert result.decision_id == "test-099"
+
+
+class TestDebateStructuredOutput:
     @pytest.mark.anyio
-    async def test_success_on_first_try(
+    async def test_success(
         self,
         agent: ParliamentAgent,
         decision: GovernmentDecision,
         assessments: list[Assessment],
     ) -> None:
         with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = VALID_DEBATE_JSON
+            mock_call.return_value = dict(VALID_DEBATE_DATA)
             result = await agent.debate(decision, assessments)
 
         assert result.overall_verdict == Verdict.POSITIVE
         assert mock_call.call_count == 1
 
     @pytest.mark.anyio
-    async def test_retry_on_preamble_response(
+    async def test_fallback_on_none(
         self,
         agent: ParliamentAgent,
         decision: GovernmentDecision,
         assessments: list[Assessment],
     ) -> None:
-        """First call returns preamble, retry returns valid JSON."""
         with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.side_effect = [
-                "I'll analyze the assessments now.",
-                VALID_DEBATE_JSON,
-            ]
-            result = await agent.debate(decision, assessments)
-
-        assert result.overall_verdict == Verdict.POSITIVE
-        assert mock_call.call_count == 2
-
-    @pytest.mark.anyio
-    async def test_fallback_after_all_retries_exhausted(
-        self,
-        agent: ParliamentAgent,
-        decision: GovernmentDecision,
-        assessments: list[Assessment],
-    ) -> None:
-        """Both attempts return preamble text — should fall back gracefully."""
-        with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = "I'll analyze this thoroughly."
+            mock_call.return_value = None
             result = await agent.debate(decision, assessments)
 
         assert result.consensus_summary == "Debate could not be fully parsed."
-        assert mock_call.call_count == 2  # 1 initial + 1 retry
+        assert mock_call.call_count == 1

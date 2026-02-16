@@ -80,6 +80,13 @@
 - [ ] Archive past sessions and build a searchable history
 - [ ] Add A/B testing for prompt variations
 
+## Phase 6.5: Research Scout (DONE)
+- [x] Research Scout agent (`dev-fleet/research-scout/CLAUDE.md`) — tracks AI model releases, SDK updates, agent architecture patterns
+- [x] Daily cadence using state file (`output/research_scout_state.json`)
+- [x] Phase F in main loop: after Strategic Director (Phase E), before transparency collection
+- [x] `docs/AI_STACK.md` — current stack documentation, injected as context for dedup
+- [x] `--skip-research` CLI flag + `LOOP_SKIP_RESEARCH` Docker env var
+
 ## Ideas / Backlog
 - Interactive mode: let users submit decisions for analysis
 - Comparative analysis: score Montenegro against regional peers

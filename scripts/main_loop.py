@@ -2371,6 +2371,158 @@ def _build_agent_performance_section(entries: list[CycleTelemetry]) -> str:
     return "## Agent/Phase Performance\n\n" + "\n".join(lines)
 
 
+def _build_change_impact_section(all_entries: list[CycleTelemetry]) -> str:
+    """Compare before/after telemetry for recently deployed code changes.
+
+    For each closed code-change issue, finds the cycle that deployed it (via
+    ``picked_issue_number``), takes 5 cycles before and up to 5 after, and
+    computes yield rate, errors/cycle, phase failure rate, and avg duration.
+    """
+    if len(all_entries) < 6:
+        return ""
+
+    # Fetch recently closed code-change issues with self-improve:done label
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--state", "closed",
+        "--label", f"{LABEL_TASK_CODE},{LABEL_DONE}",
+        "--json", "number,title,closedAt,labels",
+        "--limit", "15",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return ""
+    try:
+        issues = json.loads(result.stdout)
+    except (json.JSONDecodeError, KeyError):
+        return ""
+    if not issues:
+        return ""
+
+    def _source_label(labels: list[dict[str, Any]]) -> str:
+        names = {lbl.get("name", "") for lbl in labels}
+        if LABEL_DIRECTOR in names:
+            return "director-suggestion"
+        if LABEL_STRATEGY in names:
+            return "strategy-suggestion"
+        if LABEL_HUMAN in names:
+            return "human-suggestion"
+        return "unknown"
+
+    def _window_metrics(
+        window: list[CycleTelemetry],
+    ) -> tuple[float, float, float, float]:
+        """Return (yield_pct, errors_per_cycle, phase_fail_pct, avg_duration)."""
+        n = len(window)
+        if n == 0:
+            return (0.0, 0.0, 0.0, 0.0)
+        yield_pct = sum(1 for e in window if e.cycle_yielded) / n * 100
+        total_errors = sum(len(e.errors) for e in window)
+        errors_per_cycle = total_errors / n
+        total_phases = sum(len(e.phases) for e in window)
+        failed_phases = sum(
+            1 for e in window for p in e.phases if not p.success
+        )
+        phase_fail_pct = (failed_phases / total_phases * 100) if total_phases else 0.0
+        avg_dur = sum(e.duration_seconds for e in window) / n
+        return (yield_pct, errors_per_cycle, phase_fail_pct, avg_dur)
+
+    reports: list[str] = []
+    # Build an index from issue number to deploy position in telemetry
+    issue_to_idx: dict[int, int] = {}
+    for idx, entry in enumerate(all_entries):
+        if entry.picked_issue_number is not None:
+            issue_to_idx[entry.picked_issue_number] = idx
+
+    for issue in issues:
+        num = issue.get("number")
+        if num is None:
+            continue
+        closed_at_str = issue.get("closedAt", "")
+
+        # Find the deploy index: prefer picked_issue_number match
+        deploy_idx: int | None = issue_to_idx.get(num)
+        if deploy_idx is None and closed_at_str:
+            # Fallback: first entry after close time
+            try:
+                closed_dt = datetime.fromisoformat(closed_at_str)
+                for idx, entry in enumerate(all_entries):
+                    if entry.started_at > closed_dt:
+                        deploy_idx = idx
+                        break
+            except ValueError:
+                continue
+        if deploy_idx is None:
+            continue
+
+        # Build before/after windows
+        before = all_entries[max(0, deploy_idx - 5):deploy_idx]
+        after = all_entries[deploy_idx + 1:deploy_idx + 6]
+        if len(after) < 3:
+            continue  # not enough data yet
+
+        b_yield, b_err, b_pfail, b_dur = _window_metrics(before)
+        a_yield, a_err, a_pfail, a_dur = _window_metrics(after)
+
+        d_yield = a_yield - b_yield
+        d_err = a_err - b_err
+        d_pfail = a_pfail - b_pfail
+        d_dur = a_dur - b_dur
+
+        # Determine tag
+        if d_yield > 0 and d_err <= 0:
+            tag = "[IMPROVED]"
+        elif d_yield < 0 or d_err > 0.5:
+            tag = "[REGRESSED]"
+        else:
+            tag = "[MIXED]"
+
+        # Count confounders: other code-change issues that closed in the after window
+        confounder_count = 0
+        if after:
+            after_start = all_entries[deploy_idx + 1].started_at
+            after_end = after[-1].started_at
+            for other in issues:
+                other_num = other.get("number")
+                if other_num == num or other_num is None:
+                    continue
+                other_closed = other.get("closedAt", "")
+                if other_closed:
+                    try:
+                        other_dt = datetime.fromisoformat(other_closed)
+                        if after_start <= other_dt <= after_end:
+                            confounder_count += 1
+                    except ValueError:
+                        pass
+
+        source = _source_label(issue.get("labels", []))
+        deploy_date = closed_at_str[:10] if closed_at_str else "unknown"
+        title = issue.get("title", "untitled")
+
+        lines = [
+            f"### #{num}: {title}",
+            f"  Source: {source}  |  Deployed: {deploy_date}",
+            f"  Before: yield {b_yield:.0f}%, errors/cycle {b_err:.1f}, "
+            f"phase fail {b_pfail:.0f}%, avg {b_dur:.0f}s",
+            f"  After:  yield {a_yield:.0f}%, errors/cycle {a_err:.1f}, "
+            f"phase fail {a_pfail:.0f}%, avg {a_dur:.0f}s",
+            f"  Delta:  yield {d_yield:+.0f}pp, errors {d_err:+.1f}, "
+            f"phase fail {d_pfail:+.0f}pp, duration {d_dur:+.0f}s  {tag}",
+        ]
+        if confounder_count:
+            lines.append(
+                f"  Note: {confounder_count} other change(s) also deployed in this window"
+            )
+        reports.append("\n".join(lines))
+
+    if not reports:
+        return ""
+    return (
+        "## Change Impact Reports\n\n"
+        "Recent system changes with before/after metrics (5-cycle windows):\n\n"
+        + "\n\n".join(reports)
+    )
+
+
 def _build_ci_results_section() -> str:
     """Fetch recent CI workflow run conclusions from GitHub Actions."""
     result = _run_gh([
@@ -2514,6 +2666,12 @@ def _prefetch_director_context(last_n_cycles: int) -> str:
                 "your decision.\n\n"
                 + "\n".join(gap_lines)
             )
+
+    # 7. Change impact reports (before/after metrics for past code changes)
+    all_entries = load_telemetry(TELEMETRY_PATH)
+    impact = _build_change_impact_section(all_entries)
+    if impact:
+        sections.append(impact)
 
     return "\n\n".join(sections)
 
@@ -2737,6 +2895,12 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
                 "your decision.\n\n"
                 + "\n".join(gap_lines)
             )
+
+    # 7. Change impact reports (before/after metrics for past code changes)
+    all_entries = load_telemetry(TELEMETRY_PATH)
+    impact = _build_change_impact_section(all_entries)
+    if impact:
+        sections.append(impact)
 
     # Placeholder for future metrics
     sections.append(

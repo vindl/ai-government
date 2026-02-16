@@ -129,9 +129,13 @@ class TestBilingualNav:
         assert "Constitution" in nav_html
         assert "News" in nav_html
 
-    def test_site_title_bilingual(self, nav_html: str) -> None:
-        assert "AI Vlada Crne Gore" in nav_html
-        assert "AI Government of Montenegro" in nav_html
+    def test_site_title_bilingual(self, site_dir: Path) -> None:
+        html = (site_dir / "index.html").read_text()
+        start = html.find('<aside class="sidebar"')
+        end = html.find("</aside>") + len("</aside>")
+        sidebar_html = html[start:end]
+        assert "AI Vlada" in sidebar_html
+        assert "AI Government" in sidebar_html
 
 
 class TestBilingualFooter:

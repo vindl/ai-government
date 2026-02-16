@@ -422,6 +422,10 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
 
 /* Responsive */
 @media (max-width: 640px) {
+  .layout {
+    flex-direction: column;
+  }
+
   .mobile-header {
     display: flex;
     align-items: center;

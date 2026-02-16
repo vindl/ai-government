@@ -190,13 +190,13 @@ class SiteBuilder:
         constitution_dir = self.output_dir / "constitution"
         constitution_dir.mkdir(parents=True, exist_ok=True)
 
-        constitution_path = DOCS_DIR / "CONSTITUTION.md"
-        constitution_md = constitution_path.read_text(encoding="utf-8")
-        constitution_html = Markup(md.markdown(constitution_md))
+        constitution_en = (DOCS_DIR / "CONSTITUTION.md").read_text(encoding="utf-8")
+        constitution_mne = (DOCS_DIR / "CONSTITUTION_MNE.md").read_text(encoding="utf-8")
 
         template = self.env.get_template("constitution.html")
         html = template.render(
-            constitution_html=constitution_html,
+            constitution_html_en=Markup(md.markdown(constitution_en)),
+            constitution_html_mne=Markup(md.markdown(constitution_mne)),
             css_path="../static/css/style.css",
             base_path="../",
         )
@@ -239,7 +239,20 @@ class SiteBuilder:
         announcements: list[dict[str, Any]] = []
         if announcements_dir.exists():
             for path in sorted(announcements_dir.glob("*.md"), reverse=True):
-                announcements.append(_parse_announcement(path))
+                # Skip Montenegrin companion files — they're loaded alongside their EN counterpart
+                if path.stem.endswith("_mne"):
+                    continue
+                ann = _parse_announcement(path)
+                # Look for companion Montenegrin file (e.g. 2026-02-14_launch_mne.md)
+                mne_path = path.with_name(f"{path.stem}_mne.md")
+                if mne_path.exists():
+                    mne = _parse_announcement(mne_path)
+                    ann["title_mne"] = mne["title"]
+                    ann["html_mne"] = mne["html"]
+                else:
+                    ann["title_mne"] = ann["title"]
+                    ann["html_mne"] = ann["html"]
+                announcements.append(ann)
 
         feed_dir = self.output_dir / "news"
         feed_dir.mkdir(parents=True, exist_ok=True)

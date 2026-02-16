@@ -11,8 +11,10 @@
   {% for ann in announcements %}
   <li>
     <span class="ann-date">{{ ann.date }}</span>
-    <h3>{{ ann.title }}</h3>
-    <div>{{ ann.html }}</div>
+    <h3 class="lang-en">{{ ann.title }}</h3>
+    <h3 class="lang-mne">{{ ann.title_mne }}</h3>
+    <div class="lang-en">{{ ann.html }}</div>
+    <div class="lang-mne">{{ ann.html_mne }}</div>
   </li>
   {% endfor %}
 </ul>

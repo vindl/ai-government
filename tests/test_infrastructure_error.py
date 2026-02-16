@@ -48,7 +48,8 @@ async def test_run_reviewer_raises_infrastructure_error_on_sdk_failure() -> None
     """run_reviewer raises InfrastructureError when _sdk_options fails."""
     from pr_workflow import run_reviewer  # noqa: E402
 
-    with patch("pr_workflow._sdk_options", side_effect=TypeError("bad kwarg")), \
+    with patch("pr_workflow._build_reviewer_prompt", return_value="review this"), \
+         patch("pr_workflow._sdk_options", side_effect=TypeError("bad kwarg")), \
          pytest.raises(InfrastructureError, match="_sdk_options failed"):
         await run_reviewer(123, model="claude-sonnet-4-5-20250929")
 

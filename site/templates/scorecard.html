@@ -61,6 +61,120 @@
     </div>
   </section>
 
+  {% if result.critic_report %}
+  <section class="critic">
+    <h2 class="lang-mne">Nezavisna kritička analiza</h2>
+    <h2 class="lang-en">Independent Critical Analysis</h2>
+    {% if result.critic_report.overall_analysis_mne %}
+    <p class="lang-mne">{{ result.critic_report.overall_analysis_mne }}</p>
+    {% endif %}
+    <p class="lang-en">{{ result.critic_report.overall_analysis }}</p>
+    {% if result.critic_report.blind_spots or result.critic_report.blind_spots_mne %}
+    <h3 class="lang-mne">Slijepe tačke</h3>
+    <h3 class="lang-en">Blind Spots</h3>
+    {% if result.critic_report.blind_spots_mne %}
+    <ul class="lang-mne">
+      {% for bs in result.critic_report.blind_spots_mne %}
+      <li>{{ bs }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
+      {% for bs in result.critic_report.blind_spots %}
+      <li>{{ bs }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if result.counter_proposal %}
+  <section class="counter-proposal">
+    <h2 class="lang-mne">Kontra-prijedlog AI Vlade</h2>
+    <h2 class="lang-en">AI Government Counter-proposal</h2>
+    {% if result.counter_proposal.title_mne %}
+    <h3 class="lang-mne">{{ result.counter_proposal.title_mne }}</h3>
+    {% endif %}
+    <h3 class="lang-en">{{ result.counter_proposal.title }}</h3>
+    {% if result.counter_proposal.executive_summary_mne %}
+    <p class="executive-summary lang-mne"><strong>{{ result.counter_proposal.executive_summary_mne }}</strong></p>
+    {% endif %}
+    <p class="executive-summary lang-en"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
+    {% if result.counter_proposal.detailed_proposal_mne %}
+    <div class="detailed-proposal lang-mne">{{ result.counter_proposal.detailed_proposal_mne }}</div>
+    {% endif %}
+    <div class="detailed-proposal lang-en">{{ result.counter_proposal.detailed_proposal }}</div>
+
+    {% if result.counter_proposal.key_differences or result.counter_proposal.key_differences_mne %}
+    <h4 class="lang-mne">Ključne razlike</h4>
+    <h4 class="lang-en">Key Differences</h4>
+    {% if result.counter_proposal.key_differences_mne %}
+    <ul class="lang-mne">
+      {% for diff in result.counter_proposal.key_differences_mne %}
+      <li>{{ diff }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
+      {% for diff in result.counter_proposal.key_differences %}
+      <li>{{ diff }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if result.counter_proposal.implementation_steps or result.counter_proposal.implementation_steps_mne %}
+    <h4 class="lang-mne">Koraci implementacije</h4>
+    <h4 class="lang-en">Implementation Steps</h4>
+    {% if result.counter_proposal.implementation_steps_mne %}
+    <ol class="lang-mne">
+      {% for step in result.counter_proposal.implementation_steps_mne %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+    <ol class="lang-en">
+      {% for step in result.counter_proposal.implementation_steps %}
+      <li>{{ step }}</li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if result.counter_proposal.risks_and_tradeoffs or result.counter_proposal.risks_and_tradeoffs_mne %}
+    <h4 class="lang-mne">Rizici i kompromisi</h4>
+    <h4 class="lang-en">Risks and Trade-offs</h4>
+    {% if result.counter_proposal.risks_and_tradeoffs_mne %}
+    <ul class="lang-mne">
+      {% for risk in result.counter_proposal.risks_and_tradeoffs_mne %}
+      <li>{{ risk }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
+      {% for risk in result.counter_proposal.risks_and_tradeoffs %}
+      <li>{{ risk }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if result.counter_proposal.ministry_contributions or result.counter_proposal.ministry_contributions_mne %}
+    <h4 class="lang-mne">Doprinosi ministarstava</h4>
+    <h4 class="lang-en">Ministry Contributions</h4>
+    {% if result.counter_proposal.ministry_contributions_mne %}
+    <ul class="lang-mne">
+      {% for contrib in result.counter_proposal.ministry_contributions_mne %}
+      <li>{{ contrib }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <ul class="lang-en">
+      {% for contrib in result.counter_proposal.ministry_contributions %}
+      <li>{{ contrib }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+  {% endif %}
+
   <section class="ministry-details">
     <h2 class="lang-mne">Detaljne analize</h2>
     <h2 class="lang-en">Detailed Analyses</h2>
@@ -207,120 +321,6 @@
     <h3 class="lang-mne">Transkript <small>(na engleskom)</small></h3>
     <h3 class="lang-en">Transcript</h3>
     <div class="transcript">{{ result.debate.debate_transcript }}</div>
-  </section>
-  {% endif %}
-
-  {% if result.critic_report %}
-  <section class="critic">
-    <h2 class="lang-mne">Nezavisna kritička analiza</h2>
-    <h2 class="lang-en">Independent Critical Analysis</h2>
-    {% if result.critic_report.overall_analysis_mne %}
-    <p class="lang-mne">{{ result.critic_report.overall_analysis_mne }}</p>
-    {% endif %}
-    <p class="lang-en">{{ result.critic_report.overall_analysis }}</p>
-    {% if result.critic_report.blind_spots or result.critic_report.blind_spots_mne %}
-    <h3 class="lang-mne">Slijepe tačke</h3>
-    <h3 class="lang-en">Blind Spots</h3>
-    {% if result.critic_report.blind_spots_mne %}
-    <ul class="lang-mne">
-      {% for bs in result.critic_report.blind_spots_mne %}
-      <li>{{ bs }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-    <ul class="lang-en">
-      {% for bs in result.critic_report.blind_spots %}
-      <li>{{ bs }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-  </section>
-  {% endif %}
-
-  {% if result.counter_proposal %}
-  <section class="counter-proposal">
-    <h2 class="lang-mne">Kontra-prijedlog AI Vlade</h2>
-    <h2 class="lang-en">AI Government Counter-proposal</h2>
-    {% if result.counter_proposal.title_mne %}
-    <h3 class="lang-mne">{{ result.counter_proposal.title_mne }}</h3>
-    {% endif %}
-    <h3 class="lang-en">{{ result.counter_proposal.title }}</h3>
-    {% if result.counter_proposal.executive_summary_mne %}
-    <p class="executive-summary lang-mne"><strong>{{ result.counter_proposal.executive_summary_mne }}</strong></p>
-    {% endif %}
-    <p class="executive-summary lang-en"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
-    {% if result.counter_proposal.detailed_proposal_mne %}
-    <div class="detailed-proposal lang-mne">{{ result.counter_proposal.detailed_proposal_mne }}</div>
-    {% endif %}
-    <div class="detailed-proposal lang-en">{{ result.counter_proposal.detailed_proposal }}</div>
-
-    {% if result.counter_proposal.key_differences or result.counter_proposal.key_differences_mne %}
-    <h4 class="lang-mne">Ključne razlike</h4>
-    <h4 class="lang-en">Key Differences</h4>
-    {% if result.counter_proposal.key_differences_mne %}
-    <ul class="lang-mne">
-      {% for diff in result.counter_proposal.key_differences_mne %}
-      <li>{{ diff }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-    <ul class="lang-en">
-      {% for diff in result.counter_proposal.key_differences %}
-      <li>{{ diff }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if result.counter_proposal.implementation_steps or result.counter_proposal.implementation_steps_mne %}
-    <h4 class="lang-mne">Koraci implementacije</h4>
-    <h4 class="lang-en">Implementation Steps</h4>
-    {% if result.counter_proposal.implementation_steps_mne %}
-    <ol class="lang-mne">
-      {% for step in result.counter_proposal.implementation_steps_mne %}
-      <li>{{ step }}</li>
-      {% endfor %}
-    </ol>
-    {% endif %}
-    <ol class="lang-en">
-      {% for step in result.counter_proposal.implementation_steps %}
-      <li>{{ step }}</li>
-      {% endfor %}
-    </ol>
-    {% endif %}
-
-    {% if result.counter_proposal.risks_and_tradeoffs or result.counter_proposal.risks_and_tradeoffs_mne %}
-    <h4 class="lang-mne">Rizici i kompromisi</h4>
-    <h4 class="lang-en">Risks and Trade-offs</h4>
-    {% if result.counter_proposal.risks_and_tradeoffs_mne %}
-    <ul class="lang-mne">
-      {% for risk in result.counter_proposal.risks_and_tradeoffs_mne %}
-      <li>{{ risk }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-    <ul class="lang-en">
-      {% for risk in result.counter_proposal.risks_and_tradeoffs %}
-      <li>{{ risk }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-
-    {% if result.counter_proposal.ministry_contributions or result.counter_proposal.ministry_contributions_mne %}
-    <h4 class="lang-mne">Doprinosi ministarstava</h4>
-    <h4 class="lang-en">Ministry Contributions</h4>
-    {% if result.counter_proposal.ministry_contributions_mne %}
-    <ul class="lang-mne">
-      {% for contrib in result.counter_proposal.ministry_contributions_mne %}
-      <li>{{ contrib }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
-    <ul class="lang-en">
-      {% for contrib in result.counter_proposal.ministry_contributions %}
-      <li>{{ contrib }}</li>
-      {% endfor %}
-    </ul>
-    {% endif %}
   </section>
   {% endif %}
 

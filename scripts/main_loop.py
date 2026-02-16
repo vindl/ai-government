@@ -3926,9 +3926,16 @@ def main() -> None:
     if remaining:
         wait = analysis_wait_seconds(min_gap_hours=args.min_analysis_gap)
         has_work = _backlog_has_executable_tasks()
-        if wait > 0 and not has_work:
-            # Nothing executable — sleep until the rate limit expires, capped
-            # at 30 min so directors/PM still get a chance to run periodically.
+        # Sleep long only when analysis tasks are in the backlog but blocked
+        # by the rate limit.  When the backlog is empty, use the normal
+        # cooldown so the next cycle can discover new work via News Scout
+        # or proposals.
+        backlog = list_backlog_issues()
+        has_blocked_analysis = (
+            wait > 0
+            and any(_issue_has_label(i, LABEL_TASK_ANALYSIS) for i in backlog)
+        )
+        if has_blocked_analysis and not has_work:
             cooldown = min(wait, 1800)
             print(f"\nRate-limited, no other tasks. Sleeping {cooldown // 60}m...")
         else:

@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-16T23:40:51Z",
+    "pr_number": 231,
+    "pr_title": "Add education, economy, tourism, environment decision categories",
+    "actor": "vindl",
+    "issue_number": 228
+  },
+  {
     "timestamp": "2026-02-16T22:56:45Z",
     "pr_number": 227,
     "pr_title": "Decouple analysis and self-improvement pipelines",

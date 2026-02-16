@@ -3341,20 +3341,17 @@ async def run_one_cycle(
     else:
         print("\nPhase B: Self-improvement — proposing and debating...")
 
-        # Generate AI proposals only when the backlog has no *executable* tasks.
-        # Rate-limited analysis tasks don't count — they can't run yet, so the
-        # loop should do productive self-improvement work while waiting.
-        if _backlog_has_executable_tasks():
-            backlog = list_backlog_issues()
-            has_analysis = any(
-                _issue_has_label(i, LABEL_TASK_ANALYSIS) for i in backlog
-            )
-            reason = (
-                "analysis issues ready"
-                if has_analysis
-                else f"{len(backlog)} executable issues — draining queue"
-            )
-            print(f"  AI proposals: Skipped ({reason})")
+        # Generate AI proposals unless there are non-analysis tasks to drain.
+        # Analysis tasks never suppress proposals — the two pipelines are
+        # independent.  Analysis gets execution priority in Phase C via
+        # step_pick(), so proposals won't starve it.
+        backlog = list_backlog_issues()
+        non_analysis_work = [
+            i for i in backlog
+            if not _issue_has_label(i, LABEL_TASK_ANALYSIS)
+        ]
+        if non_analysis_work:
+            print(f"  AI proposals: Skipped ({len(non_analysis_work)} improvement issues — draining queue)")
             ai_proposals: list[dict[str, str]] = []
         else:
             try:

@@ -1,5 +1,33 @@
 [
   {
+    "timestamp": "2026-02-16T11:05:09Z",
+    "pr_number": 221,
+    "pr_title": "Fix: integrate MNE translations into analysis pipeline",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T10:11:56Z",
+    "pr_number": 220,
+    "pr_title": "Fix mobile layout: sidebar nav items not visible",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T09:53:01Z",
+    "pr_number": 216,
+    "pr_title": "Add self-healing safeguards for the main loop",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T09:27:52Z",
+    "pr_number": 215,
+    "pr_title": "Fix append_system_prompt breakage from claude-agent-sdk migration",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-16T04:19:08Z",
     "pr_number": 209,
     "pr_title": "Migrate from deprecated claude-code-sdk to claude-agent-sdk",

@@ -18,6 +18,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from collections import Counter
 from datetime import UTC, datetime
@@ -1681,18 +1682,19 @@ async def step_editorial_review(
     """
     system_prompt = _load_role_prompt("editorial-director")
 
-    # Serialize the result to JSON for the reviewer to inspect
+    # Write result JSON to a temp file so the prompt stays small.
+    # (Inlining large SessionResult JSON exceeded OS ARG_MAX.)
     result_json = result.model_dump_json(indent=2, exclude_none=True)
+    fd, result_file = tempfile.mkstemp(
+        suffix=".json", prefix="editorial_review_", dir=PROJECT_ROOT,
+    )
+    with os.fdopen(fd, "w") as fh:
+        fh.write(result_json)
 
-    prompt = f"""Review the analysis below for quality and public impact.
+    prompt = f"""Review the analysis for quality and public impact.
 
-## Analysis Result
-
-```json
-{result_json}
-```
-
-Based on this analysis, output a JSON object with your editorial review:
+The full analysis result is in: {result_file}
+Read that file first, then output a JSON object with your editorial review:
 
 {{
   "approved": true,  // or false if improvements needed
@@ -1727,7 +1729,7 @@ Most analyses should pass. Only block publication for clear factual errors or Co
         system_prompt=system_prompt,
         model=model,
         max_turns=EDITORIAL_DIRECTOR_MAX_TURNS,
-        allowed_tools=[],
+        allowed_tools=["Read"],
     )
 
     log.info("Running Editorial Director review for issue #%d...", issue_number)
@@ -1754,6 +1756,8 @@ Most analyses should pass. Only block publication for clear factual errors or Co
     except Exception:
         log.exception("Editorial review failed for issue #%d", issue_number)
         return None
+    finally:
+        Path(result_file).unlink(missing_ok=True)
 
 
 def create_editorial_quality_issue(

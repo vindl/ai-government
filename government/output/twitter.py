@@ -208,8 +208,13 @@ def try_post_analysis(result: SessionResult) -> bool:
     if result.decision.id in state.posted_decision_ids:
         return False
 
-    # Translate headline to Montenegrin
+    # Skip if critic fell back to placeholder headline
     headline_en = result.critic_report.headline if result.critic_report else ""
+    if not headline_en or headline_en == "Analiza u toku":
+        log.warning("Skipping tweet — no real headline from critic")
+        return False
+
+    # Translate headline to Montenegrin
     headline_me = translate_headline(headline_en)
 
     tweets = compose_analysis_tweet(result, headline_me=headline_me)

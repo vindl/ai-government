@@ -40,7 +40,7 @@
 
 ## Phase 3: Real Data Ingestion
 - [x] Daily news ingestion via News Scout agent (WebSearch + WebFetch)
-- [x] News Scout role prompt (`dev-fleet/news-scout/CLAUDE.md`)
+- [x] News Scout role prompt (`theseus-fleet/news-scout/CLAUDE.md`)
 - [x] Once-per-day fetch with state file (`output/news_scout_state.json`)
 - [x] Deterministic decision IDs for deduplication (`news-{date}-{hash}`)
 - [x] Top 3 most significant decisions per day (capped)
@@ -81,7 +81,7 @@
 - [ ] Add A/B testing for prompt variations
 
 ## Phase 6.5: Research Scout (DONE)
-- [x] Research Scout agent (`dev-fleet/research-scout/CLAUDE.md`) — tracks AI model releases, SDK updates, agent architecture patterns
+- [x] Research Scout agent (`theseus-fleet/research-scout/CLAUDE.md`) — tracks AI model releases, SDK updates, agent architecture patterns
 - [x] Daily cadence using state file (`output/research_scout_state.json`)
 - [x] Phase F in main loop: after Strategic Director (Phase E), before transparency collection
 - [x] `docs/AI_STACK.md` — current stack documentation, injected as context for dedup

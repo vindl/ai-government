@@ -316,7 +316,7 @@ All new model fields are optional (`None` default) for backwards compatibility w
 5. **Engagement potential** — tracks which topics/framing resonate (when metrics available)
 
 **Implementation**:
-- Role prompt: `dev-fleet/editorial-director/CLAUDE.md`
+- Role prompt: `theseus-fleet/editorial-director/CLAUDE.md`
 - Model: `EditorialReview` (approval flag, quality score 1-10, strengths, issues, recommendations)
 - Integration: Runs in `step_execute_analysis()` after orchestrator completes but before marking issue done
 - Non-blocking: Review failures are non-fatal. If not approved, files an `editorial-quality` issue and proceeds with publication

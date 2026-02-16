@@ -5,9 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).parent.parent
-PROJECT_DIRECTOR_PROMPT = REPO_ROOT / "dev-fleet" / "director" / "CLAUDE.md"
+PROJECT_DIRECTOR_PROMPT = REPO_ROOT / "theseus-fleet" / "director" / "CLAUDE.md"
 STRATEGIC_DIRECTOR_PROMPT = (
-    REPO_ROOT / "dev-fleet" / "strategic-director" / "CLAUDE.md"
+    REPO_ROOT / "theseus-fleet" / "strategic-director" / "CLAUDE.md"
 )
 
 

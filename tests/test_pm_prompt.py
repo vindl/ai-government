@@ -7,7 +7,7 @@ from pathlib import Path
 
 def _read_pm_prompt() -> str:
     """Read the PM CLAUDE.md prompt file."""
-    pm_prompt_path = Path(__file__).parent.parent / "dev-fleet" / "pm" / "CLAUDE.md"
+    pm_prompt_path = Path(__file__).parent.parent / "theseus-fleet" / "pm" / "CLAUDE.md"
     return pm_prompt_path.read_text()
 
 

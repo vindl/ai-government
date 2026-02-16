@@ -71,7 +71,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Main loop serializes analysis results to `output/data/` for site builder
 
 ### Research Scout (Phase F)
-- [x] `dev-fleet/research-scout/CLAUDE.md` — role prompt for the Research Scout agent
+- [x] `theseus-fleet/research-scout/CLAUDE.md` — role prompt for the Research Scout agent
 - [x] `step_research_scout()` in main loop — invokes Research Scout agent via Claude Code SDK
 - [x] `should_run_research_scout()` — daily gate using `output/research_scout_state.json`
 - [x] `_prefetch_research_scout_context()` — injects `docs/AI_STACK.md` + open research-scout issues for dedup
@@ -85,7 +85,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `CycleTelemetry` fields: `research_scout_ran`, `research_scout_issues_filed`, `skip_research`
 - [x] Tests in `tests/test_research_scout.py`
 
-### Dev Fleet (`dev-fleet/`)
+### Dev Fleet (`theseus-fleet/`)
 - [x] 3 active role prompts: coder, reviewer, pm
 - [x] Coder writes both implementation code and unit tests
 - [x] Reviewer checks for test coverage and quality
@@ -162,7 +162,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] JSONL I/O: `append_telemetry()` and `load_telemetry()` with `last_n` support
 - [x] Telemetry persisted to `output/data/telemetry.jsonl` (already not gitignored)
 - [x] Every cycle instrumented: phase timing, success/failure, error capture, yield computation
-- [x] `dev-fleet/director/CLAUDE.md` role prompt — operational health focus, cycle yield north star
+- [x] `theseus-fleet/director/CLAUDE.md` role prompt — operational health focus, cycle yield north star
 - [x] `step_director()` — invokes Director agent with pre-fetched context, no tool access
 - [x] `_prefetch_director_context()` — assembles telemetry, issues, PRs, label distribution
 - [x] `create_director_issue()` — files issues with `director-suggestion` + `self-improve:backlog` labels
@@ -176,7 +176,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `strategy-suggestion` label reserved for future Strategic Director (#83)
 
 ### Editorial Director (Analysis Quality Review)
-- [x] `dev-fleet/editorial-director/CLAUDE.md` role prompt — analysis quality and public impact focus
+- [x] `theseus-fleet/editorial-director/CLAUDE.md` role prompt — analysis quality and public impact focus
 - [x] `EditorialReview` Pydantic model with approval flag, quality score (1-10), strengths, issues, recommendations
 - [x] `step_editorial_review()` — invokes Editorial Director to review completed analyses
 - [x] Integration into `step_execute_analysis()` — runs after analysis completion, before publication
@@ -216,7 +216,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Index: "Predložite odluku za analizu" CTA linking to Decision Suggestions
 
 ### News Scout (Phase A)
-- [x] `dev-fleet/news-scout/CLAUDE.md` — role prompt for the News Scout agent
+- [x] `theseus-fleet/news-scout/CLAUDE.md` — role prompt for the News Scout agent
 - [x] `step_fetch_news()` in main loop — invokes News Scout agent via Claude Code SDK
 - [x] `should_fetch_news()` — once-per-day gate using `output/news_scout_state.json`
 - [x] `_generate_decision_id()` — deterministic IDs: `news-{date}-{sha256(title)[:8]}`

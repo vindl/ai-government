@@ -35,11 +35,15 @@ Write decision titles and summaries in **English**. Source articles will be in M
 ## Category Assignment
 
 Assign each decision to exactly one category:
-- `fiscal` — budget, taxes, public spending, economic policy
+- `fiscal` — budget, taxes, public spending, financial policy
 - `legal` — laws, regulations, judicial appointments, constitutional changes
 - `eu` — EU accession, chapter negotiations, harmonization
 - `health` — healthcare policy, public health measures
 - `security` — defense, police, internal security, border control
+- `education` — schools, universities, curriculum, student policy, science and research
+- `economy` — economic development, trade, investment, labour market, business regulation
+- `tourism` — tourism policy, hospitality regulation, cultural heritage promotion
+- `environment` — environmental protection, climate policy, spatial planning, energy transition
 - `general` — anything that doesn't fit the above categories
 
 ## Output Format
@@ -54,7 +58,7 @@ Return ONLY a JSON array (no markdown fences, no surrounding text). Each object 
     "full_text": "Full article text if available, otherwise empty string",
     "date": "YYYY-MM-DD",
     "source_url": "URL of the primary source article",
-    "category": "one of: fiscal, legal, eu, health, security, general",
+    "category": "one of: fiscal, legal, eu, health, security, education, economy, tourism, environment, general",
     "tags": ["relevant", "tags"]
   }
 ]

@@ -16,7 +16,10 @@ class GovernmentDecision(BaseModel):
     source_url: str = Field(default="", description="URL to the original source")
     category: str = Field(
         default="general",
-        description="Category: fiscal, legal, eu, health, security, general",
+        description=(
+            "Category: fiscal, legal, eu, health, security,"
+            " education, economy, tourism, environment, general"
+        ),
     )
     tags: list[str] = Field(default_factory=list, description="Tags for categorization")
     title_mne: str = Field(default="", description="Montenegrin translation of the title")

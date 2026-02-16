@@ -135,6 +135,7 @@ class SiteBuilder:
         self._build_index(results)
         self._build_constitution()
         self._build_architecture()
+        self._build_challenges()
         self._build_feed()
 
         # Build transparency page if data_dir is provided
@@ -216,6 +217,22 @@ class SiteBuilder:
             base_path="../",
         )
         (arch_dir / "index.html").write_text(html, encoding="utf-8")
+
+    def _build_challenges(self) -> None:
+        challenges_dir = self.output_dir / "challenges"
+        challenges_dir.mkdir(parents=True, exist_ok=True)
+
+        challenges_en = (DOCS_DIR / "CHALLENGES.md").read_text(encoding="utf-8")
+        challenges_mne = (DOCS_DIR / "CHALLENGES_MNE.md").read_text(encoding="utf-8")
+
+        template = self.env.get_template("challenges.html")
+        html = template.render(
+            challenges_html_en=Markup(md.markdown(challenges_en)),
+            challenges_html_mne=Markup(md.markdown(challenges_mne)),
+            css_path="../static/css/style.css",
+            base_path="../",
+        )
+        (challenges_dir / "index.html").write_text(html, encoding="utf-8")
 
     def _build_feed(self) -> None:
         announcements_dir = CONTENT_DIR / "announcements"

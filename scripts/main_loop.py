@@ -1661,6 +1661,8 @@ async def step_execute_analysis(
         mark_issue_done(issue_number)
         _record_analysis_completion()
         log.info("Analysis issue #%d completed successfully", issue_number)
+        # Commit output data immediately so it survives crashes in later phases
+        _commit_output_data()
         return True
     except Exception as exc:
         reason = f"Analysis failed: {exc}"

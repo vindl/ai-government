@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import claude_agent_sdk
-from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
+from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
 
-from government.agents.json_parsing import extract_json
 from government.config import SessionConfig
 from government.models.assessment import Assessment
 
 if TYPE_CHECKING:
     from government.models.decision import GovernmentDecision
+
+log = logging.getLogger(__name__)
+
+
+def _output_format_for(model_cls: type[Any]) -> dict[str, Any]:
+    """Build an ``output_format`` dict accepted by the SDK from a Pydantic model."""
+    return {"type": "json_schema", "schema": model_cls.model_json_schema()}
 
 
 @dataclass(frozen=True)
@@ -45,21 +52,20 @@ class GovernmentAgent:
         """Analyze a government decision and return an assessment."""
         prompt = self._build_prompt(decision)
 
-        response_text = ""
+        structured: dict[str, Any] | None = None
         async for message in claude_agent_sdk.query(
             prompt=prompt,
             options=ClaudeAgentOptions(
                 system_prompt=self.ministry.system_prompt,
                 model=self.config.model,
                 max_turns=1,
+                output_format=_output_format_for(Assessment),
             ),
         ):
-            if isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        response_text += block.text
+            if isinstance(message, ResultMessage) and message.structured_output is not None:
+                structured = message.structured_output
 
-        return self._parse_response(response_text, decision.id)
+        return self._parse_response(structured, decision.id)
 
     def _build_prompt(self, decision: GovernmentDecision) -> str:
         """Build the analysis prompt for the agent."""
@@ -71,34 +77,26 @@ class GovernmentAgent:
             f"Date: {decision.date}\n"
             f"Summary: {decision.summary}\n"
             f"{full_text_line}\n"
-            f"Focus on: {', '.join(self.ministry.focus_areas)}\n\n"
-            f"Respond with a JSON object matching this schema:\n"
-            f'{{"ministry": "{self.ministry.name}", '
-            f'"decision_id": "{decision.id}", '
-            f'"verdict": "strongly_positive|positive|neutral|negative|strongly_negative", '
-            f'"score": 1-10, "summary": "...", "reasoning": "...", '
-            f'"key_concerns": ["..."], "recommendations": ["..."], '
-            f'"counter_proposal": {{"title": "...", "summary": "...", '
-            f'"key_changes": ["..."], "expected_benefits": ["..."], '
-            f'"estimated_feasibility": "..."}}}}'
+            f"Focus on: {', '.join(self.ministry.focus_areas)}"
         )
 
-    def _parse_response(self, response_text: str, decision_id: str) -> Assessment:
-        """Parse the agent's response into an Assessment."""
-        data = extract_json(response_text)
+    def _parse_response(
+        self, data: dict[str, Any] | None, decision_id: str
+    ) -> Assessment:
+        """Build an Assessment from the structured output dict."""
         if data is not None:
             data.setdefault("decision_id", decision_id)
             return Assessment(**data)
 
         name = self.ministry.name
-        reasoning = response_text[:500] if response_text else "No response received."
+        log.warning("GovernmentAgent(%s): no structured output received", name)
         return Assessment(
             ministry=name,
             decision_id=decision_id,
             verdict="neutral",
             score=5,
             summary=f"Assessment by {name} could not be fully parsed.",
-            reasoning=reasoning,
+            reasoning="No response received.",
             key_concerns=["Response parsing failed"],
             recommendations=["Re-run assessment"],
         )

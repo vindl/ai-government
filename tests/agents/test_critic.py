@@ -1,4 +1,4 @@
-"""Tests for CriticAgent parsing and retry logic."""
+"""Tests for CriticAgent parsing and structured output."""
 
 import json
 from datetime import date
@@ -41,17 +41,21 @@ def assessments() -> list[Assessment]:
     ]
 
 
-VALID_REPORT_JSON = json.dumps({
+VALID_REPORT_DATA = {
     "decision_id": "test-001",
     "decision_score": 7,
     "assessment_quality_score": 8,
     "blind_spots": ["Small business impact"],
     "overall_analysis": "Solid decision with minor gaps.",
     "headline": "Fiscal reform on track but gaps remain",
-})
+}
+
+VALID_REPORT_JSON = json.dumps(VALID_REPORT_DATA)
 
 
 class TestParseResponse:
+    """Test legacy _parse_response (uses extract_json for backward compat)."""
+
     def test_valid_json(self, agent: CriticAgent) -> None:
         result = agent._parse_response(VALID_REPORT_JSON, "test-001")
         assert isinstance(result, CriticReport)
@@ -74,49 +78,44 @@ class TestParseResponse:
         assert result.decision_score == 5
 
 
-class TestReviewRetry:
+class TestBuildReport:
+    def test_builds_from_dict(self, agent: CriticAgent) -> None:
+        result = agent._build_report(dict(VALID_REPORT_DATA), "test-001")
+        assert isinstance(result, CriticReport)
+        assert result.decision_score == 7
+
+    def test_defaults_decision_id(self, agent: CriticAgent) -> None:
+        data = {k: v for k, v in VALID_REPORT_DATA.items() if k != "decision_id"}
+        result = agent._build_report(data, "test-099")
+        assert result.decision_id == "test-099"
+
+
+class TestReviewStructuredOutput:
     @pytest.mark.anyio
-    async def test_success_on_first_try(
+    async def test_success(
         self,
         agent: CriticAgent,
         decision: GovernmentDecision,
         assessments: list[Assessment],
     ) -> None:
         with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = VALID_REPORT_JSON
+            mock_call.return_value = dict(VALID_REPORT_DATA)
             result = await agent.review(decision, assessments)
 
         assert result.decision_score == 7
         assert mock_call.call_count == 1
 
     @pytest.mark.anyio
-    async def test_retry_on_preamble_response(
+    async def test_fallback_on_none(
         self,
         agent: CriticAgent,
         decision: GovernmentDecision,
         assessments: list[Assessment],
     ) -> None:
         with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.side_effect = [
-                "I'll analyze this thoroughly...",
-                VALID_REPORT_JSON,
-            ]
-            result = await agent.review(decision, assessments)
-
-        assert result.decision_score == 7
-        assert mock_call.call_count == 2
-
-    @pytest.mark.anyio
-    async def test_fallback_after_all_retries_exhausted(
-        self,
-        agent: CriticAgent,
-        decision: GovernmentDecision,
-        assessments: list[Assessment],
-    ) -> None:
-        with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = "I'll cross-reference the assessments."
+            mock_call.return_value = None
             result = await agent.review(decision, assessments)
 
         assert result.decision_score == 5
         assert result.headline == "Analiza u toku"
-        assert mock_call.call_count == 2
+        assert mock_call.call_count == 1

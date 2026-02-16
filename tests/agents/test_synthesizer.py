@@ -1,4 +1,4 @@
-"""Tests for SynthesizerAgent parsing and retry logic."""
+"""Tests for SynthesizerAgent parsing and structured output."""
 
 import json
 from datetime import date
@@ -41,7 +41,7 @@ def assessments() -> list[Assessment]:
     ]
 
 
-VALID_PROPOSAL_JSON = json.dumps({
+VALID_PROPOSAL_DATA = {
     "decision_id": "test-001",
     "title": "Unified Fiscal Reform",
     "executive_summary": "A phased approach to VAT reform.",
@@ -50,10 +50,14 @@ VALID_PROPOSAL_JSON = json.dumps({
     "key_differences": ["Gradual instead of one-time"],
     "implementation_steps": ["Phase 1: reduce to 15%"],
     "risks_and_tradeoffs": ["Slower citizen impact"],
-})
+}
+
+VALID_PROPOSAL_JSON = json.dumps(VALID_PROPOSAL_DATA)
 
 
 class TestParseResponse:
+    """Test legacy _parse_response (uses extract_json for backward compat)."""
+
     def test_valid_json(self, agent: SynthesizerAgent) -> None:
         result = agent._parse_response(VALID_PROPOSAL_JSON, "test-001")
         assert isinstance(result, CounterProposal)
@@ -75,48 +79,43 @@ class TestParseResponse:
         assert result.title == "Counter-proposal in preparation"
 
 
-class TestSynthesizeRetry:
+class TestBuildProposal:
+    def test_builds_from_dict(self, agent: SynthesizerAgent) -> None:
+        result = agent._build_proposal(dict(VALID_PROPOSAL_DATA), "test-001")
+        assert isinstance(result, CounterProposal)
+        assert result.title == "Unified Fiscal Reform"
+
+    def test_defaults_decision_id(self, agent: SynthesizerAgent) -> None:
+        data = {k: v for k, v in VALID_PROPOSAL_DATA.items() if k != "decision_id"}
+        result = agent._build_proposal(data, "test-099")
+        assert result.decision_id == "test-099"
+
+
+class TestSynthesizeStructuredOutput:
     @pytest.mark.anyio
-    async def test_success_on_first_try(
+    async def test_success(
         self,
         agent: SynthesizerAgent,
         decision: GovernmentDecision,
         assessments: list[Assessment],
     ) -> None:
         with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = VALID_PROPOSAL_JSON
+            mock_call.return_value = dict(VALID_PROPOSAL_DATA)
             result = await agent.synthesize(decision, assessments)
 
         assert result.title == "Unified Fiscal Reform"
         assert mock_call.call_count == 1
 
     @pytest.mark.anyio
-    async def test_retry_on_preamble_response(
+    async def test_fallback_on_none(
         self,
         agent: SynthesizerAgent,
         decision: GovernmentDecision,
         assessments: list[Assessment],
     ) -> None:
         with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.side_effect = [
-                "I'll analyze the counter-proposals.",
-                VALID_PROPOSAL_JSON,
-            ]
-            result = await agent.synthesize(decision, assessments)
-
-        assert result.title == "Unified Fiscal Reform"
-        assert mock_call.call_count == 2
-
-    @pytest.mark.anyio
-    async def test_fallback_after_all_retries_exhausted(
-        self,
-        agent: SynthesizerAgent,
-        decision: GovernmentDecision,
-        assessments: list[Assessment],
-    ) -> None:
-        with patch.object(agent, "_call_model", new_callable=AsyncMock) as mock_call:
-            mock_call.return_value = "Let me work on synthesizing these."
+            mock_call.return_value = None
             result = await agent.synthesize(decision, assessments)
 
         assert result.title == "Counter-proposal in preparation"
-        assert mock_call.call_count == 2
+        assert mock_call.call_count == 1

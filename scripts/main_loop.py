@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any
 
 import anyio
 import claude_agent_sdk
-from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, TextBlock
 from government.config import SessionConfig
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from government.models.telemetry import (
@@ -262,6 +262,7 @@ def _sdk_options(
     model: str,
     max_turns: int,
     allowed_tools: list[str],
+    output_format: dict[str, Any] | None = None,
 ) -> ClaudeAgentOptions:
     # Agents WITH tools: use SystemPromptPreset with "append" so they get
     # built-in tool instructions, safety guards, and CLAUDE.md project context.
@@ -277,6 +278,7 @@ def _sdk_options(
             cwd=PROJECT_ROOT,
             env=SDK_ENV,
             setting_sources=["project"],
+            output_format=output_format,
         )
     return ClaudeAgentOptions(
         system_prompt=system_prompt,
@@ -286,6 +288,7 @@ def _sdk_options(
         permission_mode="bypassPermissions",
         cwd=PROJECT_ROOT,
         env=SDK_ENV,
+        output_format=output_format,
     )
 
 
@@ -299,6 +302,17 @@ async def _collect_agent_output(
                 if isinstance(block, TextBlock):
                     text_parts.append(block.text)
     return "\n".join(text_parts)
+
+
+async def _collect_structured_output(
+    stream: AsyncIterator[claude_agent_sdk.Message],
+) -> dict[str, Any] | None:
+    """Collect structured output from an SDK stream that uses ``output_format``."""
+    structured: dict[str, Any] | None = None
+    async for message in stream:
+        if isinstance(message, ResultMessage) and message.structured_output is not None:
+            structured = message.structured_output
+    return structured
 
 
 # ---------------------------------------------------------------------------
@@ -1718,27 +1732,7 @@ async def step_editorial_review(
     prompt = f"""Review the analysis for quality and public impact.
 
 The full analysis result is in: {result_file}
-Read that file first, then output a JSON object with your editorial review:
-
-{{
-  "approved": true,  // or false if improvements needed
-  "quality_score": 8,  // 1-10 scale
-  "strengths": [
-    "Clear explanation of fiscal impacts on ordinary citizens",
-    "Strong Constitutional grounding in transparency principles"
-  ],
-  "issues": [
-    "Finance ministry claim about €5M cost is not supported by decision text",
-    "Parliament debate section is dense and hard to follow for general readers"
-  ],
-  "recommendations": [
-    "Verify the €5M radar cost estimate or remove unsupported claim",
-    "Simplify parliament debate summary — use bullet points for key positions"
-  ],
-  "engagement_insights": [
-    // Add insights about engagement patterns when metrics are available
-  ]
-}}
+Read that file first, then provide your editorial review.
 
 Review criteria:
 1. Factual accuracy — are claims supported by the decision text?
@@ -1749,25 +1743,25 @@ Review criteria:
 Most analyses should pass. Only block publication for clear factual errors or Constitution violations.
 """
 
+    from government.agents.base import _output_format_for
+
     opts = _sdk_options(
         system_prompt=system_prompt,
         model=model,
         max_turns=EDITORIAL_DIRECTOR_MAX_TURNS,
         allowed_tools=["Read"],
+        output_format=_output_format_for(EditorialReview),
     )
 
     log.info("Running Editorial Director review for issue #%d...", issue_number)
     try:
         stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-        output = await _collect_agent_output(stream)
+        review_data = await _collect_structured_output(stream)
 
-        # Parse JSON object from output
-        json_match = re.search(r"\{.*\}", output, re.DOTALL)
-        if not json_match:
-            log.warning("Editorial Director output missing JSON object")
+        if review_data is None:
+            log.warning("Editorial Director returned no structured output")
             return None
 
-        review_data = json.loads(json_match.group(0))
         review = EditorialReview.model_validate(review_data)
 
         log.info(

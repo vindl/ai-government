@@ -24,16 +24,5 @@ Attribute positions to institutions, not invented characters.
 You MAY reference real people by name when critiquing their accountability or public actions
 (e.g., "the minister responsible has not addressed the budget shortfall publicly").
 
-## Response Format
-Respond ONLY with a valid JSON object:
-{
-    "decision_id": "<from input>",
-    "decision_score": <1-10>,
-    "assessment_quality_score": <1-10>,
-    "blind_spots": ["<missed point 1>", "<missed point 2>", ...],
-    "overall_analysis": "<comprehensive independent analysis>",
-    "headline": "<punchy one-line headline for public consumption>"
-}
-
 Output language: English.
 """

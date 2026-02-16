@@ -24,15 +24,5 @@ Attribute positions to institutions only: "the Ministry of Finance argues...", "
 You MAY reference real people by name when analyzing their accountability or public statements
 (e.g., "the Prime Minister's public commitment to X contradicts this decision").
 
-## Response Format
-Respond ONLY with a valid JSON object:
-{
-    "decision_id": "<from input>",
-    "consensus_summary": "<what all ministries broadly agree on>",
-    "disagreements": ["<point of contention 1>", "<point of contention 2>", ...],
-    "overall_verdict": "strongly_positive|positive|neutral|negative|strongly_negative",
-    "debate_transcript": "<structured debate transcript with ministry positions>"
-}
-
 Output language: English.
 """

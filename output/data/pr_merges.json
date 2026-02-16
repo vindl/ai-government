@@ -1,5 +1,19 @@
 [
   {
+    "timestamp": "2026-02-16T22:56:45Z",
+    "pr_number": 227,
+    "pr_title": "Decouple analysis and self-improvement pipelines",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T22:54:38Z",
+    "pr_number": 226,
+    "pr_title": "Only sleep long when analysis tasks are blocked in backlog",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-16T21:18:09Z",
     "pr_number": 222,
     "pr_title": "Fix idle loop spinning when analysis is rate-limited",

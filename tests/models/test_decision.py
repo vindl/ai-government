@@ -67,6 +67,31 @@ class TestGovernmentDecision:
         assert d.id == "dict-001"
         assert d.date == date(2025, 12, 15)
 
+    @pytest.mark.parametrize(
+        "category",
+        [
+            "fiscal",
+            "legal",
+            "eu",
+            "health",
+            "security",
+            "education",
+            "economy",
+            "tourism",
+            "environment",
+            "general",
+        ],
+    )
+    def test_all_categories(self, category: str) -> None:
+        d = GovernmentDecision(
+            id=f"cat-{category}",
+            title=f"Test {category} decision",
+            summary=f"A decision in the {category} category",
+            date=date(2026, 1, 15),
+            category=category,
+        )
+        assert d.category == category
+
     def test_seed_file_is_valid_json(self, seed_decisions_path: "Path") -> None:  # noqa: F821
         with open(seed_decisions_path) as f:
             data = json.load(f)

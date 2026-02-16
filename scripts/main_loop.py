@@ -1622,6 +1622,14 @@ async def step_execute_analysis(
             mark_issue_failed(issue_number, reason)
             return False
 
+        # Translate to Montenegrin (non-fatal — English-only is better than no publish)
+        try:
+            from government.output.localization import localize_result
+            await localize_result(results[0], model="claude-sonnet-4-5-20250929")
+            log.info("Montenegrin translations populated")
+        except Exception:
+            log.exception("Localization failed (non-fatal, publishing English-only)")
+
         # Post scorecard as issue comment
         scorecard = render_scorecard(results[0])
         _run_gh(["gh", "issue", "comment", str(issue_number),

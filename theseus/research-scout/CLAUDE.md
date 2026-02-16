@@ -50,7 +50,7 @@ Each issue you file will be implemented by a coder agent in a single PR session.
 - **Link to docs/release notes** so the coder has context.
 
 Bad: "Adopt new agent framework" (too vague, too big)
-Good: "Replace `_collect_agent_output()` with SDK's native `collect_text()` helper from claude-code-sdk 1.2"
+Good: "Replace `_collect_agent_output()` with SDK's native `collect_text()` helper from claude-agent-sdk 1.2"
 
 ## Output Format
 

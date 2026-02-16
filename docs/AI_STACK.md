@@ -14,7 +14,7 @@ Current model versions, SDK versions, agent architecture, and agent roster used 
 
 | Package | Version Constraint | Purpose |
 |---------|-------------------|---------|
-| `claude-code-sdk` | latest | Agent orchestration — spawns Claude Code subprocesses |
+| `claude-agent-sdk` | latest | Agent orchestration — spawns Claude Code subprocesses |
 | `pydantic` | `>=2.0` | Data models, validation, JSON serialization |
 | `anyio` | `>=4.0` | Async concurrency (task groups for parallel dispatch) |
 | `httpx` | `>=0.27` | HTTP client (used by scraping utilities) |
@@ -23,10 +23,10 @@ Current model versions, SDK versions, agent architecture, and agent roster used 
 
 ## Agent Architecture
 
-- **Orchestration**: Claude Code SDK (`claude_code_sdk.query()`) — each agent runs as an isolated subprocess
+- **Orchestration**: Claude Agent SDK (`claude_agent_sdk.query()`) — each agent runs as an isolated subprocess
 - **Communication**: Structured JSON input/output via Pydantic models
 - **Parallelism**: `anyio.create_task_group()` for concurrent agent dispatch
-- **Tool access**: Agents receive tool access via `allowed_tools` in `ClaudeCodeOptions`
+- **Tool access**: Agents receive tool access via `allowed_tools` in `ClaudeAgentOptions`
 - **Prompt management**: Role prompts in `theseus/*/CLAUDE.md`, loaded at runtime via `_load_role_prompt()`
 - **Permission mode**: `bypassPermissions` for all SDK agents (no interactive approval)
 

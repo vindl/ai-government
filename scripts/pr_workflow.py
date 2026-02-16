@@ -16,8 +16,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import anyio
-import claude_code_sdk
-from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
+import claude_agent_sdk
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -53,15 +53,16 @@ def _sdk_options(
     model: str,
     max_turns: int,
     allowed_tools: list[str],
-) -> ClaudeCodeOptions:
-    """Build ClaudeCodeOptions with shared defaults.
+) -> ClaudeAgentOptions:
+    """Build ClaudeAgentOptions with shared defaults.
 
     Agents WITH tools get ``append_system_prompt`` so Claude Code's built-in
     tool instructions, safety guards, and CLAUDE.md project context are
     preserved.  Agents WITHOUT tools get a full ``system_prompt`` replacement.
     """
     if allowed_tools:
-        return ClaudeCodeOptions(
+        return ClaudeAgentOptions(
+            system_prompt={"type": "preset", "preset": "claude_code"},
             append_system_prompt=system_prompt,
             model=model,
             max_turns=max_turns,
@@ -69,8 +70,9 @@ def _sdk_options(
             permission_mode="bypassPermissions",
             cwd=PROJECT_ROOT,
             env=SDK_ENV,
+            setting_sources=["project"],
         )
-    return ClaudeCodeOptions(
+    return ClaudeAgentOptions(
         system_prompt=system_prompt,
         model=model,
         max_turns=max_turns,
@@ -575,7 +577,7 @@ IMPORTANT — PR comment formatting:
 """
 
 
-async def _collect_agent_output(stream: AsyncIterator[claude_code_sdk.Message]) -> str:
+async def _collect_agent_output(stream: AsyncIterator[claude_agent_sdk.Message]) -> str:
     """Collect text output from a Claude Code SDK query stream."""
     text_parts: list[str] = []
     async for message in stream:
@@ -603,7 +605,7 @@ async def run_coder(
             max_turns=CODER_MAX_TURNS,
             allowed_tools=CODER_TOOLS,
         )
-        stream = claude_code_sdk.query(prompt=prompt, options=opts)
+        stream = claude_agent_sdk.query(prompt=prompt, options=opts)
         output = await _collect_agent_output(stream)
         log.info("Coder finished. Output length: %d chars", len(output))
         return output, False
@@ -630,7 +632,7 @@ async def run_reviewer(
             max_turns=REVIEWER_MAX_TURNS,
             allowed_tools=REVIEWER_TOOLS,
         )
-        stream = claude_code_sdk.query(prompt=prompt, options=opts)
+        stream = claude_agent_sdk.query(prompt=prompt, options=opts)
         output = await _collect_agent_output(stream)
         log.info("Reviewer finished. Output length: %d chars", len(output))
         return output, False

@@ -26,8 +26,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import anyio
-import claude_code_sdk
-from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
+import claude_agent_sdk
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 from government.config import SessionConfig
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from government.models.telemetry import (
@@ -249,13 +249,14 @@ def _sdk_options(
     model: str,
     max_turns: int,
     allowed_tools: list[str],
-) -> ClaudeCodeOptions:
+) -> ClaudeAgentOptions:
     # Agents WITH tools: append to the default Claude Code prompt so they get
     # built-in tool instructions, safety guards, and CLAUDE.md project context.
     # Agents WITHOUT tools: replace the system prompt entirely (no point loading
     # tool instructions they can't use).
     if allowed_tools:
-        return ClaudeCodeOptions(
+        return ClaudeAgentOptions(
+            system_prompt={"type": "preset", "preset": "claude_code"},
             append_system_prompt=system_prompt,
             model=model,
             max_turns=max_turns,
@@ -263,8 +264,9 @@ def _sdk_options(
             permission_mode="bypassPermissions",
             cwd=PROJECT_ROOT,
             env=SDK_ENV,
+            setting_sources=["project"],
         )
-    return ClaudeCodeOptions(
+    return ClaudeAgentOptions(
         system_prompt=system_prompt,
         model=model,
         max_turns=max_turns,
@@ -276,7 +278,7 @@ def _sdk_options(
 
 
 async def _collect_agent_output(
-    stream: AsyncIterator[claude_code_sdk.Message],
+    stream: AsyncIterator[claude_agent_sdk.Message],
 ) -> str:
     text_parts: list[str] = []
     async for message in stream:
@@ -1423,7 +1425,7 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
         )
 
         log.info("Running News Scout agent for %s...", today.isoformat())
-        stream = claude_code_sdk.query(
+        stream = claude_agent_sdk.query(
             prompt=f"Search for Montenegrin government decisions from {today.isoformat()}. "
                    "Return a JSON array of the top 3 most significant decisions.",
             options=opts,
@@ -1736,7 +1738,7 @@ Most analyses should pass. Only block publication for clear factual errors or Co
 
     log.info("Running Editorial Director review for issue #%d...", issue_number)
     try:
-        stream = claude_code_sdk.query(prompt=prompt, options=opts)
+        stream = claude_agent_sdk.query(prompt=prompt, options=opts)
         output = await _collect_agent_output(stream)
 
         # Parse JSON object from output
@@ -1906,7 +1908,7 @@ acceptance criteria. List specific files to change.",
     )
 
     log.info("Running PM agent to propose %d improvements...", num_proposals)
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     output = await _collect_agent_output(stream)
 
     # Extract and validate JSON from the output
@@ -2072,7 +2074,7 @@ Write a concise argument (~200 words) covering:
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
     )
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
 
 
@@ -2114,7 +2116,7 @@ Do NOT give a verdict yet. Just provide your feedback so the PM can refine.
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
     )
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
 
 
@@ -2149,7 +2151,7 @@ Write a concise response (~200 words):
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
     )
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
 
 
@@ -2190,7 +2192,7 @@ When in doubt, accept.
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
     )
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
 
 
@@ -2703,7 +2705,7 @@ Format:
     )
 
     log.info("Running Project Director agent...")
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     output = await _collect_agent_output(stream)
 
     raw = _parse_json_array(output)
@@ -2949,7 +2951,7 @@ Format:
     )
 
     log.info("Running Strategic Director agent...")
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     output = await _collect_agent_output(stream)
 
     raw = _parse_json_array(output)
@@ -3031,7 +3033,7 @@ async def step_research_scout(*, model: str) -> list[int]:
     )
 
     log.info("Running Research Scout agent...")
-    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     output = await _collect_agent_output(stream)
 
     raw = _parse_json_array(output)

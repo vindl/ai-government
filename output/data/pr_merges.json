@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-16T04:19:08Z",
+    "pr_number": 209,
+    "pr_title": "Migrate from deprecated claude-code-sdk to claude-agent-sdk",
+    "actor": "vindl",
+    "issue_number": 207
+  },
+  {
     "timestamp": "2026-02-16T03:57:09Z",
     "pr_number": 206,
     "pr_title": "Fix editorial quality: add JSON retry logic for parliament, critic, and synthesizer agents",

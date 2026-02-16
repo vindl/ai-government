@@ -10,7 +10,7 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from ai_government.models.assessment import (
+from government.models.assessment import (
     Assessment,
     CounterProposal,
     CriticReport,
@@ -18,11 +18,11 @@ from ai_government.models.assessment import (
     ParliamentDebate,
     Verdict,
 )
-from ai_government.models.decision import GovernmentDecision
-from ai_government.orchestrator import SessionResult
-from ai_government.output.html import _verdict_label_mne
-from ai_government.output.localization import has_montenegrin_content
-from ai_government.output.site_builder import SiteBuilder
+from government.models.decision import GovernmentDecision
+from government.orchestrator import SessionResult
+from government.output.html import _verdict_label_mne
+from government.output.localization import has_montenegrin_content
+from government.output.site_builder import SiteBuilder
 
 
 def _make_bilingual_result() -> SessionResult:

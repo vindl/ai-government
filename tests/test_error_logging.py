@@ -10,9 +10,8 @@ from unittest.mock import patch
 scripts_path = Path(__file__).parent.parent / "scripts"
 sys.path.insert(0, str(scripts_path))
 
+from government.models.telemetry import load_errors  # noqa: E402
 from main_loop import _log_error  # noqa: E402
-
-from ai_government.models.telemetry import load_errors  # noqa: E402
 
 
 def test_log_error_creates_file(tmp_path: Path) -> None:

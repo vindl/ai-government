@@ -14,11 +14,11 @@ import pytest
 if TYPE_CHECKING:
     from pathlib import Path
 
-from ai_government.models.assessment import Assessment, CriticReport, Verdict
-from ai_government.models.decision import GovernmentDecision
-from ai_government.models.override import HumanOverride, HumanSuggestion, PRMerge
-from ai_government.orchestrator import SessionResult
-from ai_government.output.site_builder import SiteBuilder
+from government.models.assessment import Assessment, CriticReport, Verdict
+from government.models.decision import GovernmentDecision
+from government.models.override import HumanOverride, HumanSuggestion, PRMerge
+from government.orchestrator import SessionResult
+from government.output.site_builder import SiteBuilder
 
 
 def _make_result() -> SessionResult:

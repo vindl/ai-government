@@ -6,9 +6,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-
-from ai_government.models.override import HumanOverride, HumanSuggestion, PRMerge
-from ai_government.output.site_builder import (
+from government.models.override import HumanOverride, HumanSuggestion, PRMerge
+from government.output.site_builder import (
     SiteBuilder,
     load_overrides_from_file,
     load_pr_merges_from_file,

@@ -6,13 +6,13 @@ import datetime
 import json
 from typing import TYPE_CHECKING
 
-from ai_government.models.assessment import Assessment, Verdict
+from government.models.assessment import Assessment, Verdict
 
 if TYPE_CHECKING:
     from pathlib import Path
-from ai_government.models.decision import GovernmentDecision
-from ai_government.orchestrator import SessionResult
-from ai_government.output.site_builder import load_results_from_dir
+from government.models.decision import GovernmentDecision
+from government.orchestrator import SessionResult
+from government.output.site_builder import load_results_from_dir
 
 
 def _make_session_result(id: str = "d1") -> SessionResult:

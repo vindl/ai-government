@@ -16,7 +16,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `CLAUDE.md` project conventions (applies to all Claude Code instances)
 - [x] `uv sync` installs everything cleanly
 
-### Data Models (`src/ai_government/models/`)
+### Data Models (`government/models/`)
 - [x] `GovernmentDecision` — Pydantic model for input decisions
 - [x] `Assessment` — ministry agent output with verdict + score + optional counter-proposal
 - [x] `Verdict` — StrEnum (strongly_positive → strongly_negative)
@@ -25,7 +25,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `MinistryCounterProposal` — per-ministry alternative proposal
 - [x] `CounterProposal` — unified counter-proposal from synthesizer
 
-### Agent Framework (`src/ai_government/agents/`)
+### Agent Framework (`government/agents/`)
 - [x] `GovernmentAgent` base class with `analyze()` method
 - [x] `MinistryConfig` frozen dataclass for per-ministry config
 - [x] Response parsing with JSON extraction + graceful fallback
@@ -34,26 +34,26 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `CriticAgent` — independent scoring of decision + assessments
 - [x] `SynthesizerAgent` — consolidates ministry counter-proposals into unified alternative
 
-### Prompts (`src/ai_government/prompts/`)
+### Prompts (`government/prompts/`)
 - [x] `ministry_base.py` — shared template with `build_ministry_prompt()`
 - [x] Per-ministry prompts with Montenegro-specific expertise
 - [x] Parliament prompt — neutral moderator persona
 - [x] Critic prompt — independent watchdog persona
 - [x] All prompts request JSON output, Montenegrin language (Latin script)
 
-### Orchestrator (`src/ai_government/orchestrator.py`)
+### Orchestrator (`government/orchestrator.py`)
 - [x] Parallel ministry dispatch via `anyio.create_task_group()`
 - [x] Sequential mode option for debugging/budget control
 - [x] Phase 1: ministries in parallel → Phase 2: parliament + critic in parallel → Phase 3: synthesizer
 - [x] `SessionResult` dataclass aggregating all outputs (including optional `counter_proposal`)
 
-### Session Runner (`src/ai_government/session.py`)
+### Session Runner (`government/session.py`)
 - [x] CLI entrypoint with argparse
 - [x] Loads decisions from JSON file
 - [x] Runs orchestrator, saves scorecards to output dir
 - [x] Flags: `--decision-file`, `--output-dir`, `--sequential`, `--model`
 
-### Output Formatters (`src/ai_government/output/`)
+### Output Formatters (`government/output/`)
 - [x] `scorecard.py` — full markdown scorecard with tables, scores, details
 - [x] `html.py` — Jinja2 helper functions for verdict labels and CSS classes
 - [x] `site_builder.py` — full static site builder (index, scorecards, about, feed)
@@ -71,7 +71,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Main loop serializes analysis results to `output/data/` for site builder
 
 ### Research Scout (Phase F)
-- [x] `theseus-fleet/research-scout/CLAUDE.md` — role prompt for the Research Scout agent
+- [x] `theseus/research-scout/CLAUDE.md` — role prompt for the Research Scout agent
 - [x] `step_research_scout()` in main loop — invokes Research Scout agent via Claude Code SDK
 - [x] `should_run_research_scout()` — daily gate using `output/research_scout_state.json`
 - [x] `_prefetch_research_scout_context()` — injects `docs/AI_STACK.md` + open research-scout issues for dedup
@@ -85,7 +85,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `CycleTelemetry` fields: `research_scout_ran`, `research_scout_issues_filed`, `skip_research`
 - [x] Tests in `tests/test_research_scout.py`
 
-### Dev Fleet (`theseus-fleet/`)
+### Dev Fleet (`theseus/`)
 - [x] 3 active role prompts: coder, reviewer, pm
 - [x] Coder writes both implementation code and unit tests
 - [x] Reviewer checks for test coverage and quality
@@ -123,7 +123,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Fresh clone at runtime (no host filesystem mount) for full isolation
 - [x] `uv sync` in `_reexec()` so new dependencies are installed after git pull
 
-### X Per-Analysis Posting (`src/ai_government/output/twitter.py`)
+### X Per-Analysis Posting (`government/output/twitter.py`)
 - [x] `TwitterState` Pydantic model for tracking posted decision IDs and monthly limits
 - [x] `load_state()` / `save_state()` — persists to `output/twitter_state.json`
 - [x] `get_unposted_results()` — filters already-posted decisions
@@ -158,11 +158,11 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Configure board/table views in GitHub web UI after first run
 
 ### Project Director (Phase D) & Telemetry
-- [x] `CycleTelemetry` and `CyclePhaseResult` Pydantic models (`src/ai_government/models/telemetry.py`)
+- [x] `CycleTelemetry` and `CyclePhaseResult` Pydantic models (`government/models/telemetry.py`)
 - [x] JSONL I/O: `append_telemetry()` and `load_telemetry()` with `last_n` support
 - [x] Telemetry persisted to `output/data/telemetry.jsonl` (already not gitignored)
 - [x] Every cycle instrumented: phase timing, success/failure, error capture, yield computation
-- [x] `theseus-fleet/director/CLAUDE.md` role prompt — operational health focus, cycle yield north star
+- [x] `theseus/director/CLAUDE.md` role prompt — operational health focus, cycle yield north star
 - [x] `step_director()` — invokes Director agent with pre-fetched context, no tool access
 - [x] `_prefetch_director_context()` — assembles telemetry, issues, PRs, label distribution
 - [x] `create_director_issue()` — files issues with `director-suggestion` + `self-improve:backlog` labels
@@ -176,7 +176,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `strategy-suggestion` label reserved for future Strategic Director (#83)
 
 ### Editorial Director (Analysis Quality Review)
-- [x] `theseus-fleet/editorial-director/CLAUDE.md` role prompt — analysis quality and public impact focus
+- [x] `theseus/editorial-director/CLAUDE.md` role prompt — analysis quality and public impact focus
 - [x] `EditorialReview` Pydantic model with approval flag, quality score (1-10), strengths, issues, recommendations
 - [x] `step_editorial_review()` — invokes Editorial Director to review completed analyses
 - [x] Integration into `step_execute_analysis()` — runs after analysis completion, before publication
@@ -216,7 +216,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Index: "Predložite odluku za analizu" CTA linking to Decision Suggestions
 
 ### News Scout (Phase A)
-- [x] `theseus-fleet/news-scout/CLAUDE.md` — role prompt for the News Scout agent
+- [x] `theseus/news-scout/CLAUDE.md` — role prompt for the News Scout agent
 - [x] `step_fetch_news()` in main loop — invokes News Scout agent via Claude Code SDK
 - [x] `should_fetch_news()` — once-per-day gate using `output/news_scout_state.json`
 - [x] `_generate_decision_id()` — deterministic IDs: `news-{date}-{sha256(title)[:8]}`
@@ -248,6 +248,6 @@ No stubs remain. All early placeholder code has been removed.
 
 3. **Ruff's TCH (type-checking) rules aggressively move imports to `TYPE_CHECKING` blocks.** This is fine with `from __future__ import annotations` but be aware that runtime-needed imports (e.g., for dataclass defaults) must stay as regular imports. The orchestrator's `SessionResult` dataclass was affected — ruff moved its type imports but `from __future__ import annotations` makes this safe.
 
-4. **Line length set to 110** (not default 88) because prompt strings and Montenegrin text tend to be long. Prompt files (`src/ai_government/prompts/*.py`) have E501 disabled entirely.
+4. **Line length set to 110** (not default 88) because prompt strings and Montenegrin text tend to be long. Prompt files (`government/prompts/*.py`) have E501 disabled entirely.
 
 5. **Claude Code SDK nested session guard.** When running `claude_code_sdk.query()` from inside a Claude Code session (e.g., the PR workflow script launched by an agent), the child process inherits `CLAUDECODE=1` and refuses to start. Fix: pass `env={"CLAUDECODE": ""}` in `ClaudeCodeOptions` to clear the nesting guard. This is safe — each SDK call spawns an independent subprocess.

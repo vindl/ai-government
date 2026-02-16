@@ -23,7 +23,7 @@ def test_strategic_director_output_schema() -> None:
         "title": "Expand to Instagram for broader reach",
         "description": (
             "Public interest data shows Instagram has 2x the reach of X in Montenegro. "
-            "File: src/ai_government/output/social_media_config.py. "
+            "File: government/output/social_media_config.py. "
             "Add Instagram API integration."
         ),
     }

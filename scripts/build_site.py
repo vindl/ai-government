@@ -10,7 +10,7 @@ from pathlib import Path
 # Allow running from the scripts/ directory
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from ai_government.output.site_builder import SiteBuilder, load_results_from_dir
+from government.output.site_builder import SiteBuilder, load_results_from_dir
 
 
 def main() -> None:

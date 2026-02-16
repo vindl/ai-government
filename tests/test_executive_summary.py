@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_government.models.assessment import Assessment, Verdict
+from government.models.assessment import Assessment, Verdict
 
 
 class TestExecutiveSummary:

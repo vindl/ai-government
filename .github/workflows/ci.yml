@@ -22,10 +22,10 @@ jobs:
         run: uv sync
 
       - name: Lint with ruff
-        run: uv run ruff check src/ tests/
+        run: uv run ruff check government/ tests/
 
       - name: Type check with mypy
-        run: uv run mypy src/
+        run: uv run mypy government/
 
       - name: Run tests
         run: uv run pytest -v

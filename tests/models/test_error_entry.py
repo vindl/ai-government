@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from ai_government.models.telemetry import (
+from government.models.telemetry import (
     ErrorEntry,
     append_error,
     load_errors,

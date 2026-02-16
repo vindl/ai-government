@@ -17,14 +17,14 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 - tweepy for X (formerly Twitter) API integration
 
 ## Code Style
-- Use `ruff` for linting (`ruff check src/ tests/`)
+- Use `ruff` for linting (`ruff check government/ tests/`)
 - Use `mypy --strict` for type checking
 - All models use Pydantic v2
 - Async-first: use `anyio` for concurrency, not `asyncio` directly
 - Imports: stdlib → third-party → local (enforced by ruff isort)
 
 ## Project Layout
-- `src/ai_government/` — main package
+- `government/` — main package
   - `agents/` — agent implementations (inherit from `GovernmentAgent`)
   - `prompts/` — prompt templates (one per agent)
   - `models/` — Pydantic data models
@@ -32,7 +32,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
   - `output/` — output formatters (scorecard, social media, HTML, site builder, X posting)
 - `site/` — site source (templates, static assets, announcement content)
 - `tests/` — pytest tests
-- `theseus-fleet/` — Claude Code role prompts
+- `theseus/` — Claude Code role prompts
 - `data/seed/` — sample decision data
 - `scripts/` — CLI scripts
 - `output/data/` — serialized analysis results (committed, feeds the site builder)
@@ -40,8 +40,8 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 ## Running
 ```bash
 uv sync                    # install deps
-uv run ruff check src/ tests/  # lint
-uv run mypy src/           # type check
+uv run ruff check government/ tests/  # lint
+uv run mypy government/           # type check
 uv run pytest              # test
 uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.json
 uv run python scripts/pr_workflow.py "<task description>"  # PR workflow

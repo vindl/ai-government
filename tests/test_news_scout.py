@@ -166,7 +166,7 @@ class TestDecisionJsonEmbedding:
     """Test that we can embed and extract GovernmentDecision JSON from issue bodies."""
 
     def test_roundtrip(self) -> None:
-        from ai_government.models.decision import GovernmentDecision
+        from government.models.decision import GovernmentDecision
 
         decision = GovernmentDecision(
             id="news-2026-02-14-abc12345",

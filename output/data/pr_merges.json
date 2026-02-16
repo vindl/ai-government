@@ -1,5 +1,19 @@
 [
   {
+    "timestamp": "2026-02-16T03:57:09Z",
+    "pr_number": 206,
+    "pr_title": "Fix editorial quality: add JSON retry logic for parliament, critic, and synthesizer agents",
+    "actor": "vindl",
+    "issue_number": 201
+  },
+  {
+    "timestamp": "2026-02-16T03:48:18Z",
+    "pr_number": 205,
+    "pr_title": "Add change impact feedback loop for Directors",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-16T03:24:18Z",
     "pr_number": 200,
     "pr_title": "Fix: commit output data immediately after analysis",

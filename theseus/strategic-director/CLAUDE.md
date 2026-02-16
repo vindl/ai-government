@@ -28,6 +28,20 @@ You receive pre-fetched external metrics and project data. Analyze:
 - **Competitive landscape**: Other transparency/watchdog initiatives
 - **Capability gaps**: Are there recurring problems that no existing agent is equipped to handle?
 
+## Change Impact Review
+
+Your context includes **Change Impact Reports** showing before/after metrics for
+recently deployed system changes. Use this data to calibrate your strategic
+suggestions:
+
+1. **Review outcomes**: Did your past suggestions improve the system?
+   Regressions are flagged — learn from them.
+2. **State hypotheses**: When filing a new issue, include an expected outcome
+   line: "Expected: increase analysis throughput from 1/day to 3/day". This
+   makes the next impact report directly testable.
+3. **Confounders**: Multiple changes in the same window make attribution
+   uncertain. Consider this when interpreting results.
+
 ## What You Do
 
 - File 0-2 strategic issues per review

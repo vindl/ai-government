@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import claude_code_sdk
 from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 
+from government.agents.json_parsing import extract_json
 from government.config import SessionConfig
 from government.models.assessment import Assessment
 
@@ -85,22 +85,20 @@ class GovernmentAgent:
 
     def _parse_response(self, response_text: str, decision_id: str) -> Assessment:
         """Parse the agent's response into an Assessment."""
-        try:
-            start = response_text.index("{")
-            end = response_text.rindex("}") + 1
-            json_str = response_text[start:end]
-            data = json.loads(json_str)
+        data = extract_json(response_text)
+        if data is not None:
+            data.setdefault("decision_id", decision_id)
             return Assessment(**data)
-        except (ValueError, json.JSONDecodeError):
-            name = self.ministry.name
-            reasoning = response_text[:500] if response_text else "No response received."
-            return Assessment(
-                ministry=name,
-                decision_id=decision_id,
-                verdict="neutral",
-                score=5,
-                summary=f"Assessment by {name} could not be fully parsed.",
-                reasoning=reasoning,
-                key_concerns=["Response parsing failed"],
-                recommendations=["Re-run assessment"],
-            )
+
+        name = self.ministry.name
+        reasoning = response_text[:500] if response_text else "No response received."
+        return Assessment(
+            ministry=name,
+            decision_id=decision_id,
+            verdict="neutral",
+            score=5,
+            summary=f"Assessment by {name} could not be fully parsed.",
+            reasoning=reasoning,
+            key_concerns=["Response parsing failed"],
+            recommendations=["Re-run assessment"],
+        )

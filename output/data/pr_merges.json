@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-16T23:56:25Z",
+    "pr_number": 232,
+    "pr_title": "Use SDK structured outputs instead of manual JSON parsing",
+    "actor": "vindl",
+    "issue_number": 229
+  },
+  {
     "timestamp": "2026-02-16T23:40:51Z",
     "pr_number": 231,
     "pr_title": "Add education, economy, tourism, environment decision categories",

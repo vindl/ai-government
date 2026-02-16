@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
-import json
+import logging
 from typing import TYPE_CHECKING
 
 import claude_code_sdk
 from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
 
+from government.agents.json_parsing import RETRY_PROMPT, extract_json
 from government.config import SessionConfig
 from government.models.assessment import Assessment, ParliamentDebate
 from government.prompts.parliament import PARLIAMENT_SYSTEM_PROMPT
 
 if TYPE_CHECKING:
     from government.models.decision import GovernmentDecision
+
+log = logging.getLogger(__name__)
+
+MAX_RETRIES = 1
 
 
 class ParliamentAgent:
@@ -30,21 +35,48 @@ class ParliamentAgent:
         """Run a parliamentary debate on the decision given all ministry assessments."""
         prompt = self._build_prompt(decision, assessments)
 
+        response_text = await self._call_model(prompt, max_turns=1)
+
+        data = extract_json(response_text)
+        if data is not None:
+            return self._build_debate(data, decision.id)
+
+        # Retry once with an explicit JSON-only follow-up.
+        for attempt in range(MAX_RETRIES):
+            log.warning(
+                "ParliamentAgent: no valid JSON in response for %s (attempt %d), retrying",
+                decision.id,
+                attempt + 1,
+            )
+            retry_text = await self._call_model(
+                f"{prompt}\n\n{RETRY_PROMPT}", max_turns=1
+            )
+            data = extract_json(retry_text)
+            if data is not None:
+                return self._build_debate(data, decision.id)
+
+        log.error(
+            "ParliamentAgent: all retries exhausted for %s, returning fallback",
+            decision.id,
+        )
+        return self._fallback(response_text, decision.id)
+
+    async def _call_model(self, prompt: str, *, max_turns: int = 1) -> str:
+        """Call Claude Code SDK and collect text response."""
         response_text = ""
         async for message in claude_code_sdk.query(
             prompt=prompt,
             options=ClaudeCodeOptions(
                 system_prompt=PARLIAMENT_SYSTEM_PROMPT,
                 model=self.config.model,
-                max_turns=1,
+                max_turns=max_turns,
             ),
         ):
             if isinstance(message, AssistantMessage):
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         response_text += block.text
-
-        return self._parse_response(response_text, decision.id)
+        return response_text
 
     def _build_prompt(
         self,
@@ -69,18 +101,26 @@ class ParliamentAgent:
             f"Synthesize these assessments into a parliamentary debate."
         )
 
+    @staticmethod
+    def _build_debate(data: dict[str, object], decision_id: str) -> ParliamentDebate:
+        """Construct a ``ParliamentDebate`` from parsed JSON *data*."""
+        data.setdefault("decision_id", decision_id)
+        return ParliamentDebate(**data)
+
+    @staticmethod
+    def _fallback(response_text: str, decision_id: str) -> ParliamentDebate:
+        transcript = response_text[:1000] if response_text else "No debate generated."
+        return ParliamentDebate(
+            decision_id=decision_id,
+            consensus_summary="Debate could not be fully parsed.",
+            disagreements=[],
+            overall_verdict="neutral",
+            debate_transcript=transcript,
+        )
+
+    # Keep legacy name for backwards compatibility with tests.
     def _parse_response(self, response_text: str, decision_id: str) -> ParliamentDebate:
-        try:
-            start = response_text.index("{")
-            end = response_text.rindex("}") + 1
-            data = json.loads(response_text[start:end])
-            return ParliamentDebate(**data)
-        except (ValueError, json.JSONDecodeError):
-            transcript = response_text[:1000] if response_text else "No debate generated."
-            return ParliamentDebate(
-                decision_id=decision_id,
-                consensus_summary="Debate could not be fully parsed.",
-                disagreements=[],
-                overall_verdict="neutral",
-                debate_transcript=transcript,
-            )
+        data = extract_json(response_text)
+        if data is not None:
+            return self._build_debate(data, decision_id)
+        return self._fallback(response_text, decision_id)

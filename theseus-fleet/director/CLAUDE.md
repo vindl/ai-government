@@ -43,7 +43,7 @@ This complements the Strategic Director's staffing authority over content/extern
 ## Agent Tuning
 
 You can file issues to adjust the prompts and behavior of agents you manage (PM, Coder, Reviewer, and agents you propose). Prompts live in:
-- **Role prompts**: `dev-fleet/*/CLAUDE.md` (agent identity and guidelines)
+- **Role prompts**: `theseus-fleet/*/CLAUDE.md` (agent identity and guidelines)
 - **Operational prompts**: `scripts/pr_workflow.py` and `scripts/main_loop.py` (runtime instructions)
 
 When filing a tuning issue, specify the file and the exact change. Example: "Update coder prompt in `scripts/pr_workflow.py` to limit exploration to 3 file reads before starting implementation."

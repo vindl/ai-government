@@ -27,7 +27,7 @@ Current model versions, SDK versions, agent architecture, and agent roster used 
 - **Communication**: Structured JSON input/output via Pydantic models
 - **Parallelism**: `anyio.create_task_group()` for concurrent agent dispatch
 - **Tool access**: Agents receive tool access via `allowed_tools` in `ClaudeCodeOptions`
-- **Prompt management**: Role prompts in `dev-fleet/*/CLAUDE.md`, loaded at runtime via `_load_role_prompt()`
+- **Prompt management**: Role prompts in `theseus-fleet/*/CLAUDE.md`, loaded at runtime via `_load_role_prompt()`
 - **Permission mode**: `bypassPermissions` for all SDK agents (no interactive approval)
 
 ## Agent Roster
@@ -49,14 +49,14 @@ Current model versions, SDK versions, agent architecture, and agent roster used 
 ### Dev Fleet (Fleet 2)
 | Agent | Prompt Location | Role | Schedule |
 |-------|----------------|------|----------|
-| Coder | `dev-fleet/coder/CLAUDE.md` | Implements code changes | Phase C (on demand) |
-| Reviewer | `dev-fleet/reviewer/CLAUDE.md` | Reviews PRs | Phase C (on demand) |
-| PM | `dev-fleet/pm/CLAUDE.md` | Proposes improvements | Phase B (every cycle) |
-| News Scout | `dev-fleet/news-scout/CLAUDE.md` | Discovers government decisions | Phase A (daily) |
-| Editorial Director | `dev-fleet/editorial-director/CLAUDE.md` | Reviews analysis quality | Phase C (per analysis) |
-| Project Director | `dev-fleet/director/CLAUDE.md` | Operational oversight | Phase D (every N cycles) |
-| Strategic Director | `dev-fleet/strategic-director/CLAUDE.md` | External impact strategy | Phase E (every N cycles) |
-| Research Scout | `dev-fleet/research-scout/CLAUDE.md` | AI ecosystem tracking | Phase F (daily) |
+| Coder | `theseus-fleet/coder/CLAUDE.md` | Implements code changes | Phase C (on demand) |
+| Reviewer | `theseus-fleet/reviewer/CLAUDE.md` | Reviews PRs | Phase C (on demand) |
+| PM | `theseus-fleet/pm/CLAUDE.md` | Proposes improvements | Phase B (every cycle) |
+| News Scout | `theseus-fleet/news-scout/CLAUDE.md` | Discovers government decisions | Phase A (daily) |
+| Editorial Director | `theseus-fleet/editorial-director/CLAUDE.md` | Reviews analysis quality | Phase C (per analysis) |
+| Project Director | `theseus-fleet/director/CLAUDE.md` | Operational oversight | Phase D (every N cycles) |
+| Strategic Director | `theseus-fleet/strategic-director/CLAUDE.md` | External impact strategy | Phase E (every N cycles) |
+| Research Scout | `theseus-fleet/research-scout/CLAUDE.md` | AI ecosystem tracking | Phase F (daily) |
 
 ## Upgrade History
 

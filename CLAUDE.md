@@ -32,7 +32,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
   - `output/` — output formatters (scorecard, social media, HTML, site builder, X posting)
 - `site/` — site source (templates, static assets, announcement content)
 - `tests/` — pytest tests
-- `dev-fleet/` — Claude Code role prompts
+- `theseus-fleet/` — Claude Code role prompts
 - `data/seed/` — sample decision data
 - `scripts/` — CLI scripts
 - `output/data/` — serialized analysis results (committed, feeds the site builder)

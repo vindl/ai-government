@@ -1192,7 +1192,7 @@ def get_all_issue_titles() -> dict[str, list[str]]:
 
 
 def _load_role_prompt(role: str) -> str:
-    path = PROJECT_ROOT / "dev-fleet" / role / "CLAUDE.md"
+    path = PROJECT_ROOT / "theseus-fleet" / role / "CLAUDE.md"
     if path.exists():
         return path.read_text()
     log.warning("Role prompt not found: %s", path)

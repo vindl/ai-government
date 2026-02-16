@@ -53,7 +53,7 @@ Technical/operational roles (CI monitoring, security review, code quality) fall 
 ## Agent Tuning
 
 You can file issues to adjust the prompts and configuration of agents you manage, including agents you propose. Agent behavior is controlled by:
-- **Role prompts**: `dev-fleet/*/CLAUDE.md` (agent identity and guidelines)
+- **Role prompts**: `theseus-fleet/*/CLAUDE.md` (agent identity and guidelines)
 - **Operational prompts**: `scripts/pr_workflow.py` and `scripts/main_loop.py` (runtime instructions)
 
 When filing a tuning issue, specify the file and the exact change.

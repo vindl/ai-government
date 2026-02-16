@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-16T21:18:09Z",
+    "pr_number": 222,
+    "pr_title": "Fix idle loop spinning when analysis is rate-limited",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-16T11:05:09Z",
     "pr_number": 221,
     "pr_title": "Fix: integrate MNE translations into analysis pipeline",

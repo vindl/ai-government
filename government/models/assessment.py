@@ -30,6 +30,15 @@ class MinistryCounterProposal(BaseModel):
     # Montenegrin translations (populated by localization step)
     title_mne: str = Field(default="", description="Montenegrin translation of title")
     summary_mne: str = Field(default="", description="Montenegrin translation of summary")
+    key_changes_mne: list[str] = Field(
+        default_factory=list, description="Montenegrin translation of key_changes"
+    )
+    expected_benefits_mne: list[str] = Field(
+        default_factory=list, description="Montenegrin translation of expected_benefits"
+    )
+    estimated_feasibility_mne: str = Field(
+        default="", description="Montenegrin translation of estimated_feasibility"
+    )
 
 
 class Assessment(BaseModel):
@@ -101,6 +110,9 @@ class CounterProposal(BaseModel):
     title_mne: str = Field(default="", description="Montenegrin translation of title")
     executive_summary_mne: str = Field(default="", description="Montenegrin translation of executive_summary")
     detailed_proposal_mne: str = Field(default="", description="Montenegrin translation of detailed_proposal")
+    ministry_contributions_mne: list[str] = Field(
+        default_factory=list, description="Montenegrin translation of ministry_contributions"
+    )
     key_differences_mne: list[str] = Field(
         default_factory=list, description="Montenegrin translation of key_differences"
     )

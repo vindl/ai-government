@@ -42,6 +42,22 @@ def _verdict_css_class(verdict_value: str) -> str:
     return mapping.get(verdict_value, "")
 
 
+_MINISTRY_NAME_MNE: dict[str, str] = {
+    "Finance": "finansija",
+    "Justice": "pravde",
+    "EU Integration": "evropskih integracija",
+    "Health": "zdravlja",
+    "Interior": "unutrašnjih poslova",
+    "Education": "prosvjete",
+    "Economy": "ekonomije",
+}
+
+
+def _ministry_name_mne(ministry_name: str) -> str:
+    """Return the Montenegrin genitive form of a ministry name."""
+    return _MINISTRY_NAME_MNE.get(ministry_name, ministry_name)
+
+
 def _create_env(templates_dir: Path | None = None) -> Environment:
     env = Environment(
         loader=FileSystemLoader(str(templates_dir or TEMPLATES_DIR)),
@@ -50,4 +66,5 @@ def _create_env(templates_dir: Path | None = None) -> Environment:
     env.filters["verdict_label"] = _verdict_label
     env.filters["verdict_label_mne"] = _verdict_label_mne
     env.filters["verdict_css_class"] = _verdict_css_class
+    env.filters["ministry_name_mne"] = _ministry_name_mne
     return env

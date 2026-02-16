@@ -16,7 +16,12 @@ from pydantic import ValidationError
 
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from government.orchestrator import SessionResult
-from government.output.html import _verdict_css_class, _verdict_label, _verdict_label_mne
+from government.output.html import (
+    _ministry_name_mne,
+    _verdict_css_class,
+    _verdict_label,
+    _verdict_label_mne,
+)
 
 SITE_DIR = Path(__file__).resolve().parent.parent.parent / "site"
 TEMPLATES_DIR = SITE_DIR / "templates"
@@ -33,6 +38,7 @@ def _create_env() -> Environment:
     env.filters["verdict_label"] = _verdict_label
     env.filters["verdict_label_mne"] = _verdict_label_mne
     env.filters["verdict_css_class"] = _verdict_css_class
+    env.filters["ministry_name_mne"] = _ministry_name_mne
     return env
 
 

@@ -463,3 +463,27 @@ This is a form of **stigmergy** — indirect coordination through a shared, obse
 - Polyform Noncommercial 1.0.0 — rejected: explicitly non-commercial but doesn't require derivative works to stay open source
 
 **Consequences**: Anyone can fork, adapt, and deploy this project — for Montenegro, for another country, for any civic purpose — as long as they keep it open. Companies can use it too, but they must open-source their modifications. The AGPL's reputation as "the license companies avoid" is a feature, not a bug, for this project.
+
+---
+
+## ADR-024: Research Scout Agent for AI Ecosystem Tracking
+**Date**: 2026-02-16
+**Status**: Accepted
+
+**Context**: The project uses fixed AI model versions and SDK patterns. AI research moves fast — model releases, SDK updates, and new agent architecture patterns could improve the project but are currently discovered only by manual human review.
+
+**Decision**: Add a Research Scout agent (Phase F) that runs weekly to scan for AI ecosystem developments and files actionable improvement issues. Uses `WebSearch` + `WebFetch` (same as News Scout). Tracks three areas: model releases, agent architecture patterns, and SDK/tooling updates. Context injection includes `docs/AI_STACK.md` (current stack) and existing open `research-scout` issues (for dedup).
+
+**Design choices**:
+- Daily cadence to work through existing backlog of improvements — AI research moves slower than daily news
+- Same state-file pattern as News Scout but with configurable interval
+- Max 2 issues per run — actionable improvements only, not ecosystem commentary
+- Tier 5 in `step_pick()` priority — after Director suggestions, before FIFO
+- `docs/AI_STACK.md` serves dual purpose: documentation and agent context
+
+**Alternatives considered**:
+- Daily cadence — rejected: too frequent for the pace of AI releases, wastes API calls
+- No dedup context — rejected: would file duplicate issues for the same model release across weeks
+- Higher priority tier — rejected: ecosystem upgrades are important but not urgent compared to human suggestions, analysis tasks, or director-identified operational issues
+
+**Consequences**: The project will automatically track relevant AI ecosystem developments and file upgrade issues. Reduces human overhead for monitoring releases. `docs/AI_STACK.md` becomes the single source of truth for the project's AI stack.

@@ -87,6 +87,7 @@ LABEL_CI_FAILURE = "ci-failure"
 LABEL_TASK_FIX = "task:fix"
 LABEL_GAP_CONTENT = "gap:content"
 LABEL_GAP_TECHNICAL = "gap:technical"
+LABEL_RESEARCH_SCOUT = "research-scout"
 
 ALL_LABELS: dict[str, str] = {
     LABEL_PROPOSED: "808080",    # gray
@@ -106,6 +107,7 @@ ALL_LABELS: dict[str, str] = {
     LABEL_TASK_FIX: "ff6347",       # tomato (high-priority fix task)
     LABEL_GAP_CONTENT: "c2e0c6",    # light green (content gap observation)
     LABEL_GAP_TECHNICAL: "d4c5f9",  # light purple (technical gap observation)
+    LABEL_RESEARCH_SCOUT: "40e0d0",  # turquoise (research scout)
 }
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
@@ -128,6 +130,12 @@ NEWS_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
 NEWS_SCOUT_STATE_PATH = PROJECT_ROOT / "output" / "news_scout_state.json"
 NEWS_SCOUT_MAX_DECISIONS = 3
 ANALYSIS_STATE_PATH = PROJECT_ROOT / "output" / "analysis_state.json"
+
+RESEARCH_SCOUT_MAX_TURNS = 15
+RESEARCH_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
+RESEARCH_SCOUT_STATE_PATH = PROJECT_ROOT / "output" / "research_scout_state.json"
+RESEARCH_SCOUT_MAX_ISSUES = 5
+DEFAULT_RESEARCH_SCOUT_INTERVAL_DAYS = 1
 
 # Analysis rate limiting — can be overridden via CLI or env vars
 DEFAULT_MAX_ANALYSES_PER_DAY = int(os.getenv("LOOP_MAX_ANALYSES_PER_DAY", "5"))
@@ -212,6 +220,19 @@ class AnalysisState(BaseModel):
     analyses_completed_today: int = 0
     last_analysis_date: str = ""  # YYYY-MM-DD
     last_analysis_completed_at: str = ""  # ISO 8601 timestamp
+
+
+class ResearchScoutState(BaseModel):
+    """Tracks when the Research Scout last ran to enforce weekly cadence."""
+
+    last_fetch_date: str = ""  # YYYY-MM-DD
+
+
+class ResearchScoutOutput(BaseModel):
+    """Validated output from Research Scout agent."""
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1)
 
 
 _repo_nwo: str | None = None
@@ -387,6 +408,20 @@ def create_strategic_director_issue(title: str, body: str) -> int:
         "--title", title,
         "--body", ai_body,
         "--label", f"{LABEL_STRATEGY},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+    ])
+    url = result.stdout.strip()
+    issue_number = int(url.rstrip("/").split("/")[-1])
+    return issue_number
+
+
+def create_research_scout_issue(title: str, body: str) -> int:
+    """Create a GitHub Issue from the Research Scout. Returns issue number."""
+    ai_body = f"Written by Research Scout agent:\n\n{body}"
+    result = _run_gh([
+        "gh", "issue", "create",
+        "--title", title,
+        "--body", ai_body,
+        "--label", f"{LABEL_RESEARCH_SCOUT},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
     ])
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
@@ -1289,6 +1324,40 @@ def _save_news_scout_state(date_str: str) -> None:
     )
 
 
+def _load_research_scout_state() -> ResearchScoutState:
+    """Load Research Scout state from disk, or return empty state if missing/corrupt."""
+    if not RESEARCH_SCOUT_STATE_PATH.exists():
+        return ResearchScoutState()
+    try:
+        return ResearchScoutState.model_validate_json(RESEARCH_SCOUT_STATE_PATH.read_text())
+    except Exception:
+        log.warning("Could not parse research scout state, using empty state")
+        return ResearchScoutState()
+
+
+def _save_research_scout_state(date_str: str) -> None:
+    """Persist Research Scout last-run date to disk."""
+    RESEARCH_SCOUT_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    RESEARCH_SCOUT_STATE_PATH.write_text(
+        ResearchScoutState(last_fetch_date=date_str).model_dump_json()
+    )
+
+
+def should_run_research_scout(interval_days: int = DEFAULT_RESEARCH_SCOUT_INTERVAL_DAYS) -> bool:
+    """Return True if the Research Scout has not run within *interval_days*."""
+    today = _dt.date.today()
+    if not RESEARCH_SCOUT_STATE_PATH.exists():
+        return True
+    try:
+        state = ResearchScoutState.model_validate_json(RESEARCH_SCOUT_STATE_PATH.read_text())
+        if not state.last_fetch_date:
+            return True
+        last_date = _dt.date.fromisoformat(state.last_fetch_date)
+        return (today - last_date).days >= interval_days
+    except Exception:
+        return True
+
+
 def _load_analysis_state() -> AnalysisState:
     """Load analysis state from disk, or return empty state if missing/corrupt."""
     if not ANALYSIS_STATE_PATH.exists():
@@ -2157,6 +2226,7 @@ def step_pick() -> dict[str, Any] | None:
         LABEL_TASK_ANALYSIS,   # Tier 2: Government decision analysis
         LABEL_STRATEGY,        # Tier 3: Strategic guidance (reserved)
         LABEL_DIRECTOR,        # Tier 4: Director-identified issues
+        LABEL_RESEARCH_SCOUT,  # Tier 5: Research scout suggestions
     ]
 
     for label in priority_labels:
@@ -2730,6 +2800,91 @@ Format:
 
 
 # ---------------------------------------------------------------------------
+# Phase F: Research Scout — helpers
+# ---------------------------------------------------------------------------
+
+
+def _prefetch_research_scout_context() -> tuple[str, str]:
+    """Pre-fetch AI stack doc and existing open research-scout issues for dedup.
+
+    Returns (ai_stack_context, existing_issues).
+    """
+    ai_stack_path = PROJECT_ROOT / "docs" / "AI_STACK.md"
+    ai_stack_context = ai_stack_path.read_text() if ai_stack_path.exists() else "(AI_STACK.md not found)"
+
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_RESEARCH_SCOUT,
+        "--state", "open",
+        "--json", "number,title",
+        "--limit", "20",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        try:
+            issues = json.loads(result.stdout)
+            if issues:
+                lines = [f"- #{i['number']}: {i['title']}" for i in issues]
+                existing_issues = "\n".join(lines)
+            else:
+                existing_issues = "No open research-scout issues."
+        except (json.JSONDecodeError, KeyError):
+            existing_issues = "No open research-scout issues."
+    else:
+        existing_issues = "No open research-scout issues."
+
+    return ai_stack_context, existing_issues
+
+
+# ---------------------------------------------------------------------------
+# Phase F: Research Scout
+# ---------------------------------------------------------------------------
+
+
+async def step_research_scout(*, model: str) -> list[int]:
+    """Run the Research Scout agent. Returns list of created issue numbers."""
+    ai_stack_context, existing_issues = _prefetch_research_scout_context()
+
+    system_prompt = _load_role_prompt("research-scout")
+    system_prompt = system_prompt.replace("{ai_stack_context}", ai_stack_context)
+    system_prompt = system_prompt.replace("{existing_issues}", existing_issues)
+
+    prompt = (
+        "Scan for recent AI ecosystem developments that could improve this project. "
+        "Check model releases, SDK updates, and agent architecture patterns. "
+        "Return a JSON array of 0-2 actionable issues, or [] if nothing new."
+    )
+
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=RESEARCH_SCOUT_MAX_TURNS,
+        allowed_tools=RESEARCH_SCOUT_TOOLS,
+    )
+
+    log.info("Running Research Scout agent...")
+    stream = claude_code_sdk.query(prompt=prompt, options=opts)
+    output = await _collect_agent_output(stream)
+
+    raw = _parse_json_array(output)
+
+    created: list[int] = []
+    for item in raw[:RESEARCH_SCOUT_MAX_ISSUES]:
+        try:
+            validated = ResearchScoutOutput.model_validate(item)
+        except Exception:
+            log.warning("Skipping invalid Research Scout output: %s", item)
+            continue
+        num = create_research_scout_issue(validated.title, validated.description)
+        log.info("Research Scout filed issue #%d: %s", num, validated.title)
+        created.append(num)
+
+    # Persist state so the scout doesn't run again until next interval
+    _save_research_scout_state(_dt.date.today().isoformat())
+
+    return created
+
+
+# ---------------------------------------------------------------------------
 # Resilience — Layer 3: error pattern detection (circuit breaker)
 # ---------------------------------------------------------------------------
 
@@ -2864,8 +3019,9 @@ async def run_one_cycle(
     dry_run: bool = False,
     skip_analysis: bool = False,
     skip_improve: bool = False,
+    skip_research: bool = False,
 ) -> int:
-    """Run a single main loop cycle with five phases.
+    """Run a single main loop cycle with six phases.
 
     Returns the updated productive_cycles count."""
     telemetry = CycleTelemetry(
@@ -2873,6 +3029,7 @@ async def run_one_cycle(
         dry_run=dry_run,
         skip_analysis=skip_analysis,
         skip_improve=skip_improve,
+        skip_research=skip_research,
     )
 
     ensure_github_resources_exist()
@@ -3191,6 +3348,37 @@ async def run_one_cycle(
     phase_e.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase_e)
 
+    # --- Phase F: Research Scout ---
+    t0 = time.monotonic()
+    phase_f = CyclePhaseResult(phase="F")
+    should_run_rs = should_run_research_scout() and not skip_research
+    if should_run_rs:
+        if dry_run:
+            print("\nPhase F: Research Scout — skipped (dry run)")
+            phase_f.detail = "skipped (dry run)"
+        else:
+            print("\nPhase F: Running Research Scout...")
+            try:
+                filed = await step_research_scout(model=model)
+                telemetry.research_scout_ran = True
+                telemetry.research_scout_issues_filed = len(filed)
+                phase_f.detail = f"filed {len(filed)} issues"
+                print(f"  Research Scout filed {len(filed)} issue(s)")
+            except Exception as exc:
+                log.exception("Phase F (Research Scout) failed (non-fatal)")
+                phase_f.success = False
+                phase_f.detail = str(exc)
+                telemetry.errors.append(f"Phase F: {exc}")
+                _log_error("step_research_scout", exc)
+    else:
+        if skip_research:
+            phase_f.detail = "skipped (--skip-research)"
+            print("\nPhase F: Research Scout — skipped (--skip-research)")
+        else:
+            phase_f.detail = "not scheduled"
+    phase_f.duration_seconds = time.monotonic() - t0
+    telemetry.phases.append(phase_f)
+
     # --- Collect and save transparency records ---
     if not dry_run:
         try:
@@ -3251,6 +3439,7 @@ def _reexec(
     dry_run: bool,
     skip_analysis: bool,
     skip_improve: bool,
+    skip_research: bool,
     verbose: bool,
 ) -> None:
     """Re-exec the script to pick up any code changes from disk.
@@ -3300,6 +3489,8 @@ def _reexec(
         argv += ["--skip-analysis"]
     if skip_improve:
         argv += ["--skip-improve"]
+    if skip_research:
+        argv += ["--skip-research"]
     if verbose:
         argv += ["--verbose"]
 
@@ -3386,6 +3577,10 @@ def main() -> None:
         help="Skip Phase B (self-improvement proposals + debate)",
     )
     parser.add_argument(
+        "--skip-research", action="store_true",
+        help="Skip Phase F (Research Scout AI ecosystem scanning)",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Enable verbose (debug) logging",
     )
@@ -3429,6 +3624,7 @@ def main() -> None:
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,
+            skip_research=args.skip_research,
         )
 
     try:
@@ -3448,6 +3644,7 @@ def main() -> None:
                 dry_run=args.dry_run,
                 skip_analysis=args.skip_analysis,
                 skip_improve=args.skip_improve,
+                skip_research=args.skip_research,
             )
             append_telemetry(TELEMETRY_PATH, partial)
         except Exception:
@@ -3485,6 +3682,7 @@ def main() -> None:
             dry_run=args.dry_run,
             skip_analysis=args.skip_analysis,
             skip_improve=args.skip_improve,
+            skip_research=args.skip_research,
             verbose=args.verbose,
         )
     else:

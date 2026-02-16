@@ -1,6 +1,6 @@
 # Project Status
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-16*
 
 ## Current Phase: Scaffold Complete (v0.1.0)
 
@@ -70,6 +70,21 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] CI includes site build verification step
 - [x] Main loop serializes analysis results to `output/data/` for site builder
 
+### Research Scout (Phase F)
+- [x] `dev-fleet/research-scout/CLAUDE.md` — role prompt for the Research Scout agent
+- [x] `step_research_scout()` in main loop — invokes Research Scout agent via Claude Code SDK
+- [x] `should_run_research_scout()` — daily gate using `output/research_scout_state.json`
+- [x] `_prefetch_research_scout_context()` — injects `docs/AI_STACK.md` + open research-scout issues for dedup
+- [x] `create_research_scout_issue()` — files issues with `research-scout,self-improve:backlog,task:code-change` labels
+- [x] Up to 5 issues per scan, each scoped to a single coder session
+- [x] Uses `WebSearch` + `WebFetch` tools (same as News Scout)
+- [x] Phase F in main loop: runs after Strategic Director (Phase E), before transparency collection
+- [x] Tier 5 in `step_pick()` priority: after Director (tier 4), before FIFO
+- [x] `--skip-research` CLI flag + `LOOP_SKIP_RESEARCH` Docker env var
+- [x] `docs/AI_STACK.md` — current model versions, SDK versions, agent architecture documentation
+- [x] `CycleTelemetry` fields: `research_scout_ran`, `research_scout_issues_filed`, `skip_research`
+- [x] Tests in `tests/test_research_scout.py`
+
 ### Dev Fleet (`dev-fleet/`)
 - [x] 3 active role prompts: coder, reviewer, pm
 - [x] Coder writes both implementation code and unit tests
@@ -82,10 +97,13 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Each agent gets fresh context per round (no session continuity)
   - Configurable: `--max-rounds`, `--model`, `--branch`, `-v`
 - [x] `scripts/main_loop.py` — unified main loop (analysis + self-improvement)
-  - Three-phase cycle:
+  - Six-phase cycle:
     - Phase A: Check for new government decisions → create analysis issues
     - Phase B: Self-improvement — propose → debate → backlog
     - Phase C: Pick from unified backlog → execute (routes by task type)
+    - Phase D: Project Director — operational oversight
+    - Phase E: Strategic Director — external impact strategy
+    - Phase F: Research Scout — AI ecosystem tracking (daily)
   - `task:analysis` issues run the orchestrator pipeline (ministries + parliament + critic)
   - `task:code-change` issues run pr_workflow (coder-reviewer loop)
   - Analysis tasks get execution priority over code changes
@@ -95,7 +113,7 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Human suggestions supported via `human-suggestion` label
   - Failed tasks tracked and excluded from re-proposal
   - Configurable: `--max-cycles`, `--cooldown`, `--proposals`, `--dry-run`
-  - Phase skipping: `--skip-analysis`, `--skip-improve`
+  - Phase skipping: `--skip-analysis`, `--skip-improve`, `--skip-research`
 
 ### Docker Support
 - [x] `Dockerfile` — Python 3.12-slim with Node.js 20, gh CLI, uv, Claude Code CLI

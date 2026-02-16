@@ -88,6 +88,10 @@ if [[ "${LOOP_SKIP_IMPROVE:-false}" == "true" ]]; then
   ARGS+=(--skip-improve)
 fi
 
+if [[ "${LOOP_SKIP_RESEARCH:-false}" == "true" ]]; then
+  ARGS+=(--skip-research)
+fi
+
 if [[ -n "${LOOP_DIRECTOR_INTERVAL:-}" ]]; then
   ARGS+=(--director-interval "${LOOP_DIRECTOR_INTERVAL}")
 fi

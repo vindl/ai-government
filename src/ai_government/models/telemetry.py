@@ -18,7 +18,7 @@ _DEFAULT_MAX_AGE_DAYS = 30
 class CyclePhaseResult(BaseModel):
     """Result of a single phase within a cycle."""
 
-    phase: str = Field(description="Phase identifier (A, B, C, D, E)")
+    phase: str = Field(description="Phase identifier (A, B, C, D, E, F)")
     success: bool = Field(default=True)
     duration_seconds: float = Field(default=0.0)
     detail: str = Field(default="")
@@ -55,6 +55,10 @@ class CycleTelemetry(BaseModel):
     strategic_director_ran: bool = False
     strategic_director_issues_filed: int = 0
 
+    # Phase F — Research Scout
+    research_scout_ran: bool = False
+    research_scout_issues_filed: int = 0
+
     # Yield — did this cycle produce a tangible outcome?
     cycle_yielded: bool = False
 
@@ -68,6 +72,7 @@ class CycleTelemetry(BaseModel):
     dry_run: bool = False
     skip_analysis: bool = False
     skip_improve: bool = False
+    skip_research: bool = False
 
 
 class ErrorEntry(BaseModel):

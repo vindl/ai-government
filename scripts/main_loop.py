@@ -69,6 +69,7 @@ STRATEGIC_DIRECTOR_MAX_TURNS = 10
 EDITORIAL_DIRECTOR_MAX_TURNS = 8
 ERROR_PATTERN_WINDOW = 5
 ERROR_PATTERN_THRESHOLD = 3
+CIRCUIT_BREAKER_THRESHOLD = 3
 
 LABEL_PROPOSED = "self-improve:proposed"
 LABEL_BACKLOG = "self-improve:backlog"
@@ -142,6 +143,18 @@ DEFAULT_MAX_ANALYSES_PER_DAY = int(os.getenv("LOOP_MAX_ANALYSES_PER_DAY", "5"))
 DEFAULT_MIN_ANALYSIS_GAP_HOURS = int(os.getenv("LOOP_MIN_ANALYSIS_GAP_HOURS", "2"))
 
 log = logging.getLogger("main_loop")
+
+# Lazy-resolve at first use to avoid import-time coupling with pr_workflow.
+_InfrastructureError: type[Exception] | None = None
+
+
+def _get_infrastructure_error() -> type[Exception]:
+    """Import InfrastructureError from pr_workflow on first use."""
+    global _InfrastructureError  # noqa: PLW0603
+    if _InfrastructureError is None:
+        from pr_workflow import InfrastructureError
+        _InfrastructureError = InfrastructureError
+    return _InfrastructureError
 
 
 # ---------------------------------------------------------------------------
@@ -2294,7 +2307,7 @@ async def step_execute_code_change(
 
     # Import pr_workflow to reuse its run_workflow function
     sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
-    from pr_workflow import run_workflow
+    from pr_workflow import InfrastructureError, run_workflow
 
     # Make sure we're on main and up to date
     _run_gh(["git", "checkout", "main"])
@@ -2305,6 +2318,12 @@ async def step_execute_code_change(
         mark_issue_done(issue_number)
         log.info("Issue #%d completed successfully", issue_number)
         return True
+    except InfrastructureError as exc:
+        reason = f"Infrastructure error: {exc}"
+        mark_issue_failed(issue_number, reason)
+        log.critical("Issue #%d hit infrastructure failure: %s", issue_number, exc)
+        _log_error("step_execute_code_change", exc, issue_number=issue_number)
+        raise
     except SystemExit as e:
         reason = f"PR workflow exited with code {e.code}"
         mark_issue_failed(issue_number, reason)
@@ -3128,6 +3147,60 @@ def _check_error_patterns() -> None:
         log.exception("Error pattern check failed (non-fatal)")
 
 
+def _check_circuit_breaker() -> None:
+    """Halt the loop if the last N cycles all failed with the same error.
+
+    Unlike ``_check_error_patterns`` (which files an issue), this is a hard
+    stop — the error is likely infrastructure-level and retrying will just
+    burn API credits.  Exits with code 2 so operators can distinguish a
+    circuit-breaker halt from a normal failure (code 1).
+
+    Never crashes the loop itself (wrapped in try/except).
+    """
+    try:
+        entries = load_telemetry(TELEMETRY_PATH, last_n=CIRCUIT_BREAKER_THRESHOLD)
+        if len(entries) < CIRCUIT_BREAKER_THRESHOLD:
+            return
+
+        # Every recent cycle must have at least one error
+        if not all(entry.errors for entry in entries):
+            return
+
+        # Collect the first-line signature from every error in every cycle
+        sigs_per_cycle: list[set[str]] = []
+        for entry in entries:
+            sigs: set[str] = set()
+            for err in entry.errors:
+                sig = err.strip().split("\n")[0][:120]
+                if sig:
+                    sigs.add(sig)
+            sigs_per_cycle.append(sigs)
+
+        # Find signatures common to ALL cycles
+        common = sigs_per_cycle[0]
+        for sigs in sigs_per_cycle[1:]:
+            common = common & sigs
+        if not common:
+            return
+
+        banner = (
+            "\n" + "!" * 60 + "\n"
+            "CIRCUIT BREAKER TRIPPED\n"
+            f"Last {CIRCUIT_BREAKER_THRESHOLD} cycles all failed with the same error.\n"
+            f"Signature: {next(iter(common))}\n"
+            "Halting to avoid burning API credits. Fix the root cause and restart.\n"
+            + "!" * 60
+        )
+        log.critical(banner)
+        print(banner)
+        sys.exit(2)
+
+    except SystemExit:
+        raise  # let sys.exit propagate
+    except Exception:
+        log.exception("Circuit breaker check failed (non-fatal)")
+
+
 # ---------------------------------------------------------------------------
 # Output data commit (telemetry, analysis results, overrides)
 # ---------------------------------------------------------------------------
@@ -3203,6 +3276,7 @@ async def run_one_cycle(
     )
 
     ensure_github_resources_exist()
+    _check_circuit_breaker()
 
     print(f"\n{'='*60}")
     print(f"MAIN LOOP CYCLE {cycle}")
@@ -3434,6 +3508,24 @@ async def run_one_cycle(
                 issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
             )
         except Exception as exc:
+            if isinstance(exc, _get_infrastructure_error()):
+                log.critical("Infrastructure failure in Phase C — halting loop")
+                telemetry.errors.append(f"Phase C [INFRASTRUCTURE]: {exc}")
+                telemetry.execution_success = False
+                telemetry.finished_at = datetime.now(UTC)
+                telemetry.duration_seconds = (
+                    telemetry.finished_at - telemetry.started_at
+                ).total_seconds()
+                append_telemetry(TELEMETRY_PATH, telemetry)
+                banner = (
+                    "\n" + "!" * 60 + "\n"
+                    "INFRASTRUCTURE ERROR — HALTING\n"
+                    f"{exc}\n"
+                    "This is non-recoverable without a code fix. Exiting.\n"
+                    + "!" * 60
+                )
+                print(banner)
+                sys.exit(2)
             log.exception("Phase C execution failed")
             success = False
             telemetry.errors.append(f"Phase C: {exc}")

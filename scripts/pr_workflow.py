@@ -47,6 +47,14 @@ VERDICT_CHANGES_REQUESTED = "VERDICT: CHANGES_REQUESTED"
 log = logging.getLogger("pr_workflow")
 
 
+class InfrastructureError(Exception):
+    """Raised when core infrastructure (e.g. _sdk_options) fails.
+
+    These errors are non-recoverable without code changes and should halt
+    the loop immediately rather than retrying.
+    """
+
+
 def _sdk_options(
     *,
     system_prompt: str,
@@ -605,6 +613,10 @@ async def run_coder(
             max_turns=CODER_MAX_TURNS,
             allowed_tools=CODER_TOOLS,
         )
+    except Exception as exc:
+        raise InfrastructureError(f"_sdk_options failed: {exc}") from exc
+
+    try:
         stream = claude_agent_sdk.query(prompt=prompt, options=opts)
         output = await _collect_agent_output(stream)
         log.info("Coder finished. Output length: %d chars", len(output))
@@ -632,6 +644,10 @@ async def run_reviewer(
             max_turns=REVIEWER_MAX_TURNS,
             allowed_tools=REVIEWER_TOOLS,
         )
+    except Exception as exc:
+        raise InfrastructureError(f"_sdk_options failed: {exc}") from exc
+
+    try:
         stream = claude_agent_sdk.query(prompt=prompt, options=opts)
         output = await _collect_agent_output(stream)
         log.info("Reviewer finished. Output length: %d chars", len(output))

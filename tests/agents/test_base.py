@@ -198,11 +198,15 @@ class TestGovernmentAgent:
         assert "key_changes" in prompt
 
     def test_ministry_agent_factories(self) -> None:
+        from government.agents.ministry_economy import create_economy_agent
+        from government.agents.ministry_education import create_education_agent
+        from government.agents.ministry_environment import create_environment_agent
         from government.agents.ministry_eu import create_eu_agent
         from government.agents.ministry_finance import create_finance_agent
         from government.agents.ministry_health import create_health_agent
         from government.agents.ministry_interior import create_interior_agent
         from government.agents.ministry_justice import create_justice_agent
+        from government.agents.ministry_tourism import create_tourism_agent
 
         agents = [
             create_finance_agent(),
@@ -210,6 +214,10 @@ class TestGovernmentAgent:
             create_eu_agent(),
             create_health_agent(),
             create_interior_agent(),
+            create_education_agent(),
+            create_economy_agent(),
+            create_tourism_agent(),
+            create_environment_agent(),
         ]
         names = [a.ministry.name for a in agents]
         assert "Finance" in names
@@ -217,3 +225,7 @@ class TestGovernmentAgent:
         assert "EU Integration" in names
         assert "Health" in names
         assert "Interior" in names
+        assert "Education" in names
+        assert "Economy" in names
+        assert "Tourism" in names
+        assert "Environment" in names

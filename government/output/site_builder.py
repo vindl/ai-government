@@ -142,6 +142,7 @@ class SiteBuilder:
         self._build_constitution()
         self._build_architecture()
         self._build_challenges()
+        self._build_cabinet()
         self._build_feed()
 
         # Build transparency page if data_dir is provided
@@ -239,6 +240,22 @@ class SiteBuilder:
             base_path="../",
         )
         (challenges_dir / "index.html").write_text(html, encoding="utf-8")
+
+    def _build_cabinet(self) -> None:
+        cabinet_dir = self.output_dir / "cabinet"
+        cabinet_dir.mkdir(parents=True, exist_ok=True)
+
+        cabinet_en = (DOCS_DIR / "CABINET.md").read_text(encoding="utf-8")
+        cabinet_mne = (DOCS_DIR / "CABINET_MNE.md").read_text(encoding="utf-8")
+
+        template = self.env.get_template("cabinet.html")
+        html = template.render(
+            cabinet_html_en=Markup(md.markdown(cabinet_en, extensions=["tables"])),
+            cabinet_html_mne=Markup(md.markdown(cabinet_mne, extensions=["tables"])),
+            css_path="../static/css/style.css",
+            base_path="../",
+        )
+        (cabinet_dir / "index.html").write_text(html, encoding="utf-8")
 
     def _build_feed(self) -> None:
         announcements_dir = CONTENT_DIR / "announcements"

@@ -285,6 +285,8 @@ class TestMinistryNameMne:
         assert _ministry_name_mne("Health") == "zdravlja"
         assert _ministry_name_mne("Education") == "prosvjete"
         assert _ministry_name_mne("Economy") == "ekonomije"
+        assert _ministry_name_mne("Tourism") == "turizma"
+        assert _ministry_name_mne("Environment") == "ekologije"
 
     def test_unknown_ministry_returns_as_is(self) -> None:
         assert _ministry_name_mne("Defence") == "Defence"

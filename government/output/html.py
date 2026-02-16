@@ -50,6 +50,8 @@ _MINISTRY_NAME_MNE: dict[str, str] = {
     "Interior": "unutrašnjih poslova",
     "Education": "prosvjete",
     "Economy": "ekonomije",
+    "Tourism": "turizma",
+    "Environment": "ekologije",
 }
 
 

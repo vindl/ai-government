@@ -127,6 +127,9 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-5
             cp_fields: dict[str, Any] = {
                 "title": assessment.counter_proposal.title,
                 "summary": assessment.counter_proposal.summary,
+                "key_changes": assessment.counter_proposal.key_changes,
+                "expected_benefits": assessment.counter_proposal.expected_benefits,
+                "estimated_feasibility": assessment.counter_proposal.estimated_feasibility,
             }
             cp_translated = await _translate_fields(cp_fields, model)
             assessment.counter_proposal.title_mne = cp_translated.get(
@@ -134,6 +137,15 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-5
             )
             assessment.counter_proposal.summary_mne = cp_translated.get(
                 "summary", assessment.counter_proposal.summary
+            )
+            assessment.counter_proposal.key_changes_mne = cp_translated.get(
+                "key_changes", assessment.counter_proposal.key_changes
+            )
+            assessment.counter_proposal.expected_benefits_mne = cp_translated.get(
+                "expected_benefits", assessment.counter_proposal.expected_benefits
+            )
+            assessment.counter_proposal.estimated_feasibility_mne = cp_translated.get(
+                "estimated_feasibility", assessment.counter_proposal.estimated_feasibility
             )
 
     # Translate parliamentary debate
@@ -156,6 +168,7 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-5
             "title": result.counter_proposal.title,
             "executive_summary": result.counter_proposal.executive_summary,
             "detailed_proposal": result.counter_proposal.detailed_proposal,
+            "ministry_contributions": result.counter_proposal.ministry_contributions,
             "key_differences": result.counter_proposal.key_differences,
             "implementation_steps": result.counter_proposal.implementation_steps,
             "risks_and_tradeoffs": result.counter_proposal.risks_and_tradeoffs,
@@ -169,6 +182,9 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-5
         )
         result.counter_proposal.detailed_proposal_mne = translated.get(
             "detailed_proposal", result.counter_proposal.detailed_proposal
+        )
+        result.counter_proposal.ministry_contributions_mne = translated.get(
+            "ministry_contributions", result.counter_proposal.ministry_contributions
         )
         result.counter_proposal.key_differences_mne = translated.get(
             "key_differences", result.counter_proposal.key_differences

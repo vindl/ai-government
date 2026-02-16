@@ -20,7 +20,7 @@ from government.models.assessment import (
 )
 from government.models.decision import GovernmentDecision
 from government.orchestrator import SessionResult
-from government.output.html import _verdict_label_mne
+from government.output.html import _ministry_name_mne, _verdict_label_mne
 from government.output.localization import has_montenegrin_content
 from government.output.site_builder import SiteBuilder
 
@@ -52,8 +52,13 @@ def _make_bilingual_result() -> SessionResult:
             title="Phased Implementation",
             summary="Gradual rollout over 3 phases.",
             key_changes=["Phase 1: standards", "Phase 2: enforcement"],
+            expected_benefits=["Less disruption", "Better compliance"],
+            estimated_feasibility="High — builds on existing framework",
             title_mne="Fazna implementacija",
             summary_mne="Postepeno uvođenje u 3 faze.",
+            key_changes_mne=["Faza 1: standardi", "Faza 2: sprovođenje"],
+            expected_benefits_mne=["Manje poremećaja", "Bolja usklađenost"],
+            estimated_feasibility_mne="Visoka — nadograđuje postojeći okvir",
         ),
     )
     critic = CriticReport(
@@ -81,12 +86,17 @@ def _make_bilingual_result() -> SessionResult:
         title="Progressive Environmental Reform",
         executive_summary="A gradual approach to environmental standards.",
         detailed_proposal="The proposed approach combines fiscal prudence with protection.",
+        ministry_contributions=["Finance: fiscal impact analysis", "Health: public health assessment"],
         key_differences=["Gradual instead of immediate"],
         implementation_steps=["Adopt framework", "Phase 1"],
         risks_and_tradeoffs=["Slower environmental impact"],
         title_mne="Progresivna reforma životne sredine",
         executive_summary_mne="Postepeni pristup standardima zaštite životne sredine.",
         detailed_proposal_mne="Predloženi pristup kombinuje fiskalnu opreznost sa zaštitom.",
+        ministry_contributions_mne=[
+            "Finansije: analiza fiskalnog uticaja",
+            "Zdravlje: procjena javnog zdravlja",
+        ],
         key_differences_mne=["Postepeno umjesto trenutnog"],
         implementation_steps_mne=["Usvojiti okvir", "Faza 1"],
         risks_and_tradeoffs_mne=["Sporiji uticaj na životnu sredinu"],
@@ -267,6 +277,86 @@ class TestBilingualScorecardRendering:
         assert "Postepeno uvođenje" in bilingual_html
 
 
+class TestMinistryNameMne:
+    def test_known_ministries(self) -> None:
+        assert _ministry_name_mne("Finance") == "finansija"
+        assert _ministry_name_mne("Justice") == "pravde"
+        assert _ministry_name_mne("EU Integration") == "evropskih integracija"
+        assert _ministry_name_mne("Health") == "zdravlja"
+        assert _ministry_name_mne("Education") == "prosvjete"
+        assert _ministry_name_mne("Economy") == "ekonomije"
+
+    def test_unknown_ministry_returns_as_is(self) -> None:
+        assert _ministry_name_mne("Defence") == "Defence"
+
+
+class TestBilingualMetaLabels:
+    """Test that meta labels toggle per-language instead of showing both."""
+
+    @pytest.fixture()
+    def bilingual_html(self, tmp_path: Path) -> str:
+        builder = SiteBuilder(tmp_path)
+        result = _make_bilingual_result()
+        builder._build_scorecards([result])
+        path = tmp_path / "decisions" / "bi-001.html"
+        return path.read_text()
+
+    def test_no_dual_datum_date_label(self, bilingual_html: str) -> None:
+        assert "Datum / Date" not in bilingual_html
+
+    def test_has_mne_datum_label(self, bilingual_html: str) -> None:
+        assert "Datum:" in bilingual_html
+
+    def test_has_en_date_label(self, bilingual_html: str) -> None:
+        assert "Date:" in bilingual_html
+
+
+class TestBilingualMinistryNames:
+    """Test that ministry names are translated in MNE mode."""
+
+    @pytest.fixture()
+    def bilingual_html(self, tmp_path: Path) -> str:
+        builder = SiteBuilder(tmp_path)
+        result = _make_bilingual_result()
+        builder._build_scorecards([result])
+        path = tmp_path / "decisions" / "bi-001.html"
+        return path.read_text()
+
+    def test_mne_ministry_name_in_cards(self, bilingual_html: str) -> None:
+        assert "Ministarstvo finansija" in bilingual_html
+
+    def test_mne_ministry_name_in_details(self, bilingual_html: str) -> None:
+        # Should appear twice: once in cards, once in details
+        assert bilingual_html.count("Ministarstvo finansija") == 2
+
+
+class TestBilingualCounterProposalFields:
+    """Test that per-ministry counter-proposal MNE fields render."""
+
+    @pytest.fixture()
+    def bilingual_html(self, tmp_path: Path) -> str:
+        builder = SiteBuilder(tmp_path)
+        result = _make_bilingual_result()
+        builder._build_scorecards([result])
+        path = tmp_path / "decisions" / "bi-001.html"
+        return path.read_text()
+
+    def test_key_changes_mne_rendered(self, bilingual_html: str) -> None:
+        assert "Faza 1: standardi" in bilingual_html
+
+    def test_expected_benefits_mne_rendered(self, bilingual_html: str) -> None:
+        assert "Manje poremećaja" in bilingual_html
+
+    def test_estimated_feasibility_mne_rendered(self, bilingual_html: str) -> None:
+        assert "Visoka" in bilingual_html
+
+    def test_ministry_contributions_mne_rendered(self, bilingual_html: str) -> None:
+        assert "analiza fiskalnog uticaja" in bilingual_html
+
+    def test_transcript_mne_note(self, bilingual_html: str) -> None:
+        assert "(na engleskom)" in bilingual_html
+
+
 class TestBilingualModelFields:
     """Test that MNE fields on Pydantic models work correctly."""
 
@@ -306,6 +396,7 @@ class TestBilingualModelFields:
         assert cp.title_mne == ""
         assert cp.executive_summary_mne == ""
         assert cp.detailed_proposal_mne == ""
+        assert cp.ministry_contributions_mne == []
         assert cp.key_differences_mne == []
         assert cp.implementation_steps_mne == []
         assert cp.risks_and_tradeoffs_mne == []
@@ -327,6 +418,9 @@ class TestBilingualModelFields:
         )
         assert mcp.title_mne == ""
         assert mcp.summary_mne == ""
+        assert mcp.key_changes_mne == []
+        assert mcp.expected_benefits_mne == []
+        assert mcp.estimated_feasibility_mne == ""
 
     def test_serialization_roundtrip(self) -> None:
         """MNE fields survive JSON serialization/deserialization."""

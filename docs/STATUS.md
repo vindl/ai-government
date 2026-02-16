@@ -10,7 +10,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 
 ### Core Infrastructure
 - [x] Git repo initialized, pushed to https://github.com/vindl/ai-government
-- [x] `pyproject.toml` with all dependencies (claude-code-sdk, pydantic, anyio, httpx, bs4)
+- [x] `pyproject.toml` with all dependencies (claude-agent-sdk, pydantic, anyio, httpx, bs4)
 - [x] Dev dependencies: ruff, mypy, pytest, pytest-asyncio
 - [x] `.python-version` (3.12), `.gitignore`, `.env.example`
 - [x] `CLAUDE.md` project conventions (applies to all Claude Code instances)
@@ -241,13 +241,15 @@ No stubs remain. All early placeholder code has been removed.
 
 1. **Pydantic field name `date` shadows the `date` type.** Fixed by using `datetime.date` instead of `from datetime import date` in `decision.py`. If you add new models with date fields, use `datetime.date`.
 
-2. **Claude Code SDK API is `claude_code_sdk.query()` (module-level function), not a class.** The plan referenced `claude-agent-sdk` which doesn't exist. The actual package is `claude-code-sdk` with:
-   - `claude_code_sdk.query(prompt=..., options=ClaudeCodeOptions(...))` → async iterator
-   - Options: `ClaudeCodeOptions(system_prompt=..., model=..., max_turns=...)`
+2. **Claude Agent SDK API is `claude_agent_sdk.query()` (module-level function), not a class.** The package was renamed from `claude-code-sdk` to `claude-agent-sdk` (v0.1.0+):
+   - `claude_agent_sdk.query(prompt=..., options=ClaudeAgentOptions(...))` → async iterator
+   - Options: `ClaudeAgentOptions(system_prompt=..., model=..., max_turns=...)`
    - Messages: check `isinstance(message, AssistantMessage)` then iterate `message.content` for `TextBlock`
+   - Settings no longer loaded by default — use `setting_sources=['project']` to load CLAUDE.md files
+   - System prompt no longer defaults to Claude Code's — use `system_prompt={'type': 'preset', 'preset': 'claude_code'}` for agents that need tools
 
 3. **Ruff's TCH (type-checking) rules aggressively move imports to `TYPE_CHECKING` blocks.** This is fine with `from __future__ import annotations` but be aware that runtime-needed imports (e.g., for dataclass defaults) must stay as regular imports. The orchestrator's `SessionResult` dataclass was affected — ruff moved its type imports but `from __future__ import annotations` makes this safe.
 
 4. **Line length set to 110** (not default 88) because prompt strings and Montenegrin text tend to be long. Prompt files (`government/prompts/*.py`) have E501 disabled entirely.
 
-5. **Claude Code SDK nested session guard.** When running `claude_code_sdk.query()` from inside a Claude Code session (e.g., the PR workflow script launched by an agent), the child process inherits `CLAUDECODE=1` and refuses to start. Fix: pass `env={"CLAUDECODE": ""}` in `ClaudeCodeOptions` to clear the nesting guard. This is safe — each SDK call spawns an independent subprocess.
+5. **Claude Agent SDK nested session guard.** When running `claude_agent_sdk.query()` from inside a Claude Code session (e.g., the PR workflow script launched by an agent), the child process inherits `CLAUDECODE=1` and refuses to start. Fix: pass `env={"CLAUDECODE": ""}` in `ClaudeAgentOptions` to clear the nesting guard. This is safe — each SDK call spawns an independent subprocess.

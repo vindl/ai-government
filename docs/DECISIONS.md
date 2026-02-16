@@ -1,12 +1,12 @@
 # Architectural Decisions
 
-## ADR-001: Claude Code SDK over Claude Agent SDK
-**Date**: 2026-02-14
+## ADR-001: Claude Agent SDK for Agent Orchestration
+**Date**: 2026-02-14 (updated 2026-02-16)
 **Status**: Accepted
 
-**Context**: The plan originally called for `claude-agent-sdk` but the actual package available is `claude-code-sdk` which wraps Claude Code CLI as subprocesses.
+**Context**: The project uses `claude-agent-sdk` (formerly `claude-code-sdk`) which wraps Claude Code CLI as subprocesses. The package was renamed in v0.1.0 to reflect its broader agent-building capabilities.
 
-**Decision**: Use `claude-code-sdk` (the Claude Code SDK) for agent orchestration. Each government agent runs as a Claude Code subprocess with a specific system prompt.
+**Decision**: Use `claude-agent-sdk` for agent orchestration. Each government agent runs as a Claude Code subprocess with a specific system prompt.
 
 **Consequences**: Agents are isolated processes. Communication happens through structured inputs/outputs (JSON). This gives us natural parallelism and fault isolation.
 

@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import claude_code_sdk
-from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
+import claude_agent_sdk
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 
 from government.agents.json_parsing import RETRY_PROMPT, extract_json
 from government.config import SessionConfig
@@ -64,9 +64,9 @@ class CriticAgent:
     async def _call_model(self, prompt: str, *, max_turns: int = 1) -> str:
         """Call Claude Code SDK and collect text response."""
         response_text = ""
-        async for message in claude_code_sdk.query(
+        async for message in claude_agent_sdk.query(
             prompt=prompt,
-            options=ClaudeCodeOptions(
+            options=ClaudeAgentOptions(
                 system_prompt=CRITIC_SYSTEM_PROMPT,
                 model=self.config.model,
                 max_turns=max_turns,

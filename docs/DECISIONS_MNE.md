@@ -1,12 +1,12 @@
 # Arhitektonske odluke
 
-## ADR-001: Claude Code SDK umjesto Claude Agent SDK
-**Datum**: 2026-02-14
+## ADR-001: Claude Agent SDK za orkestraciju agenata
+**Datum**: 2026-02-14 (ažurirano 2026-02-16)
 **Status**: Prihvaćeno
 
-**Kontekst**: Plan je prvobitno predviđao `claude-agent-sdk`, ali dostupan paket je zapravo `claude-code-sdk` koji pokreće Claude Code CLI kao podprocese.
+**Kontekst**: Projekat koristi `claude-agent-sdk` (ranije `claude-code-sdk`) koji pokreće Claude Code CLI kao podprocese. Paket je preimenovan u v0.1.0 kako bi odražavao šire mogućnosti izgradnje agenata.
 
-**Odluka**: Koristiti `claude-code-sdk` (Claude Code SDK) za orkestraciju agenata. Svaki vladini agent radi kao Claude Code podproces sa specifičnim sistemskim promptom.
+**Odluka**: Koristiti `claude-agent-sdk` za orkestraciju agenata. Svaki vladini agent radi kao Claude Code podproces sa specifičnim sistemskim promptom.
 
 **Posljedice**: Agenti su izolovani procesi. Komunikacija se odvija putem strukturiranih ulaza/izlaza (JSON). Ovo nam daje prirodan paralelizam i izolaciju grešaka.
 

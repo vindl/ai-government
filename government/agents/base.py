@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import claude_code_sdk
-from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
+import claude_agent_sdk
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 
 from government.agents.json_parsing import extract_json
 from government.config import SessionConfig
@@ -46,9 +46,9 @@ class GovernmentAgent:
         prompt = self._build_prompt(decision)
 
         response_text = ""
-        async for message in claude_code_sdk.query(
+        async for message in claude_agent_sdk.query(
             prompt=prompt,
-            options=ClaudeCodeOptions(
+            options=ClaudeAgentOptions(
                 system_prompt=self.ministry.system_prompt,
                 model=self.config.model,
                 max_turns=1,

@@ -26,7 +26,7 @@ You are the **Coder** in the AI Government dev fleet.
 - All agents inherit from `GovernmentAgent` or follow the `ParliamentAgent`/`CriticAgent` pattern
 - Prompts live in `government/prompts/`, never inline
 - Models live in `government/models/`
-- Use `claude-code-sdk` for agent orchestration
+- Use `claude-agent-sdk` for agent orchestration
 - Output language for government content: Montenegrin (Latin script)
 
 ## Use Claude Code Tools, Not Bespoke Implementations

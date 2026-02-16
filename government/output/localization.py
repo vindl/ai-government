@@ -6,8 +6,8 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
-import claude_code_sdk
-from claude_code_sdk import AssistantMessage, ClaudeCodeOptions, TextBlock
+import claude_agent_sdk
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 
 if TYPE_CHECKING:
     from government.orchestrator import SessionResult
@@ -40,9 +40,9 @@ async def _translate_fields(fields: dict[str, Any], model: str) -> dict[str, Any
     prompt = _build_translation_prompt(fields)
     response_text = ""
 
-    async for message in claude_code_sdk.query(
+    async for message in claude_agent_sdk.query(
         prompt=prompt,
-        options=ClaudeCodeOptions(
+        options=ClaudeAgentOptions(
             system_prompt=TRANSLATION_SYSTEM_PROMPT,
             model=model,
             max_turns=1,

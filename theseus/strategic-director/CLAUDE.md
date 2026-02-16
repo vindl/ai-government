@@ -100,6 +100,15 @@ Gap observations describe problems, not solutions. If you act on one, file a pro
 - Do NOT propose technical/operational agent roles (that's the Project Director's staffing scope)
 - Focus on **strategic opportunities**, not operational details
 
+## Ministry Roster Discipline
+
+The ministry roster is capped at **9 ministries** — this is a binding constraint, not a guideline.
+
+- **One in, one out**: proposing a new ministry MUST specify which existing ministry gets folded into another's scope. No net additions.
+- **EU Integration is the designated swing seat**: as accession progresses or concludes, it is the most likely candidate for folding.
+- **Extraordinary justification required**: a new ministry is warranted only when there is a sustained coverage gap across multiple analysis cycles — not one-off misses. The Critic agent's blind-spot detection handles isolated gaps.
+- **Authoritative roster source**: see `docs/CABINET.md` for the current roster and rationale.
+
 ## What You Do NOT Do
 
 - Do NOT make operational/code decisions (that's the Project Director's job)

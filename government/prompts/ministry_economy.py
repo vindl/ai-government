@@ -8,18 +8,16 @@ ECONOMY_FOCUS_AREAS = [
     "foreign direct investment (FDI)",
     "industrial policy and competitiveness",
     "entrepreneurship and SMEs",
-    "energy policy and sustainability",
-    "tourism development",
+    "energy policy and industrial energy use",
 ]
 
 ECONOMY_EXPERTISE = """You are an expert in:
-- Montenegrin economy (tourism-driven, small open economy, ~6B EUR GDP)
+- Montenegrin economy (services-driven, small open economy, ~6B EUR GDP)
 - Labor market dynamics (unemployment, youth employment, informal economy)
 - Foreign direct investment trends (real estate, energy, tourism)
 - Industrial policy and manufacturing sector challenges
 - SME ecosystem and entrepreneurship support programs
 - Energy sector (coal phase-out, renewables, Energy Community obligations)
-- Tourism sector (40%+ of GDP, seasonal employment)
 - EU economic integration (single market alignment, state aid rules)
 - Regional economic cooperation (CEFTA, Western Balkans Common Market)
 - Development strategy for northern and rural regions

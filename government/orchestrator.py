@@ -10,11 +10,13 @@ from pydantic import BaseModel, Field
 from government.agents.critic import CriticAgent
 from government.agents.ministry_economy import create_economy_agent
 from government.agents.ministry_education import create_education_agent
+from government.agents.ministry_environment import create_environment_agent
 from government.agents.ministry_eu import create_eu_agent
 from government.agents.ministry_finance import create_finance_agent
 from government.agents.ministry_health import create_health_agent
 from government.agents.ministry_interior import create_interior_agent
 from government.agents.ministry_justice import create_justice_agent
+from government.agents.ministry_tourism import create_tourism_agent
 from government.agents.parliament import ParliamentAgent
 from government.agents.synthesizer import SynthesizerAgent
 from government.config import SessionConfig
@@ -54,6 +56,8 @@ class Orchestrator:
             create_interior_agent(self.config),
             create_education_agent(self.config),
             create_economy_agent(self.config),
+            create_tourism_agent(self.config),
+            create_environment_agent(self.config),
         ]
 
     async def run_session(

@@ -96,6 +96,10 @@ class TestGlobalLanguageToggle:
         html = self._read(site_dir, "transparency/index.html")
         assert 'class="lang-toggle"' in html
 
+    def test_toggle_on_cabinet(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "cabinet/index.html")
+        assert 'class="lang-toggle"' in html
+
 
 class TestScoreardToggleRemoved:
     """The toggle should live only in base.html, not duplicated in scorecard."""
@@ -122,12 +126,14 @@ class TestBilingualNav:
         assert "Transparentnost" in nav_html
         assert "Ustav" in nav_html
         assert "Vijesti" in nav_html
+        assert "Kabinet" in nav_html
 
     def test_nav_contains_en_links(self, nav_html: str) -> None:
         assert "Decisions" in nav_html
         assert "Transparency" in nav_html
         assert "Constitution" in nav_html
         assert "News" in nav_html
+        assert "Cabinet" in nav_html
 
     def test_site_title_bilingual(self, site_dir: Path) -> None:
         html = (site_dir / "index.html").read_text()

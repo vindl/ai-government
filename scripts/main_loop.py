@@ -3341,17 +3341,16 @@ async def run_one_cycle(
     else:
         print("\nPhase B: Self-improvement — proposing and debating...")
 
-        # Generate AI proposals only when backlog is fully drained.
-        # Analysis tasks in the backlog also suppress proposals — even if
-        # rate-limited — to prevent self-improvement from crowding out
-        # the analysis pipeline.
-        backlog = list_backlog_issues()
-        if backlog:
+        # Generate AI proposals only when the backlog has no *executable* tasks.
+        # Rate-limited analysis tasks don't count — they can't run yet, so the
+        # loop should do productive self-improvement work while waiting.
+        if _backlog_has_executable_tasks():
+            backlog = list_backlog_issues()
             has_analysis = any(
                 _issue_has_label(i, LABEL_TASK_ANALYSIS) for i in backlog
             )
             reason = (
-                "analysis issues waiting"
+                "analysis issues ready"
                 if has_analysis
                 else f"{len(backlog)} executable issues — draining queue"
             )
@@ -3650,7 +3649,9 @@ async def run_one_cycle(
     telemetry.phases.append(phase_f)
 
     # --- Collect and save transparency records ---
-    if not dry_run:
+    # Only collect when the cycle did productive work — these make many gh API
+    # calls and are expensive to run every 5 minutes when rate-limited.
+    if not dry_run and phase_c_was_productive:
         try:
             override_records = collect_override_records()
             if override_records:
@@ -3926,9 +3927,10 @@ def main() -> None:
         wait = analysis_wait_seconds(min_gap_hours=args.min_analysis_gap)
         has_work = _backlog_has_executable_tasks()
         if wait > 0 and not has_work:
-            # Nothing executable — use 5-minute cadence so directors/PM still run
-            cooldown = 300
-            print(f"\nRate-limited, no other tasks. Sleeping {cooldown}s...")
+            # Nothing executable — sleep until the rate limit expires, capped
+            # at 30 min so directors/PM still get a chance to run periodically.
+            cooldown = min(wait, 1800)
+            print(f"\nRate-limited, no other tasks. Sleeping {cooldown // 60}m...")
         else:
             cooldown = args.cooldown
             print(f"\nCooling down for {cooldown}s...")

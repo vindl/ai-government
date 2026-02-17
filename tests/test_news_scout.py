@@ -250,7 +250,9 @@ class TestBuildCategoryDistributionContext:
         assert "legal: 6 (60%)" in ctx
         # fiscal at 20% should NOT be marked
         assert "fiscal: 2 (20%)" in ctx
-        assert "fiscal" not in ctx.split("OVER")[0].split("fiscal:")[-1] or True
+        # Verify the fiscal line itself doesn't contain the OVER marker
+        fiscal_line = next(line for line in ctx.split("\n") if "fiscal:" in line)
+        assert "OVER" not in fiscal_line
 
     def test_no_over_marker_when_balanced(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -282,7 +284,10 @@ class TestBuildCategoryDistributionContext:
 
         # No category above 40%, so no OVER markers on category lines
         # (the instruction text mentions "OVER" generically)
-        cat_lines = [line for line in ctx.split("\n") if line.strip().startswith(("legal:", "fiscal:", "economy:", "health:", "education:"))]
+        cat_lines = [
+            line for line in ctx.split("\n")
+            if line.strip().startswith(("legal:", "fiscal:", "economy:", "health:", "education:"))
+        ]
         for line in cat_lines:
             assert "OVER" not in line
 

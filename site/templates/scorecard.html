@@ -66,9 +66,9 @@
     <h2 class="lang-mne">Nezavisna kritička analiza</h2>
     <h2 class="lang-en">Independent Critical Analysis</h2>
     {% if result.critic_report.overall_analysis_mne %}
-    <p class="lang-mne">{{ result.critic_report.overall_analysis_mne }}</p>
+    <div class="lang-mne">{% for para in result.critic_report.overall_analysis_mne.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
     {% endif %}
-    <p class="lang-en">{{ result.critic_report.overall_analysis }}</p>
+    <div class="lang-en">{% for para in result.critic_report.overall_analysis.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
     {% if result.critic_report.blind_spots or result.critic_report.blind_spots_mne %}
     <h3 class="lang-mne">Slijepe tačke</h3>
     <h3 class="lang-en">Blind Spots</h3>
@@ -101,9 +101,9 @@
     {% endif %}
     <p class="executive-summary lang-en"><strong>{{ result.counter_proposal.executive_summary }}</strong></p>
     {% if result.counter_proposal.detailed_proposal_mne %}
-    <div class="detailed-proposal lang-mne">{{ result.counter_proposal.detailed_proposal_mne }}</div>
+    <div class="detailed-proposal lang-mne">{% for para in result.counter_proposal.detailed_proposal_mne.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
     {% endif %}
-    <div class="detailed-proposal lang-en">{{ result.counter_proposal.detailed_proposal }}</div>
+    <div class="detailed-proposal lang-en">{% for para in result.counter_proposal.detailed_proposal.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
 
     {% if result.counter_proposal.key_differences or result.counter_proposal.key_differences_mne %}
     <h4 class="lang-mne">Ključne razlike</h4>
@@ -201,9 +201,9 @@
         <summary class="lang-mne">Pročitaj cijelu analizu</summary>
         <summary class="lang-en">Read full analysis</summary>
         {% if a.summary_mne %}
-        <p class="lang-mne">{{ a.summary_mne }}</p>
+        <div class="lang-mne">{% for para in a.summary_mne.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
         {% endif %}
-        <p class="lang-en">{{ a.summary }}</p>
+        <div class="lang-en">{% for para in a.summary.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
       {% if a.key_concerns or a.key_concerns_mne %}
       <h4 class="lang-mne">Ključni problemi</h4>
       <h4 class="lang-en">Key Concerns</h4>
@@ -297,9 +297,9 @@
     <h3 class="lang-mne">Konsenzus</h3>
     <h3 class="lang-en">Consensus</h3>
     {% if result.debate.consensus_summary_mne %}
-    <p class="lang-mne">{{ result.debate.consensus_summary_mne }}</p>
+    <div class="lang-mne">{% for para in result.debate.consensus_summary_mne.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
     {% endif %}
-    <p class="lang-en">{{ result.debate.consensus_summary }}</p>
+    <div class="lang-en">{% for para in result.debate.consensus_summary.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
 
     {% if result.debate.disagreements or result.debate.disagreements_mne %}
     <h3 class="lang-mne">Neslaganja</h3>
@@ -320,7 +320,7 @@
 
     <h3 class="lang-mne">Transkript <small>(na engleskom)</small></h3>
     <h3 class="lang-en">Transcript</h3>
-    <div class="transcript">{{ result.debate.debate_transcript }}</div>
+    <div class="transcript">{% for para in result.debate.debate_transcript.split('\n\n') %}<p>{{ para }}</p>{% endfor %}</div>
   </section>
   {% endif %}
 

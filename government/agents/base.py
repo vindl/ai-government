@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
@@ -48,7 +48,12 @@ class GovernmentAgent:
         self.ministry = ministry_config
         self.config = session_config or SessionConfig()
 
-    async def analyze(self, decision: GovernmentDecision) -> Assessment:
+    async def analyze(
+        self,
+        decision: GovernmentDecision,
+        *,
+        effort: Literal["low", "medium", "high", "max"] | None = None,
+    ) -> Assessment:
         """Analyze a government decision and return an assessment."""
         prompt = self._build_prompt(decision)
 
@@ -60,6 +65,7 @@ class GovernmentAgent:
                 model=self.config.model,
                 max_turns=1,
                 output_format=_output_format_for(Assessment),
+                effort=effort,
             ),
         ):
             if isinstance(message, ResultMessage) and message.structured_output is not None:

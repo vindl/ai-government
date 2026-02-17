@@ -13,7 +13,7 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import anyio
 import claude_agent_sdk
@@ -55,12 +55,16 @@ class InfrastructureError(Exception):
     """
 
 
+EffortLevel = Literal["low", "medium", "high", "max"]
+
+
 def _sdk_options(
     *,
     system_prompt: str,
     model: str,
     max_turns: int,
     allowed_tools: list[str],
+    effort: EffortLevel | None = None,
 ) -> ClaudeAgentOptions:
     """Build ClaudeAgentOptions with shared defaults.
 
@@ -79,6 +83,7 @@ def _sdk_options(
             cwd=PROJECT_ROOT,
             env=SDK_ENV,
             setting_sources=["project"],
+            effort=effort,
         )
     return ClaudeAgentOptions(
         system_prompt=system_prompt,
@@ -88,6 +93,7 @@ def _sdk_options(
         permission_mode="bypassPermissions",
         cwd=PROJECT_ROOT,
         env=SDK_ENV,
+        effort=effort,
     )
 
 
@@ -612,6 +618,7 @@ async def run_coder(
             model=model,
             max_turns=CODER_MAX_TURNS,
             allowed_tools=CODER_TOOLS,
+            effort="high",
         )
     except Exception as exc:
         raise InfrastructureError(f"_sdk_options failed: {exc}") from exc
@@ -643,6 +650,7 @@ async def run_reviewer(
             model=model,
             max_turns=REVIEWER_MAX_TURNS,
             allowed_tools=REVIEWER_TOOLS,
+            effort="high",
         )
     except Exception as exc:
         raise InfrastructureError(f"_sdk_options failed: {exc}") from exc

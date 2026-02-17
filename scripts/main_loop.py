@@ -23,7 +23,7 @@ import time
 from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import anyio
 import claude_agent_sdk
@@ -256,6 +256,9 @@ _repo_nwo: str | None = None
 # ---------------------------------------------------------------------------
 
 
+EffortLevel = Literal["low", "medium", "high", "max"]
+
+
 def _sdk_options(
     *,
     system_prompt: str,
@@ -263,6 +266,7 @@ def _sdk_options(
     max_turns: int,
     allowed_tools: list[str],
     output_format: dict[str, Any] | None = None,
+    effort: EffortLevel | None = None,
 ) -> ClaudeAgentOptions:
     # Agents WITH tools: use SystemPromptPreset with "append" so they get
     # built-in tool instructions, safety guards, and CLAUDE.md project context.
@@ -279,6 +283,7 @@ def _sdk_options(
             env=SDK_ENV,
             setting_sources=["project"],
             output_format=output_format,
+            effort=effort,
         )
     return ClaudeAgentOptions(
         system_prompt=system_prompt,
@@ -289,6 +294,7 @@ def _sdk_options(
         cwd=PROJECT_ROOT,
         env=SDK_ENV,
         output_format=output_format,
+        effort=effort,
     )
 
 
@@ -1448,6 +1454,7 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
             model=model,
             max_turns=NEWS_SCOUT_MAX_TURNS,
             allowed_tools=NEWS_SCOUT_TOOLS,
+            effort="low",
         )
 
         log.info("Running News Scout agent for %s...", today.isoformat())
@@ -1751,6 +1758,7 @@ Most analyses should pass. Only block publication for clear factual errors or Co
         max_turns=EDITORIAL_DIRECTOR_MAX_TURNS,
         allowed_tools=["Read"],
         output_format=_output_format_for(EditorialReview),
+        effort="medium",
     )
 
     log.info("Running Editorial Director review for issue #%d...", issue_number)
@@ -1919,6 +1927,7 @@ acceptance criteria. List specific files to change.",
         model=model,
         max_turns=PROPOSE_MAX_TURNS,
         allowed_tools=PROPOSE_TOOLS,
+        effort="medium",
     )
 
     log.info("Running PM agent to propose %d improvements...", num_proposals)
@@ -2087,6 +2096,7 @@ Write a concise argument (~200 words) covering:
         model=model,
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
+        effort="medium",
     )
     stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
@@ -2129,6 +2139,7 @@ Do NOT give a verdict yet. Just provide your feedback so the PM can refine.
         model=model,
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
+        effort="medium",
     )
     stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
@@ -2164,6 +2175,7 @@ Write a concise response (~200 words):
         model=model,
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
+        effort="medium",
     )
     stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
@@ -2205,6 +2217,7 @@ When in doubt, accept.
         model=model,
         max_turns=DEBATE_MAX_TURNS,
         allowed_tools=[],
+        effort="medium",
     )
     stream = claude_agent_sdk.query(prompt=prompt, options=opts)
     return await _collect_agent_output(stream)
@@ -2722,6 +2735,7 @@ Format:
         model=model,
         max_turns=DIRECTOR_MAX_TURNS,
         allowed_tools=[],
+        effort="medium",
     )
 
     log.info("Running Project Director agent...")
@@ -2968,6 +2982,7 @@ Format:
         model=model,
         max_turns=STRATEGIC_DIRECTOR_MAX_TURNS,
         allowed_tools=[],
+        effort="medium",
     )
 
     log.info("Running Strategic Director agent...")
@@ -3050,6 +3065,7 @@ async def step_research_scout(*, model: str) -> list[int]:
         model=model,
         max_turns=RESEARCH_SCOUT_MAX_TURNS,
         allowed_tools=RESEARCH_SCOUT_TOOLS,
+        effort="low",
     )
 
     log.info("Running Research Scout agent...")

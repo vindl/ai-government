@@ -9,7 +9,6 @@ import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions
 
 from government.agents.base import (
-    _output_format_for,
     collect_structured_or_text,
     parse_structured_or_text,
 )
@@ -64,7 +63,6 @@ class SynthesizerAgent:
                 system_prompt=SYNTHESIZER_SYSTEM_PROMPT,
                 model=self.config.model,
                 max_turns=1,
-                output_format=_output_format_for(CounterProposal),
                 effort=effort,
             ),
         ):

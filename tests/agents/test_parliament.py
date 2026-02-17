@@ -8,6 +8,7 @@ import pytest
 from government.agents.parliament import ParliamentAgent
 from government.models.assessment import Assessment, ParliamentDebate, Verdict
 from government.models.decision import GovernmentDecision
+from government.prompts.parliament import PARLIAMENT_SYSTEM_PROMPT
 
 
 @pytest.fixture
@@ -50,6 +51,48 @@ VALID_DEBATE_DATA = {
 }
 
 VALID_DEBATE_JSON = json.dumps(VALID_DEBATE_DATA)
+
+
+class TestParliamentaryLandscape:
+    """Test that the prompt includes real Montenegrin parliamentary parties."""
+
+    def test_prompt_contains_parliamentary_landscape_section(self) -> None:
+        assert "## Parliamentary Landscape" in PARLIAMENT_SYSTEM_PROMPT
+
+    @pytest.mark.parametrize(
+        "party",
+        [
+            "DPS",
+            "SDP",
+            "Europe Now!",
+            "URA",
+            "Demokratski front",
+            "DNP",
+            "Bošnjačka stranka",
+        ],
+    )
+    def test_prompt_mentions_major_parties(self, party: str) -> None:
+        assert party in PARLIAMENT_SYSTEM_PROMPT
+
+    def test_prompt_includes_policy_orientations(self) -> None:
+        assert "pro-EU" in PARLIAMENT_SYSTEM_PROMPT
+        assert "sovereigntist" in PARLIAMENT_SYSTEM_PROMPT
+        assert "pro-Serbian" in PARLIAMENT_SYSTEM_PROMPT
+
+    def test_prompt_instructs_party_bloc_attribution(self) -> None:
+        assert "party blocs or coalitions" in PARLIAMENT_SYSTEM_PROMPT
+        assert "never to individual politicians" in PARLIAMENT_SYSTEM_PROMPT
+
+    def test_prompt_instructs_debate_transcript_usage(self) -> None:
+        assert "debate_transcript" in PARLIAMENT_SYSTEM_PROMPT
+
+    def test_json_output_format_unchanged(self) -> None:
+        """Verify the JSON response format spec is still present and unchanged."""
+        assert '"decision_id"' in PARLIAMENT_SYSTEM_PROMPT
+        assert '"consensus_summary"' in PARLIAMENT_SYSTEM_PROMPT
+        assert '"disagreements"' in PARLIAMENT_SYSTEM_PROMPT
+        assert '"overall_verdict"' in PARLIAMENT_SYSTEM_PROMPT
+        assert '"debate_transcript"' in PARLIAMENT_SYSTEM_PROMPT
 
 
 class TestParseResponse:

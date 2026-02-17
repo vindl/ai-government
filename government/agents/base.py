@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
 
-from government.agents.json_parsing import extract_json
+from government.agents.json_parsing import RETRY_PROMPT, extract_json
 from government.config import SessionConfig
 from government.models.assessment import Assessment
 
@@ -95,17 +95,25 @@ class GovernmentAgent:
     ) -> Assessment:
         """Analyze a government decision and return an assessment."""
         prompt = self._build_prompt(decision)
+        opts = ClaudeAgentOptions(
+            system_prompt=self.ministry.system_prompt,
+            model=self.config.model,
+            max_turns=2,
+            effort=effort,
+        )
 
         state: dict[str, Any] = {}
-        async for message in claude_agent_sdk.query(
-            prompt=prompt,
-            options=ClaudeAgentOptions(
-                system_prompt=self.ministry.system_prompt,
-                model=self.config.model,
-                max_turns=1,
-                effort=effort,
-            ),
-        ):
+        async for message in claude_agent_sdk.query(prompt=prompt, options=opts):
+            collect_structured_or_text(message, state)
+
+        data = parse_structured_or_text(state)
+        if data is not None:
+            return self._parse_response(data, decision.id)
+
+        # Retry with explicit JSON-only instruction
+        log.warning("GovernmentAgent(%s): retrying with JSON prompt", self.ministry.name)
+        state = {}
+        async for message in claude_agent_sdk.query(prompt=RETRY_PROMPT, options=opts):
             collect_structured_or_text(message, state)
 
         return self._parse_response(parse_structured_or_text(state), decision.id)

@@ -12,6 +12,7 @@ from government.agents.base import (
     collect_structured_or_text,
     parse_structured_or_text,
 )
+from government.agents.json_parsing import RETRY_PROMPT
 from government.config import SessionConfig
 from government.models.assessment import Assessment, ParliamentDebate
 from government.prompts.parliament import PARLIAMENT_SYSTEM_PROMPT
@@ -55,17 +56,27 @@ class ParliamentAgent:
         *,
         effort: Literal["low", "medium", "high", "max"] | None = None,
     ) -> dict[str, Any] | None:
-        """Call Claude Code SDK and return structured output dict."""
+        """Call Claude Code SDK and return structured output dict.
+
+        Retries once with a follow-up prompt if the first response
+        does not contain valid JSON.
+        """
+        opts = ClaudeAgentOptions(
+            system_prompt=PARLIAMENT_SYSTEM_PROMPT,
+            model=self.config.model,
+            max_turns=2,
+            effort=effort,
+        )
         state: dict[str, Any] = {}
-        async for message in claude_agent_sdk.query(
-            prompt=prompt,
-            options=ClaudeAgentOptions(
-                system_prompt=PARLIAMENT_SYSTEM_PROMPT,
-                model=self.config.model,
-                max_turns=1,
-                effort=effort,
-            ),
-        ):
+        async for message in claude_agent_sdk.query(prompt=prompt, options=opts):
+            collect_structured_or_text(message, state)
+        result = parse_structured_or_text(state)
+        if result is not None:
+            return result
+
+        log.warning("ParliamentAgent: first response had no valid JSON, retrying")
+        state = {}
+        async for message in claude_agent_sdk.query(prompt=RETRY_PROMPT, options=opts):
             collect_structured_or_text(message, state)
         return parse_structured_or_text(state)
 

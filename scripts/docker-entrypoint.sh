@@ -64,10 +64,6 @@ if [[ -n "${LOOP_COOLDOWN:-}" ]]; then
   ARGS+=(--cooldown "${LOOP_COOLDOWN}")
 fi
 
-if [[ -n "${LOOP_PROPOSALS:-}" ]]; then
-  ARGS+=(--proposals "${LOOP_PROPOSALS}")
-fi
-
 if [[ -n "${LOOP_MODEL:-}" ]]; then
   ARGS+=(--model "${LOOP_MODEL}")
 fi
@@ -78,26 +74,6 @@ fi
 
 if [[ "${LOOP_DRY_RUN:-false}" == "true" ]]; then
   ARGS+=(--dry-run)
-fi
-
-if [[ "${LOOP_SKIP_ANALYSIS:-false}" == "true" ]]; then
-  ARGS+=(--skip-analysis)
-fi
-
-if [[ "${LOOP_SKIP_IMPROVE:-false}" == "true" ]]; then
-  ARGS+=(--skip-improve)
-fi
-
-if [[ "${LOOP_SKIP_RESEARCH:-false}" == "true" ]]; then
-  ARGS+=(--skip-research)
-fi
-
-if [[ -n "${LOOP_DIRECTOR_INTERVAL:-}" ]]; then
-  ARGS+=(--director-interval "${LOOP_DIRECTOR_INTERVAL}")
-fi
-
-if [[ -n "${LOOP_STRATEGIC_DIRECTOR_INTERVAL:-}" ]]; then
-  ARGS+=(--strategic-director-interval "${LOOP_STRATEGIC_DIRECTOR_INTERVAL}")
 fi
 
 if [[ "${LOOP_VERBOSE:-false}" == "true" ]]; then

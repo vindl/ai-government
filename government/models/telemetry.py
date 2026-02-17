@@ -68,11 +68,13 @@ class CycleTelemetry(BaseModel):
     phases: list[CyclePhaseResult] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 
+    # Conductor
+    conductor_reasoning: str = ""
+    conductor_actions: list[str] = Field(default_factory=list)
+    conductor_fallback: bool = False  # True if recovery agent was used
+
     # Flags
     dry_run: bool = False
-    skip_analysis: bool = False
-    skip_improve: bool = False
-    skip_research: bool = False
 
 
 class ErrorEntry(BaseModel):

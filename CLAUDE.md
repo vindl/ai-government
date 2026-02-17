@@ -45,13 +45,9 @@ uv run mypy government/           # type check
 uv run pytest              # test
 uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.json
 uv run python scripts/pr_workflow.py "<task description>"  # PR workflow
-uv run python scripts/main_loop.py                        # unified main loop (indefinite)
-uv run python scripts/main_loop.py --dry-run --max-cycles 1  # test ideation + triage only
+uv run python scripts/main_loop.py                        # Conductor-driven main loop (indefinite)
+uv run python scripts/main_loop.py --dry-run --max-cycles 1  # test Conductor planning only
 uv run python scripts/main_loop.py --max-cycles 3         # 3 cycles then stop
-uv run python scripts/main_loop.py --skip-improve         # analysis only
-uv run python scripts/main_loop.py --skip-analysis          # self-improvement only
-uv run python scripts/main_loop.py --skip-research           # skip Research Scout
-uv run python scripts/main_loop.py --director-interval 1 --max-cycles 1  # test Director
 uv run python scripts/build_site.py                        # build static site to _site/
 uv run python scripts/build_site.py --output-dir /tmp/_site  # build to custom dir
 
@@ -69,9 +65,6 @@ docker compose up -d                                       # detached
 docker compose logs -f ai-government                       # follow logs
 LOOP_DRY_RUN=true docker compose up                        # dry run
 LOOP_MAX_CYCLES=3 docker compose up                        # 3 cycles
-LOOP_SKIP_IMPROVE=true docker compose up                   # analysis only
-LOOP_SKIP_RESEARCH=true docker compose up                  # skip Research Scout
-LOOP_DIRECTOR_INTERVAL=3 docker compose up                 # Director every 3 cycles
 docker compose down                                        # stop
 ```
 

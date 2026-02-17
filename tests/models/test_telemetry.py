@@ -65,8 +65,6 @@ class TestCycleTelemetry:
             phases=[CyclePhaseResult(phase="A", duration_seconds=10.0)],
             errors=[],
             dry_run=False,
-            skip_analysis=False,
-            skip_improve=False,
         )
         assert t.cycle == 5
         assert t.cycle_yielded is True

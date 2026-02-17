@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-17T00:32:55Z",
+    "pr_number": 235,
+    "pr_title": "Add pipeline health checks to block failed analyses",
+    "actor": "vindl",
+    "issue_number": 233
+  },
+  {
     "timestamp": "2026-02-17T00:21:19Z",
     "pr_number": 234,
     "pr_title": "Add effort option to ClaudeAgentOptions for cost-efficient agents",

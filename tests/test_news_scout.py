@@ -116,8 +116,8 @@ class TestGenerateDecisionId:
     def test_format(self) -> None:
         d = _dt.date(2026, 2, 14)
         result = _generate_decision_id("Vlada usvojila budžet", d)
-        assert result.startswith("news-2026-02-14-")
-        # 8 hex chars after the date prefix (news-YYYY-MM-DD-XXXXXXXX)
+        assert result.startswith("item-2026-02-14-")
+        # 8 hex chars after the date prefix (item-YYYY-MM-DD-XXXXXXXX)
         suffix = result.rsplit("-", 1)[-1]
         assert len(suffix) == 8
 

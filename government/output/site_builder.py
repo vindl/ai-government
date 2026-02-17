@@ -159,8 +159,8 @@ class SiteBuilder:
         shutil.copytree(str(STATIC_DIR), str(dest))
 
     def _build_scorecards(self, results: list[SessionResult]) -> None:
-        decisions_dir = self.output_dir / "decisions"
-        decisions_dir.mkdir(parents=True, exist_ok=True)
+        analyses_dir = self.output_dir / "analyses"
+        analyses_dir.mkdir(parents=True, exist_ok=True)
 
         template = self.env.get_template("scorecard.html")
         for result in results:
@@ -169,10 +169,10 @@ class SiteBuilder:
                 css_path="../static/css/style.css",
                 base_path="../",
             )
-            path = decisions_dir / f"{result.decision.id}.html"
+            path = analyses_dir / f"{result.decision.id}.html"
             path.write_text(html, encoding="utf-8")
 
-        # Decisions index page
+        # Analyses index page
         sorted_results = sorted(results, key=lambda r: r.decision.date, reverse=True)
         index_template = self.env.get_template("decisions_index.html")
         html = index_template.render(
@@ -180,7 +180,39 @@ class SiteBuilder:
             css_path="../static/css/style.css",
             base_path="../",
         )
-        (decisions_dir / "index.html").write_text(html, encoding="utf-8")
+        (analyses_dir / "index.html").write_text(html, encoding="utf-8")
+
+        # Redirect stubs at old /decisions/ paths
+        self._build_redirects(results)
+
+    @staticmethod
+    def _redirect_html(target: str) -> str:
+        return (
+            "<!DOCTYPE html>"
+            '<html><head><meta charset="UTF-8">'
+            f'<meta http-equiv="refresh" content="0;url={target}">'
+            f'<link rel="canonical" href="{target}">'
+            "</head><body>"
+            f'<p>Moved to <a href="{target}">{target}</a></p>'
+            "</body></html>"
+        )
+
+    def _build_redirects(self, results: list[SessionResult]) -> None:
+        """Write redirect stubs at old /decisions/ paths pointing to /analyses/."""
+        old_dir = self.output_dir / "decisions"
+        old_dir.mkdir(parents=True, exist_ok=True)
+
+        # Index redirect
+        (old_dir / "index.html").write_text(
+            self._redirect_html("../analyses/"), encoding="utf-8",
+        )
+
+        # Individual scorecard redirects
+        for result in results:
+            filename = f"{result.decision.id}.html"
+            (old_dir / filename).write_text(
+                self._redirect_html(f"../analyses/{filename}"), encoding="utf-8",
+            )
 
     def _build_index(self, results: list[SessionResult]) -> None:
         # Sort by date descending

@@ -1,29 +1,35 @@
 {% extends "base.html" %}
 
-{% block title %}Odluke — AI Vlada{% endblock %}
+{% block title %}Analize — AI Vlada{% endblock %}
 
 {% block content %}
-<h1 class="lang-mne">Sve odluke</h1>
-<h1 class="lang-en">All Decisions</h1>
-<p class="lang-mne">Kompletna lista analiziranih vladinih odluka.</p>
-<p class="lang-en">Complete list of analyzed government decisions.</p>
+<div class="ai-notice">
+  <p class="lang-mne">Sve analize su kreirali AI agenti. Sistem se samostalno unapredjuje i razvija.</p>
+  <p class="lang-en">All analyses are created by AI agents. The system is self-improving and evolving.</p>
+</div>
+
+<h1 class="lang-mne">Sve analize</h1>
+<h1 class="lang-en">All Analyses</h1>
+<p class="lang-mne">Kompletna lista analiza vladinih odluka.</p>
+<p class="lang-en">Complete list of government decision analyses.</p>
 
 {% if results %}
 <ul class="decision-feed">
   {% for r in results %}
   <li>
+    {% if r.critic_report %}<span class="feed-score feed-score-{{ r.critic_report.decision_score }}">{{ r.critic_report.decision_score }}/10</span>{% endif %}
     <h3><a href="{{ r.decision.id }}.html">
       {% if r.decision.title_mne %}<span class="lang-mne">{{ r.decision.title_mne }}</span>{% endif %}
       <span class="{% if r.decision.title_mne %}lang-en{% endif %}">{{ r.decision.title }}</span>
     </a></h3>
-    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal lang-mne">Kontra-prijedlog dostupan</span><span class="feed-counter-proposal lang-en">Counter-proposal available</span>{% endif %}</div>
+    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}</div>
     {% if r.decision.summary_mne %}<p class="feed-summary lang-mne">{{ r.decision.summary_mne }}</p>{% endif %}
     <p class="feed-summary {% if r.decision.summary_mne %}lang-en{% endif %}">{{ r.decision.summary }}</p>
   </li>
   {% endfor %}
 </ul>
 {% else %}
-<p class="lang-mne">Još nema analiziranih odluka.</p>
-<p class="lang-en">No decisions analyzed yet.</p>
+<p class="lang-mne">Još nema analiza.</p>
+<p class="lang-en">No analyses yet.</p>
 {% endif %}
 {% endblock %}

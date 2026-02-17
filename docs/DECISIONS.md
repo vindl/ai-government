@@ -487,3 +487,30 @@ This is a form of **stigmergy** — indirect coordination through a shared, obse
 - Higher priority tier — rejected: ecosystem upgrades are important but not urgent compared to human suggestions, analysis tasks, or director-identified operational issues
 
 **Consequences**: The project will automatically track relevant AI ecosystem developments and file upgrade issues. Reduces human overhead for monitoring releases. `docs/AI_STACK.md` becomes the single source of truth for the project's AI stack.
+
+---
+
+## ADR-025: Conductor Agent Replaces Rigid Main Loop Phases
+**Date**: 2026-02-17
+**Status**: Accepted
+
+**Context**: The main loop ran six phases (A-F) in the same fixed order every cycle. This caused unproductive spinning when errors piled up, couldn't adapt to circumstances (empty backlog, rate limits, regressions), and required hardcoded interval logic for directors.
+
+**Decision**: Replace the rigid phase sequencing with a Conductor agent — a single LLM call per cycle (`effort="low"`, no tools, `max_turns=1`) that observes system state and returns a structured `ConductorPlan` with up to 6 actions.
+
+**Design choices**:
+- Conductor is stateless per cycle (fresh SDK subprocess) with "memory" from telemetry, error logs, GitHub state, and a lightweight journal file
+- Three-tier fallback: Conductor (cheap, no tools) → Recovery agent (tool-equipped, investigates) → Default plan (mechanical, no LLM)
+- Conductor journal (`output/data/conductor_journal.jsonl`) provides cycle-to-cycle continuity without long-running agent costs
+- Human overrides and CI health check always run first (mechanical, before Conductor) — these are safety-critical and should not be LLM-gated
+- Conductor decides when to run directors, proposals, research scout based on baseline rates and system state rather than hardcoded modulo arithmetic
+- `step_pick()` removed — Conductor specifies which issue to execute via `issue_number` in the action
+- CLI flags `--skip-analysis`, `--skip-improve`, `--skip-research`, `--director-interval`, `--strategic-director-interval`, `--proposals` removed — Conductor decides all of these
+- Cooldown duration suggested by Conductor based on system state, enforcing CLI `--cooldown` as minimum
+
+**Alternatives considered**:
+- Keep rigid phases but add skip logic — rejected: adds complexity without solving the fundamental ordering problem
+- Long-running Conductor agent with tools — rejected: expensive, complex, and unnecessary when pre-fetched context provides all needed information
+- Remove fallback entirely — rejected: Conductor failure should not halt the loop; the system should degrade gracefully
+
+**Consequences**: The main loop is now adaptive — it can skip unnecessary phases, react to regressions, and schedule directors based on actual need rather than fixed intervals. `run_one_cycle()` shrinks from ~400 lines to ~80 lines. One additional LLM call per cycle at `effort="low"` (cheap). Existing step functions are preserved as-is — they become building blocks the dispatcher calls.

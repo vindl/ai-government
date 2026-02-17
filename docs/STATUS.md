@@ -1,6 +1,6 @@
 # Project Status
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-17*
 
 ## Current Phase: Scaffold Complete (v0.1.0)
 
@@ -86,6 +86,8 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] Tests in `tests/test_research_scout.py`
 
 ### Dev Fleet (`theseus/`)
+- [x] Conductor agent (`theseus/conductor/CLAUDE.md`) — orchestration brain, decides per-cycle actions
+- [x] Recovery agent (`theseus/recovery/CLAUDE.md`) — tool-equipped fallback when Conductor fails
 - [x] 3 active role prompts: coder, reviewer, pm
 - [x] Coder writes both implementation code and unit tests
 - [x] Reviewer checks for test coverage and quality
@@ -96,24 +98,25 @@ The full repository scaffold is in place. All code passes linting, type checking
   - Loop iterates until approval (auto-merge) or max rounds reached
   - Each agent gets fresh context per round (no session continuity)
   - Configurable: `--max-rounds`, `--model`, `--branch`, `-v`
-- [x] `scripts/main_loop.py` — unified main loop (analysis + self-improvement)
-  - Six-phase cycle:
-    - Phase A: Check for new government decisions → create analysis issues
-    - Phase B: Self-improvement — propose → debate → backlog
-    - Phase C: Pick from unified backlog → execute (routes by task type)
-    - Phase D: Project Director — operational oversight
-    - Phase E: Strategic Director — external impact strategy
-    - Phase F: Research Scout — AI ecosystem tracking (daily)
+- [x] `scripts/main_loop.py` — Conductor-driven main loop
+  - **Conductor agent** replaces rigid six-phase sequencing (A→B→C→D→E→F)
+  - Per-cycle flow: gather state → Conductor decides → dispatcher executes actions
+  - Conductor is a no-tool LLM call (`effort="low"`, `max_turns=1`) that returns a `ConductorPlan`
+  - Available actions: `fetch_news`, `propose`, `debate`, `pick_and_execute`, `director`, `strategic_director`, `research_scout`, `cooldown`, `halt`, `file_issue`, `skip_cycle`
+  - **Recovery agent** fallback: if Conductor fails, spawns a tool-equipped agent to investigate and plan
+  - **Default plan** fallback: if both Conductor and recovery agent fail, uses a safe mechanical plan
+  - **Conductor journal** (`output/data/conductor_journal.jsonl`): last 10 entries loaded as context for continuity
+  - Telemetry tracks `conductor_reasoning`, `conductor_actions`, `conductor_fallback`
+  - Conductor suggests cooldown duration based on system state
+  - Human overrides and CI health check always run first (mechanical, before Conductor)
   - `task:analysis` issues run the orchestrator pipeline (ministries + parliament + critic)
   - `task:code-change` issues run pr_workflow (coder-reviewer loop)
-  - Analysis tasks get execution priority over code changes
   - PM agent proposes improvements across dev and government domains
   - Two-agent debate (PM advocate vs Reviewer skeptic) with deterministic judge
   - All proposals, debates, and verdicts tracked as GitHub Issues with labels
   - Human suggestions supported via `human-suggestion` label
-  - Failed tasks tracked and excluded from re-proposal
-  - Configurable: `--max-cycles`, `--cooldown`, `--proposals`, `--dry-run`
-  - Phase skipping: `--skip-analysis`, `--skip-improve`, `--skip-research`
+  - Configurable: `--max-cycles`, `--cooldown`, `--model`, `--dry-run`
+  - Analysis lifecycle labels: `analysis:pending`, `analysis:in-progress`, `analysis:done`, `analysis:failed`
 
 ### Docker Support
 - [x] `Dockerfile` — Python 3.12-slim with Node.js 20, gh CLI, uv, Claude Code CLI

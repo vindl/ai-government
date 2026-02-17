@@ -109,6 +109,11 @@ ALL_LABELS: dict[str, str] = {
     LABEL_GAP_CONTENT: "c2e0c6",    # light green (content gap observation)
     LABEL_GAP_TECHNICAL: "d4c5f9",  # light purple (technical gap observation)
     LABEL_RESEARCH_SCOUT: "40e0d0",  # turquoise (research scout)
+    # Analysis lifecycle labels (separate from self-improve:*)
+    "analysis:pending": "c5def5",      # pale blue
+    "analysis:in-progress": "fbca04",  # yellow
+    "analysis:done": "6f42c1",         # purple
+    "analysis:failed": "d73a4a",       # red
 }
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
@@ -131,6 +136,7 @@ NEWS_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
 NEWS_SCOUT_STATE_PATH = PROJECT_ROOT / "output" / "news_scout_state.json"
 NEWS_SCOUT_MAX_DECISIONS = 3
 ANALYSIS_STATE_PATH = PROJECT_ROOT / "output" / "analysis_state.json"
+CONDUCTOR_JOURNAL_PATH = PROJECT_ROOT / "output" / "data" / "conductor_journal.jsonl"
 
 RESEARCH_SCOUT_MAX_TURNS = 15
 RESEARCH_SCOUT_TOOLS = ["WebSearch", "WebFetch"]
@@ -246,6 +252,30 @@ class ResearchScoutOutput(BaseModel):
 
     title: str = Field(min_length=1, max_length=120)
     description: str = Field(min_length=1)
+
+
+class ConductorAction(BaseModel):
+    """A single action decided by the Conductor agent."""
+
+    action: Literal[
+        "fetch_news", "propose", "debate", "pick_and_execute",
+        "director", "strategic_director", "research_scout",
+        "cooldown", "halt", "file_issue", "skip_cycle",
+    ]
+    reason: str
+    issue_number: int | None = None   # required for pick_and_execute
+    title: str | None = None          # file_issue
+    description: str | None = None    # file_issue
+    seconds: int | None = None        # cooldown duration
+
+
+class ConductorPlan(BaseModel):
+    """Structured output from the Conductor agent."""
+
+    reasoning: str
+    actions: list[ConductorAction] = Field(max_length=6)
+    suggested_cooldown_seconds: int = Field(default=60, ge=10, le=3600)
+    notes_for_next_cycle: str = ""  # Brief observations to carry forward
 
 
 _repo_nwo: str | None = None
@@ -3129,6 +3159,707 @@ async def step_research_scout(*, model: str) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
+# Conductor — context, journal, LLM call, dispatcher
+# ---------------------------------------------------------------------------
+
+# Analysis lifecycle labels (separate from self-improve:* labels)
+LABEL_ANALYSIS_PENDING = "analysis:pending"
+LABEL_ANALYSIS_IN_PROGRESS = "analysis:in-progress"
+LABEL_ANALYSIS_DONE = "analysis:done"
+LABEL_ANALYSIS_FAILED = "analysis:failed"
+
+ANALYSIS_LABELS: dict[str, str] = {
+    LABEL_ANALYSIS_PENDING: "c5def5",      # pale blue
+    LABEL_ANALYSIS_IN_PROGRESS: "fbca04",  # yellow
+    LABEL_ANALYSIS_DONE: "6f42c1",         # purple
+    LABEL_ANALYSIS_FAILED: "d73a4a",       # red
+}
+
+
+def _load_conductor_journal(last_n: int = 10) -> list[dict[str, str]]:
+    """Load the last N entries from the Conductor journal."""
+    if not CONDUCTOR_JOURNAL_PATH.exists():
+        return []
+    lines = CONDUCTOR_JOURNAL_PATH.read_text().strip().splitlines()
+    entries: list[dict[str, str]] = []
+    for line in lines[-last_n:]:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            log.debug("Skipping unparseable journal line")
+    return entries
+
+
+def _append_conductor_journal(
+    reasoning: str,
+    notes: str,
+    actions: list[str],
+) -> None:
+    """Append a Conductor journal entry."""
+    CONDUCTOR_JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "reasoning": reasoning[:500],
+        "notes_for_next_cycle": notes[:300],
+        "actions": actions,
+    }
+    with CONDUCTOR_JOURNAL_PATH.open("a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def _compute_action_frequency(entries: list[CycleTelemetry]) -> str:
+    """Compute action frequency from recent telemetry conductor_actions."""
+    counts: Counter[str] = Counter()
+    for entry in entries:
+        for action_name in entry.conductor_actions:
+            counts[action_name] += 1
+    if not counts:
+        return "No action frequency data yet (first cycles)."
+    parts = [f"{k}: {v}" for k, v in sorted(counts.items())]
+    return ", ".join(parts)
+
+
+def _prefetch_conductor_context(
+    *,
+    cycle: int,
+    productive_cycles: int,
+    dry_run: bool,
+    model: str,
+) -> str:
+    """Assemble all context the Conductor needs to decide what to do this cycle."""
+    sections: list[str] = []
+
+    sections.append(
+        f"## Cycle Metadata\n\n"
+        f"- Cycle number: {cycle}\n"
+        f"- Productive cycles so far: {productive_cycles}\n"
+        f"- Dry run: {dry_run}\n"
+        f"- Model: {model}\n"
+        f"- Current time: {datetime.now(UTC).isoformat()}\n"
+    )
+
+    # Telemetry (last 20 cycles)
+    entries = load_telemetry(TELEMETRY_PATH, last_n=20)
+    if entries:
+        telem_lines = [e.model_dump_json() for e in entries]
+        sections.append(
+            f"## Recent Telemetry (last {len(entries)} cycles)\n\n"
+            + "\n".join(telem_lines)
+        )
+    else:
+        sections.append("## Recent Telemetry\n\nNo telemetry data yet (first cycle).\n")
+
+    # Errors (last 30)
+    errors = load_errors(ERRORS_PATH, last_n=30)
+    if errors:
+        err_lines = [e.model_dump_json() for e in errors]
+        sections.append(
+            f"## Recent Errors ({len(errors)} entries)\n\n"
+            + "\n".join(err_lines)
+        )
+
+    # Backlog issues
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_BACKLOG,
+        "--state", "open",
+        "--json", "number,title,labels,createdAt",
+        "--limit", "50",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        issues = json.loads(result.stdout)
+        if issues:
+            lines = []
+            for iss in issues:
+                labels = [lbl["name"] for lbl in iss.get("labels", [])]
+                age_str = iss.get("createdAt", "")[:10]
+                lines.append(f"- #{iss['number']}: {iss['title']} [{', '.join(labels)}] (created {age_str})")
+            sections.append(f"## Backlog Issues ({len(issues)} open)\n\n" + "\n".join(lines))
+        else:
+            sections.append("## Backlog Issues\n\nBacklog is empty.\n")
+    else:
+        sections.append("## Backlog Issues\n\nBacklog is empty.\n")
+
+    # Recently completed issues (last 10)
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_DONE,
+        "--state", "closed",
+        "--json", "number,title,closedAt",
+        "--limit", "10",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        done_issues = json.loads(result.stdout)
+        if done_issues:
+            lines = [
+                f"- #{i['number']}: {i['title']} (closed {i.get('closedAt', '')[:10]})"
+                for i in done_issues
+            ]
+            sections.append(
+                f"## Recently Completed Issues ({len(done_issues)})\n\n"
+                + "\n".join(lines)
+            )
+
+    # Recently failed issues (last 10)
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_FAILED,
+        "--state", "closed",
+        "--json", "number,title,closedAt",
+        "--limit", "10",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        failed_issues = json.loads(result.stdout)
+        if failed_issues:
+            lines = [
+                f"- #{i['number']}: {i['title']} (closed {i.get('closedAt', '')[:10]})"
+                for i in failed_issues
+            ]
+            sections.append(
+                f"## Recently Failed Issues ({len(failed_issues)})\n\n"
+                + "\n".join(lines)
+            )
+
+    # Recently rejected proposals (last 5)
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_REJECTED,
+        "--state", "closed",
+        "--json", "number,title,closedAt",
+        "--limit", "5",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        rejected = json.loads(result.stdout)
+        if rejected:
+            lines = [f"- #{i['number']}: {i['title']}" for i in rejected]
+            sections.append(f"## Recently Rejected Proposals ({len(rejected)})\n\n" + "\n".join(lines))
+
+    # Open PRs
+    result = _run_gh([
+        "gh", "pr", "list",
+        "--state", "open",
+        "--json", "number,title,createdAt",
+        "--limit", "10",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        prs = json.loads(result.stdout)
+        if prs:
+            lines = [f"- PR #{p['number']}: {p['title']}" for p in prs]
+            sections.append(f"## Open PRs ({len(prs)})\n\n" + "\n".join(lines))
+
+    # Recently merged PRs (last 10)
+    result = _run_gh([
+        "gh", "pr", "list",
+        "--state", "merged",
+        "--json", "number,title,mergedAt",
+        "--limit", "10",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        merged = json.loads(result.stdout)
+        if merged:
+            lines = [
+                f"- PR #{p['number']}: {p['title']} "
+                f"(merged {p.get('mergedAt', '')[:10]})"
+                for p in merged
+            ]
+            sections.append(
+                f"## Recently Merged PRs ({len(merged)})\n\n"
+                + "\n".join(lines)
+            )
+
+    # Rate-limit state
+    can_analyze = should_run_analysis()
+    wait = analysis_wait_seconds()
+    sections.append(
+        f"## Rate Limiting\n\n"
+        f"- Analysis allowed now: {can_analyze}\n"
+        f"- Seconds until next analysis window: {wait}\n"
+    )
+
+    # News Scout state
+    can_fetch = should_fetch_news()
+    sections.append(f"- News Scout can run: {can_fetch}\n")
+
+    # Research Scout state
+    can_research = should_run_research_scout()
+    sections.append(f"- Research Scout can run: {can_research}\n")
+
+    # Director timing
+    sections.append(
+        f"## Director Timing\n\n"
+        f"- Productive cycles: {productive_cycles}\n"
+        f"- Director baseline: every ~5 productive cycles\n"
+        f"- Strategic Director baseline: every ~10 productive cycles\n"
+    )
+
+    # CI status (last 10 runs)
+    sections.append(_build_ci_results_section())
+
+    # Action frequency from telemetry
+    freq = _compute_action_frequency(entries)
+    sections.append(
+        f"## Action Frequency (last {len(entries)} cycles)\n\n"
+        f"{freq}\n\n"
+        f"Baseline rates for reference:\n"
+        f"- fetch_news: ~1x/day\n"
+        f"- propose + debate: ~1x/cycle when improvement backlog is empty\n"
+        f"- pick_and_execute: ~1x/cycle (core productive action)\n"
+        f"- director: ~every 5 productive cycles\n"
+        f"- strategic_director: ~every 10 productive cycles\n"
+        f"- research_scout: ~1x/week\n"
+    )
+
+    # Conductor journal (last 10 entries)
+    journal = _load_conductor_journal(last_n=10)
+    if journal:
+        journal_lines = [
+            f"- [{j.get('timestamp', '')[:16]}] actions={j.get('actions', [])} "
+            f"notes={j.get('notes_for_next_cycle', '')}"
+            for j in journal
+        ]
+        sections.append(
+            f"## Conductor Journal (last {len(journal)} entries)\n\n"
+            + "\n".join(journal_lines)
+        )
+
+    return "\n\n".join(sections)
+
+
+def _default_plan(
+    *,
+    productive_cycles: int,
+    dry_run: bool,
+) -> ConductorPlan:
+    """Build a safe default plan when both Conductor and recovery agent fail."""
+    actions: list[ConductorAction] = []
+
+    if should_fetch_news():
+        actions.append(ConductorAction(
+            action="fetch_news",
+            reason="Default: news not yet fetched today",
+        ))
+
+    backlog = list_backlog_issues()
+    non_analysis = [i for i in backlog if not _issue_has_label(i, LABEL_TASK_ANALYSIS)]
+    if not non_analysis:
+        actions.append(ConductorAction(
+            action="propose",
+            reason="Default: improvement backlog empty",
+        ))
+
+    # Pick an issue to execute
+    if backlog:
+        # Use simple priority: urgent > human > analysis > director > FIFO
+        picked = None
+        priority_labels = [LABEL_URGENT, LABEL_HUMAN, LABEL_TASK_ANALYSIS, LABEL_DIRECTOR]
+        for label in priority_labels:
+            for issue in backlog:
+                if _issue_has_label(issue, label):
+                    picked = issue
+                    break
+            if picked:
+                break
+        if not picked:
+            picked = backlog[0]
+        actions.append(ConductorAction(
+            action="pick_and_execute",
+            reason="Default: execute next backlog item",
+            issue_number=picked["number"],
+        ))
+
+    return ConductorPlan(
+        reasoning="Default plan (Conductor and recovery agent both failed)",
+        actions=actions,
+        suggested_cooldown_seconds=60,
+        notes_for_next_cycle="Previous cycle used default plan due to Conductor failure",
+    )
+
+
+async def _run_conductor(
+    *,
+    cycle: int,
+    productive_cycles: int,
+    dry_run: bool,
+    model: str,
+) -> ConductorPlan:
+    """Run the Conductor agent to decide this cycle's actions.
+
+    Falls back to recovery agent, then default plan.
+    """
+    context = _prefetch_conductor_context(
+        cycle=cycle,
+        productive_cycles=productive_cycles,
+        dry_run=dry_run,
+        model=model,
+    )
+
+    system_prompt = _load_role_prompt("conductor")
+    prompt = f"""Decide what actions to take this cycle.
+
+{context}
+
+Output a single JSON object with this schema:
+{{
+  "reasoning": "Brief explanation of your decision (2-4 sentences)",
+  "actions": [
+    {{
+      "action": "<action_name>",
+      "reason": "Why this action now",
+      "issue_number": null,
+      "title": null,
+      "description": null,
+      "seconds": null
+    }}
+  ],
+  "suggested_cooldown_seconds": 60,
+  "notes_for_next_cycle": "Brief observations to carry forward"
+}}
+
+Remember:
+- pick_and_execute requires issue_number (specify which backlog issue)
+- file_issue requires title and description
+- cooldown requires seconds
+- Maximum 6 actions per cycle
+- When uncertain, prefer the standard order: fetch_news → propose → debate → pick_and_execute
+"""
+
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=1,
+        allowed_tools=[],
+        effort="low",
+    )
+
+    try:
+        log.info("Running Conductor agent...")
+        stream = claude_agent_sdk.query(prompt=prompt, options=opts)
+        output = await _collect_agent_output(stream)
+
+        # Parse JSON object from output
+        plan = _parse_conductor_plan(output)
+        if plan is not None:
+            return plan
+        log.warning("Conductor returned no valid plan, trying recovery agent")
+    except Exception:
+        log.exception("Conductor agent failed, trying recovery agent")
+
+    # Recovery agent
+    try:
+        plan = await _run_recovery_agent(
+            cycle=cycle,
+            productive_cycles=productive_cycles,
+            dry_run=dry_run,
+            model=model,
+        )
+        if plan is not None:
+            return plan
+        log.warning("Recovery agent returned no valid plan, using default")
+    except Exception:
+        log.exception("Recovery agent also failed, using default plan")
+
+    return _default_plan(
+        productive_cycles=productive_cycles,
+        dry_run=dry_run,
+    )
+
+
+def _parse_conductor_plan(text: str) -> ConductorPlan | None:
+    """Extract a ConductorPlan JSON object from agent output."""
+    text = text.strip()
+
+    # Try direct parse
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            return ConductorPlan.model_validate(data)
+    except (json.JSONDecodeError, Exception):
+        pass
+
+    # Find JSON object in the text
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    data = json.loads(text[start : i + 1])
+                    if isinstance(data, dict):
+                        return ConductorPlan.model_validate(data)
+                except (json.JSONDecodeError, Exception):
+                    pass
+                break
+    return None
+
+
+async def _run_recovery_agent(
+    *,
+    cycle: int,
+    productive_cycles: int,
+    dry_run: bool,
+    model: str,
+) -> ConductorPlan | None:
+    """Recovery agent with tool access to investigate and decide what to do."""
+    system_prompt = _load_role_prompt("recovery")
+    prompt = f"""The Conductor agent failed to produce a valid plan for cycle {cycle}.
+
+You have tool access to investigate what's going on. Check:
+1. Recent git log for merged PRs
+2. Error logs in output/data/errors.jsonl
+3. Telemetry in output/data/telemetry.jsonl
+4. Open issues via `gh issue list`
+
+Then decide what this cycle should do. Output a JSON object with the ConductorPlan schema:
+{{
+  "reasoning": "What you found and why you chose these actions",
+  "actions": [
+    {{"action": "<action_name>", "reason": "...",
+      "issue_number": null, "title": null,
+      "description": null, "seconds": null}}
+  ],
+  "suggested_cooldown_seconds": 60,
+  "notes_for_next_cycle": "..."
+}}
+
+Context:
+- Cycle: {cycle}, Productive cycles: {productive_cycles}, Dry run: {dry_run}
+- Valid actions: fetch_news, propose, debate, pick_and_execute,
+  director, strategic_director, research_scout, cooldown, halt,
+  file_issue, skip_cycle
+- pick_and_execute requires issue_number
+- file_issue requires title and description
+- Maximum 6 actions
+"""
+
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=10,
+        allowed_tools=["Bash", "Read", "Grep", "Glob"],
+        effort="medium",
+    )
+
+    log.info("Running recovery agent...")
+    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
+    output = await _collect_agent_output(stream)
+    return _parse_conductor_plan(output)
+
+
+async def _dispatch_action(
+    action: ConductorAction,
+    *,
+    telemetry: CycleTelemetry,
+    model: str,
+    max_pr_rounds: int,
+    dry_run: bool,
+    productive_cycles: int,
+) -> str | None:
+    """Execute a single Conductor action. Returns 'halt' to stop the loop."""
+    t0 = time.monotonic()
+    phase = CyclePhaseResult(phase=action.action)
+
+    try:
+        match action.action:
+            case "fetch_news":
+                new_issues = await step_check_decisions(model=model)
+                telemetry.decisions_found = new_issues
+                telemetry.analysis_issues_created = new_issues
+                phase.detail = f"created {new_issues} issues"
+
+            case "propose":
+                backlog = list_backlog_issues()
+                non_analysis = [i for i in backlog if not _issue_has_label(i, LABEL_TASK_ANALYSIS)]
+                if non_analysis:
+                    log.info("Skipping proposals: %d improvement issues in backlog", len(non_analysis))
+                    phase.detail = f"skipped ({len(non_analysis)} issues in backlog)"
+                else:
+                    proposals = await step_propose(
+                        num_proposals=DEFAULT_PROPOSALS_PER_CYCLE, model=model,
+                    )
+                    telemetry.proposals_made = len(proposals)
+                    # Ingest human suggestions
+                    human_issues = list_human_suggestions()
+                    human_accepted = 0
+                    for h in human_issues:
+                        issue_num = h["number"]
+                        author = h.get("author", {}).get("login", "")
+                        if not _is_privileged_user(author):
+                            _run_gh([
+                                "gh", "issue", "close", str(issue_num),
+                                "--comment",
+                                "Closed: human-suggestion issues are restricted to project maintainers.",
+                            ], check=False)
+                            _run_gh([
+                                "gh", "issue", "edit", str(issue_num),
+                                "--remove-label", LABEL_HUMAN,
+                            ], check=False)
+                            continue
+                        result = _run_gh([
+                            "gh", "issue", "view", str(issue_num),
+                            "--json", "labels", "-q", ".labels[].name",
+                        ], check=False)
+                        label_names = result.stdout.strip()
+                        already_processed = (
+                            LABEL_BACKLOG in label_names
+                            or LABEL_IN_PROGRESS in label_names
+                            or LABEL_DONE in label_names
+                            or LABEL_FAILED in label_names
+                        )
+                        if already_processed:
+                            continue
+                        accept_issue(issue_num)
+                        human_accepted += 1
+                    telemetry.human_suggestions_ingested = human_accepted
+                    phase.detail = f"{len(proposals)} proposals, {human_accepted} human suggestions"
+
+            case "debate":
+                # Debate any undebated proposed issues
+                result = _run_gh([
+                    "gh", "issue", "list",
+                    "--label", LABEL_PROPOSED,
+                    "--state", "open",
+                    "--json", "number,title,body,labels",
+                    "--limit", "10",
+                ], check=False)
+                proposals_to_debate: list[dict[str, Any]] = []
+                if result.returncode == 0 and result.stdout.strip():
+                    proposed_issues = json.loads(result.stdout)
+                    for iss in proposed_issues:
+                        if not _issue_has_debate_comment(iss["number"]):
+                            proposals_to_debate.append({
+                                "title": iss["title"],
+                                "description": iss.get("body", ""),
+                                "domain": "dev",
+                                "issue_number": iss["number"],
+                            })
+                if proposals_to_debate:
+                    accepted, rejected = await step_debate(proposals_to_debate, model=model)
+                    telemetry.proposals_accepted = len(accepted)
+                    telemetry.proposals_rejected = len(rejected)
+                    phase.detail = f"{len(accepted)} accepted, {len(rejected)} rejected"
+                else:
+                    phase.detail = "no proposals to debate"
+
+            case "pick_and_execute":
+                if action.issue_number is None:
+                    log.error("pick_and_execute requires issue_number")
+                    phase.success = False
+                    phase.detail = "missing issue_number"
+                else:
+                    # Fetch the issue details
+                    result = _run_gh([
+                        "gh", "issue", "view", str(action.issue_number),
+                        "--json", "number,title,body,labels,state",
+                    ], check=False)
+                    if result.returncode != 0 or not result.stdout.strip():
+                        log.error("Could not fetch issue #%d", action.issue_number)
+                        phase.success = False
+                        phase.detail = f"issue #{action.issue_number} not found"
+                    else:
+                        issue = json.loads(result.stdout)
+                        if issue.get("state", "").upper() != "OPEN":
+                            log.warning("Issue #%d is not open, skipping", action.issue_number)
+                            phase.detail = f"issue #{action.issue_number} not open"
+                        else:
+                            telemetry.picked_issue_number = action.issue_number
+                            is_analysis = _issue_has_label(issue, LABEL_TASK_ANALYSIS)
+                            task_type = "analysis" if is_analysis else "code-change"
+                            telemetry.picked_issue_type = task_type
+                            title = issue.get("title", "")
+                            print(f"  Executing [{task_type}]: #{action.issue_number} — {title}")
+                            try:
+                                success = await step_execute(
+                                    issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+                                )
+                            except Exception as exc:
+                                if isinstance(exc, _get_infrastructure_error()):
+                                    log.critical("Infrastructure failure — halting loop")
+                                    telemetry.errors.append(f"pick_and_execute [INFRASTRUCTURE]: {exc}")
+                                    telemetry.execution_success = False
+                                    phase.success = False
+                                    phase.detail = f"infrastructure error: {exc}"
+                                    phase.duration_seconds = time.monotonic() - t0
+                                    telemetry.phases.append(phase)
+                                    return "halt"
+                                raise
+                            telemetry.execution_success = success
+                            phase.success = success
+                            phase.detail = f"#{action.issue_number} {'OK' if success else 'FAILED'}"
+
+            case "director":
+                if dry_run:
+                    phase.detail = "skipped (dry run)"
+                else:
+                    filed = await step_director(model=model, director_interval=DEFAULT_DIRECTOR_INTERVAL)
+                    telemetry.director_ran = True
+                    telemetry.director_issues_filed = len(filed)
+                    phase.detail = f"filed {len(filed)} issues"
+
+            case "strategic_director":
+                if dry_run:
+                    phase.detail = "skipped (dry run)"
+                else:
+                    filed = await step_strategic_director(
+                        model=model, strategic_interval=DEFAULT_STRATEGIC_DIRECTOR_INTERVAL,
+                    )
+                    telemetry.strategic_director_ran = True
+                    telemetry.strategic_director_issues_filed = len(filed)
+                    phase.detail = f"filed {len(filed)} issues"
+
+            case "research_scout":
+                if dry_run:
+                    phase.detail = "skipped (dry run)"
+                else:
+                    filed = await step_research_scout(model=model)
+                    telemetry.research_scout_ran = True
+                    telemetry.research_scout_issues_filed = len(filed)
+                    phase.detail = f"filed {len(filed)} issues"
+
+            case "cooldown":
+                seconds = action.seconds or 30
+                print(f"  Conductor cooldown: sleeping {seconds}s...")
+                time.sleep(seconds)
+                phase.detail = f"slept {seconds}s"
+
+            case "halt":
+                phase.detail = "halting"
+                phase.duration_seconds = time.monotonic() - t0
+                telemetry.phases.append(phase)
+                return "halt"
+
+            case "file_issue":
+                if action.title and action.description:
+                    num = create_director_issue(action.title, action.description)
+                    log.info("Conductor filed issue #%d: %s", num, action.title)
+                    phase.detail = f"filed #{num}"
+                else:
+                    log.warning("file_issue requires title and description")
+                    phase.detail = "missing title/description"
+
+            case "skip_cycle":
+                phase.detail = "skipped"
+
+    except Exception as exc:
+        log.exception("Action %s failed", action.action)
+        phase.success = False
+        phase.detail = str(exc)
+        telemetry.errors.append(f"{action.action}: {exc}")
+        _log_error(f"dispatch_{action.action}", exc)
+
+    phase.duration_seconds = time.monotonic() - t0
+    telemetry.phases.append(phase)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Resilience — Layer 3: error pattern detection (circuit breaker)
 # ---------------------------------------------------------------------------
 
@@ -3307,27 +4038,17 @@ async def run_one_cycle(
     *,
     cycle: int,
     productive_cycles: int,
-    proposals_per_cycle: int = DEFAULT_PROPOSALS_PER_CYCLE,
     model: str = DEFAULT_MODEL,
     max_pr_rounds: int = DEFAULT_MAX_PR_ROUNDS,
-    director_interval: int = DEFAULT_DIRECTOR_INTERVAL,
-    strategic_director_interval: int = DEFAULT_STRATEGIC_DIRECTOR_INTERVAL,
-    max_analyses_per_day: int = DEFAULT_MAX_ANALYSES_PER_DAY,
-    min_analysis_gap: int = DEFAULT_MIN_ANALYSIS_GAP_HOURS,
     dry_run: bool = False,
-    skip_analysis: bool = False,
-    skip_improve: bool = False,
-    skip_research: bool = False,
-) -> int:
-    """Run a single main loop cycle with six phases.
+) -> tuple[int, int]:
+    """Run a single Conductor-driven main loop cycle.
 
-    Returns the updated productive_cycles count."""
+    Returns (updated productive_cycles, suggested_cooldown_seconds).
+    """
     telemetry = CycleTelemetry(
         cycle=cycle,
         dry_run=dry_run,
-        skip_analysis=skip_analysis,
-        skip_improve=skip_improve,
-        skip_research=skip_research,
     )
 
     ensure_github_resources_exist()
@@ -3337,13 +4058,12 @@ async def run_one_cycle(
     print(f"MAIN LOOP CYCLE {cycle}")
     print(f"{'='*60}\n")
 
-    # --- Step 0: Process human overrides ---
+    # --- Always run first (mechanical, no LLM) ---
     overrides = process_human_overrides()
     if overrides:
         print(f"  Processed {overrides} human override(s) -> moved to backlog")
     telemetry.human_overrides = overrides
 
-    # --- Step 0.5: CI health check ---
     print("\nCI Health Check: Checking main branch status...")
     try:
         ci_issues_created = check_ci_health()
@@ -3356,346 +4076,64 @@ async def run_one_cycle(
         telemetry.errors.append(f"CI health check: {exc}")
         _log_error("ci_health_check", exc)
 
-    # --- Phase A: Check for new government decisions ---
-    t0 = time.monotonic()
-    phase_a = CyclePhaseResult(phase="A")
-    if skip_analysis:
-        print("Phase A: Skipped (--skip-analysis)")
-        phase_a.detail = "skipped"
-    else:
-        print("Phase A: Checking for new government decisions...")
-        try:
-            new_issues = await step_check_decisions(model=model)
-            print(f"  Created {new_issues} new analysis issue(s)")
-            telemetry.decisions_found = new_issues
-            telemetry.analysis_issues_created = new_issues
-            phase_a.detail = f"created {new_issues} issues"
-        except Exception as exc:
-            log.exception("Phase A (decision check) failed")
-            phase_a.success = False
-            phase_a.detail = str(exc)
-            telemetry.errors.append(f"Phase A: {exc}")
-            _log_error("step_check_decisions", exc)
-    phase_a.duration_seconds = time.monotonic() - t0
-    telemetry.phases.append(phase_a)
-
-    # --- Phase B: Self-improvement (propose + debate) ---
-    t0 = time.monotonic()
-    phase_b = CyclePhaseResult(phase="B")
-    if skip_improve:
-        print("\nPhase B: Skipped (--skip-improve)")
-        phase_b.detail = "skipped"
-    else:
-        print("\nPhase B: Self-improvement — proposing and debating...")
-
-        # Generate AI proposals unless there are non-analysis tasks to drain.
-        # Analysis tasks never suppress proposals — the two pipelines are
-        # independent.  Analysis gets execution priority in Phase C via
-        # step_pick(), so proposals won't starve it.
-        backlog = list_backlog_issues()
-        non_analysis_work = [
-            i for i in backlog
-            if not _issue_has_label(i, LABEL_TASK_ANALYSIS)
-        ]
-        if non_analysis_work:
-            print(f"  AI proposals: Skipped ({len(non_analysis_work)} improvement issues — draining queue)")
-            ai_proposals: list[dict[str, str]] = []
-        else:
-            try:
-                ai_proposals = await step_propose(
-                    num_proposals=proposals_per_cycle, model=model,
-                )
-            except Exception as exc:
-                log.exception("Propose step failed")
-                ai_proposals = []
-                telemetry.errors.append(f"Phase B propose: {exc}")
-                _log_error("step_propose", exc)
-
-        telemetry.proposals_made = len(ai_proposals)
-
-        # Ingest human suggestions and move them directly to backlog (no debate)
-        human_issues = list_human_suggestions()
-        human_accepted = 0
-        for h in human_issues:
-            issue_num = h["number"]
-            # Verify author is a privileged user (admin/maintainer)
-            author = h.get("author", {}).get("login", "")
-            if not _is_privileged_user(author):
-                # Close the issue and log the rejection
-                _run_gh([
-                    "gh", "issue", "close", str(issue_num),
-                    "--comment",
-                    "Closed: human-suggestion issues are restricted to project maintainers.",
-                ], check=False)
-                # Remove the label to prevent re-processing
-                _run_gh([
-                    "gh", "issue", "edit", str(issue_num),
-                    "--remove-label", LABEL_HUMAN,
-                ], check=False)
-                log.warning(
-                    "Rejected human-suggestion #%d from non-privileged user %s",
-                    issue_num, author,
-                )
-                continue
-            # Check if already in backlog (avoid redundant API calls)
-            result = _run_gh([
-                "gh", "issue", "view", str(issue_num),
-                "--json", "labels", "-q", ".labels[].name",
-            ], check=False)
-            label_names = result.stdout.strip()
-            already_processed = (
-                LABEL_BACKLOG in label_names
-                or LABEL_IN_PROGRESS in label_names
-                or LABEL_DONE in label_names
-                or LABEL_FAILED in label_names
-            )
-            if already_processed:
-                log.debug("Human suggestion #%d already processed, skipping", issue_num)
-                continue
-            accept_issue(issue_num)
-            human_accepted += 1
-            log.info("Human suggestion #%d moved to backlog (no debate)", issue_num)
-
-        telemetry.human_suggestions_ingested = human_accepted
-
-        # Only AI proposals go through debate
-        all_proposals: list[dict[str, Any]] = list(ai_proposals)
-        if human_accepted > 0:
-            print(
-                f"  {len(ai_proposals)} AI proposals (debating), "
-                f"{human_accepted} human suggestions (moved to backlog)"
-            )
-        else:
-            print(f"  {len(ai_proposals)} AI proposals (debating)")
-
-        if all_proposals:
-            print("  Debating proposals...")
-            try:
-                accepted, rejected = await step_debate(all_proposals, model=model)
-            except Exception as exc:
-                log.exception("Debate step failed")
-                accepted, rejected = [], []
-                telemetry.errors.append(f"Phase B debate: {exc}")
-                _log_error("step_debate", exc)
-            telemetry.proposals_accepted = len(accepted)
-            telemetry.proposals_rejected = len(rejected)
-            print(f"  Accepted: {len(accepted)}, Rejected: {len(rejected)}")
-            phase_b.detail = f"{len(accepted)} accepted, {len(rejected)} rejected"
-        else:
-            print("  No proposals this cycle.")
-            phase_b.detail = "no proposals"
-    phase_b.duration_seconds = time.monotonic() - t0
-    telemetry.phases.append(phase_b)
-
-    # --- Phase C: Pick from unified backlog and execute ---
-    t0 = time.monotonic()
-    phase_c = CyclePhaseResult(phase="C")
-    print("\nPhase C: Picking next task from backlog...")
-
-    # Pre-check: if analysis is rate-limited, skip analysis tasks during picking
-    analysis_blocked = not should_run_analysis(
-        max_per_day=max_analyses_per_day,
-        min_gap_hours=min_analysis_gap,
+    # --- Conductor decides ---
+    plan = await _run_conductor(
+        cycle=cycle,
+        productive_cycles=productive_cycles,
+        dry_run=dry_run,
+        model=model,
     )
 
-    issue = step_pick()
+    # Record Conductor decision
+    telemetry.conductor_reasoning = plan.reasoning
+    telemetry.conductor_actions = [a.action for a in plan.actions]
+    # Check if we used the default/recovery plan
+    if "Default plan" in plan.reasoning or "Recovery agent" in plan.reasoning:
+        telemetry.conductor_fallback = True
 
-    # If we picked an analysis task but analysis is rate-limited, try to find
-    # a non-analysis task instead of immediately returning it to the backlog.
-    if issue is not None and analysis_blocked and _issue_has_label(issue, LABEL_TASK_ANALYSIS):
-        # Put analysis task back and look for non-analysis work
-        _run_gh(["gh", "issue", "edit", str(issue["number"]),
-                 "--remove-label", LABEL_IN_PROGRESS,
-                 "--add-label", LABEL_BACKLOG], check=False)
-        # Search for a non-analysis task, respecting priority order
-        fallback = None
-        backlog_issues = list_backlog_issues()
-        priority_labels = [LABEL_URGENT, LABEL_HUMAN, LABEL_STRATEGY, LABEL_DIRECTOR]
-        for label in priority_labels:
-            for candidate in backlog_issues:
-                is_match = _issue_has_label(candidate, label)
-                is_analysis = _issue_has_label(candidate, LABEL_TASK_ANALYSIS)
-                if is_match and not is_analysis:
-                    fallback = candidate
-                    break
-            if fallback is not None:
-                break
-        # Fall back to FIFO if no priority match
-        if fallback is None:
-            for candidate in backlog_issues:
-                if not _issue_has_label(candidate, LABEL_TASK_ANALYSIS):
-                    fallback = candidate
-                    break
-        if fallback is not None:
-            issue = fallback
-            log.info("Analysis rate-limited; falling back to #%d: %s",
-                     issue["number"], issue["title"])
-        else:
-            wait = analysis_wait_seconds(min_gap_hours=min_analysis_gap)
-            if wait > 0:
-                hours, remainder = divmod(wait, 3600)
-                minutes = remainder // 60
-                print(f"  Analysis rate-limited, no other tasks. "
-                      f"Next analysis window in {hours}h {minutes}m.")
-                phase_c.detail = f"rate limited — {hours}h {minutes}m remaining"
-            else:
-                print("  Analysis rate-limited (daily cap). No other tasks.")
-                phase_c.detail = "rate limited — daily cap"
-            issue = None
+    # Log the Conductor's decision
+    print(f"\nConductor reasoning: {plan.reasoning}")
+    print(f"Conductor plan ({len(plan.actions)} actions):")
+    for i, action in enumerate(plan.actions, 1):
+        detail = f" (issue #{action.issue_number})" if action.issue_number else ""
+        print(f"  {i}. {action.action}{detail}: {action.reason}")
+    if plan.notes_for_next_cycle:
+        print(f"Notes for next cycle: {plan.notes_for_next_cycle}")
+    print(f"Suggested cooldown: {plan.suggested_cooldown_seconds}s\n")
 
-    if issue is None:
-        print("  Backlog empty.")
-        if not phase_c.detail:
-            phase_c.detail = "backlog empty"
-    else:
-        task_type = "analysis" if _issue_has_label(issue, LABEL_TASK_ANALYSIS) else "code-change"
-        print(f"  Picked [{task_type}]: #{issue['number']} — {issue['title']}")
-        telemetry.picked_issue_number = issue["number"]
-        telemetry.picked_issue_type = task_type
-
-        print(f"\n  Executing issue #{issue['number']}...")
-        try:
-            success = await step_execute(
-                issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+    # --- Execute plan ---
+    for action in plan.actions:
+        result = await _dispatch_action(
+            action,
+            telemetry=telemetry,
+            model=model,
+            max_pr_rounds=max_pr_rounds,
+            dry_run=dry_run,
+            productive_cycles=productive_cycles,
+        )
+        if result == "halt":
+            # Finalize telemetry before halting
+            telemetry.finished_at = datetime.now(UTC)
+            telemetry.duration_seconds = (
+                telemetry.finished_at - telemetry.started_at
+            ).total_seconds()
+            append_telemetry(TELEMETRY_PATH, telemetry)
+            banner = (
+                "\n" + "!" * 60 + "\n"
+                "CONDUCTOR HALTED THE LOOP\n"
+                f"Reason: {action.reason}\n"
+                + "!" * 60
             )
-        except Exception as exc:
-            if isinstance(exc, _get_infrastructure_error()):
-                log.critical("Infrastructure failure in Phase C — halting loop")
-                telemetry.errors.append(f"Phase C [INFRASTRUCTURE]: {exc}")
-                telemetry.execution_success = False
-                telemetry.finished_at = datetime.now(UTC)
-                telemetry.duration_seconds = (
-                    telemetry.finished_at - telemetry.started_at
-                ).total_seconds()
-                append_telemetry(TELEMETRY_PATH, telemetry)
-                banner = (
-                    "\n" + "!" * 60 + "\n"
-                    "INFRASTRUCTURE ERROR — HALTING\n"
-                    f"{exc}\n"
-                    "This is non-recoverable without a code fix. Exiting.\n"
-                    + "!" * 60
-                )
-                print(banner)
-                sys.exit(2)
-            log.exception("Phase C execution failed")
-            success = False
-            telemetry.errors.append(f"Phase C: {exc}")
-            _log_error(
-                "step_execute",
-                exc,
-                issue_number=issue.get("number"),
-            )
-        telemetry.execution_success = success
-        phase_c.success = success
-        phase_c.detail = f"#{issue['number']} {'OK' if success else 'FAILED'}"
-        print(f"  Result: {'SUCCESS' if success else 'FAILED'}")
-    phase_c.duration_seconds = time.monotonic() - t0
-    telemetry.phases.append(phase_c)
+            print(banner)
+            sys.exit(2)
 
-    # Update productive_cycles counter: only count cycles where Phase C executed a task
-    phase_c_was_productive = issue is not None
-    if phase_c_was_productive:
+    # Update productive_cycles: count if any pick_and_execute ran
+    was_productive = telemetry.picked_issue_number is not None
+    if was_productive:
         productive_cycles += 1
 
-    # --- Phase D: Project Director ---
-    t0 = time.monotonic()
-    phase_d = CyclePhaseResult(phase="D")
-    should_run_director = (
-        director_interval > 0
-        and productive_cycles % director_interval == 0
-        and productive_cycles >= director_interval
-    )
-    if should_run_director:
-        if dry_run:
-            print("\nPhase D: Director — skipped (dry run)")
-            phase_d.detail = "skipped (dry run)"
-        else:
-            print("\nPhase D: Running Project Director...")
-            try:
-                filed = await step_director(model=model, director_interval=director_interval)
-                telemetry.director_ran = True
-                telemetry.director_issues_filed = len(filed)
-                phase_d.detail = f"filed {len(filed)} issues"
-                print(f"  Director filed {len(filed)} issue(s)")
-            except Exception as exc:
-                log.exception("Phase D (Director) failed (non-fatal)")
-                phase_d.success = False
-                phase_d.detail = str(exc)
-                telemetry.errors.append(f"Phase D: {exc}")
-                _log_error("step_director", exc)
-    else:
-        phase_d.detail = "not scheduled"
-    phase_d.duration_seconds = time.monotonic() - t0
-    telemetry.phases.append(phase_d)
-
-    # --- Phase E: Strategic Director ---
-    t0 = time.monotonic()
-    phase_e = CyclePhaseResult(phase="E")
-    should_run_strategic = (
-        strategic_director_interval > 0
-        and productive_cycles % strategic_director_interval == 0
-        and productive_cycles >= strategic_director_interval
-    )
-    if should_run_strategic:
-        if dry_run:
-            print("\nPhase E: Strategic Director — skipped (dry run)")
-            phase_e.detail = "skipped (dry run)"
-        else:
-            print("\nPhase E: Running Strategic Director...")
-            try:
-                filed = await step_strategic_director(
-                    model=model, strategic_interval=strategic_director_interval
-                )
-                telemetry.strategic_director_ran = True
-                telemetry.strategic_director_issues_filed = len(filed)
-                phase_e.detail = f"filed {len(filed)} issues"
-                print(f"  Strategic Director filed {len(filed)} issue(s)")
-            except Exception as exc:
-                log.exception("Phase E (Strategic Director) failed (non-fatal)")
-                phase_e.success = False
-                phase_e.detail = str(exc)
-                telemetry.errors.append(f"Phase E: {exc}")
-                _log_error("step_strategic_director", exc)
-    else:
-        phase_e.detail = "not scheduled"
-    phase_e.duration_seconds = time.monotonic() - t0
-    telemetry.phases.append(phase_e)
-
-    # --- Phase F: Research Scout ---
-    t0 = time.monotonic()
-    phase_f = CyclePhaseResult(phase="F")
-    should_run_rs = should_run_research_scout() and not skip_research
-    if should_run_rs:
-        if dry_run:
-            print("\nPhase F: Research Scout — skipped (dry run)")
-            phase_f.detail = "skipped (dry run)"
-        else:
-            print("\nPhase F: Running Research Scout...")
-            try:
-                filed = await step_research_scout(model=model)
-                telemetry.research_scout_ran = True
-                telemetry.research_scout_issues_filed = len(filed)
-                phase_f.detail = f"filed {len(filed)} issues"
-                print(f"  Research Scout filed {len(filed)} issue(s)")
-            except Exception as exc:
-                log.exception("Phase F (Research Scout) failed (non-fatal)")
-                phase_f.success = False
-                phase_f.detail = str(exc)
-                telemetry.errors.append(f"Phase F: {exc}")
-                _log_error("step_research_scout", exc)
-    else:
-        if skip_research:
-            phase_f.detail = "skipped (--skip-research)"
-            print("\nPhase F: Research Scout — skipped (--skip-research)")
-        else:
-            phase_f.detail = "not scheduled"
-    phase_f.duration_seconds = time.monotonic() - t0
-    telemetry.phases.append(phase_f)
-
     # --- Collect and save transparency records ---
-    # Only collect when the cycle did productive work — these make many gh API
-    # calls and are expensive to run every 5 minutes when rate-limited.
-    if not dry_run and phase_c_was_productive:
+    if not dry_run and was_productive:
         try:
             override_records = collect_override_records()
             if override_records:
@@ -3726,16 +4164,20 @@ async def run_one_cycle(
     telemetry.duration_seconds = (
         telemetry.finished_at - telemetry.started_at
     ).total_seconds()
-
-    # Cycle yielded if: execution succeeded, analysis was published, or tweet posted
     telemetry.cycle_yielded = bool(
         telemetry.execution_success or telemetry.tweet_posted
     )
-
     append_telemetry(TELEMETRY_PATH, telemetry)
     _check_error_patterns()
 
-    return productive_cycles
+    # --- Append to Conductor journal ---
+    _append_conductor_journal(
+        reasoning=plan.reasoning,
+        notes=plan.notes_for_next_cycle,
+        actions=[a.action for a in plan.actions],
+    )
+
+    return productive_cycles, plan.suggested_cooldown_seconds
 
 
 def _reexec(
@@ -3744,17 +4186,9 @@ def _reexec(
     productive_cycles_offset: int,
     max_cycles: int,
     cooldown: int,
-    proposals: int,
     model: str,
     max_pr_rounds: int,
-    director_interval: int,
-    strategic_director_interval: int,
-    max_analyses_per_day: int,
-    min_analysis_gap: int,
     dry_run: bool,
-    skip_analysis: bool,
-    skip_improve: bool,
-    skip_research: bool,
     verbose: bool,
 ) -> None:
     """Re-exec the script to pick up any code changes from disk.
@@ -3784,28 +4218,12 @@ def _reexec(
         argv += ["--max-cycles", str(max_cycles)]
     if cooldown != DEFAULT_COOLDOWN_SECONDS:
         argv += ["--cooldown", str(cooldown)]
-    if proposals != DEFAULT_PROPOSALS_PER_CYCLE:
-        argv += ["--proposals", str(proposals)]
     if model != DEFAULT_MODEL:
         argv += ["--model", model]
     if max_pr_rounds != DEFAULT_MAX_PR_ROUNDS:
         argv += ["--max-pr-rounds", str(max_pr_rounds)]
-    if director_interval != DEFAULT_DIRECTOR_INTERVAL:
-        argv += ["--director-interval", str(director_interval)]
-    if strategic_director_interval != DEFAULT_STRATEGIC_DIRECTOR_INTERVAL:
-        argv += ["--strategic-director-interval", str(strategic_director_interval)]
-    if max_analyses_per_day != DEFAULT_MAX_ANALYSES_PER_DAY:
-        argv += ["--max-analyses-per-day", str(max_analyses_per_day)]
-    if min_analysis_gap != DEFAULT_MIN_ANALYSIS_GAP_HOURS:
-        argv += ["--min-analysis-gap", str(min_analysis_gap)]
     if dry_run:
         argv += ["--dry-run"]
-    if skip_analysis:
-        argv += ["--skip-analysis"]
-    if skip_improve:
-        argv += ["--skip-improve"]
-    if skip_research:
-        argv += ["--skip-research"]
     if verbose:
         argv += ["--verbose"]
 
@@ -3820,15 +4238,12 @@ def _reexec(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Unified main loop: analyze government decisions + self-improve.",
+        description="Conductor-driven main loop: Conductor agent decides what to do each cycle.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""examples:
-  uv run python scripts/main_loop.py                                      # run indefinitely
-  uv run python scripts/main_loop.py --dry-run --max-cycles 1             # test ideation only
-  uv run python scripts/main_loop.py --max-cycles 3                       # 3 cycles then stop
-  uv run python scripts/main_loop.py --skip-improve                       # analysis only
-  uv run python scripts/main_loop.py --skip-analysis                      # self-improvement only
-  uv run python scripts/main_loop.py --director-interval 1 --max-cycles 1 # test Director
+  uv run python scripts/main_loop.py                          # run indefinitely
+  uv run python scripts/main_loop.py --dry-run --max-cycles 1 # test Conductor planning only
+  uv run python scripts/main_loop.py --max-cycles 3           # 3 cycles then stop
 """,
     )
     parser.add_argument(
@@ -3837,11 +4252,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--cooldown", type=int, default=DEFAULT_COOLDOWN_SECONDS,
-        help=f"Seconds between cycles (default: {DEFAULT_COOLDOWN_SECONDS})",
-    )
-    parser.add_argument(
-        "--proposals", type=int, default=DEFAULT_PROPOSALS_PER_CYCLE,
-        help=f"AI proposals per cycle (default: {DEFAULT_PROPOSALS_PER_CYCLE})",
+        help=f"Minimum cooldown seconds between cycles (default: {DEFAULT_COOLDOWN_SECONDS})",
     )
     parser.add_argument(
         "--model", default=DEFAULT_MODEL,
@@ -3852,48 +4263,8 @@ def main() -> None:
         help=f"Max coder-reviewer rounds per PR; 0 = unlimited (default: {DEFAULT_MAX_PR_ROUNDS})",
     )
     parser.add_argument(
-        "--director-interval", type=int, default=DEFAULT_DIRECTOR_INTERVAL,
-        help=(
-            f"Run Project Director every N cycles; 0 = disabled "
-            f"(default: {DEFAULT_DIRECTOR_INTERVAL})"
-        ),
-    )
-    parser.add_argument(
-        "--strategic-director-interval", type=int, default=DEFAULT_STRATEGIC_DIRECTOR_INTERVAL,
-        help=(
-            f"Run Strategic Director every N cycles; 0 = disabled "
-            f"(default: {DEFAULT_STRATEGIC_DIRECTOR_INTERVAL})"
-        ),
-    )
-    parser.add_argument(
-        "--max-analyses-per-day", type=int, default=DEFAULT_MAX_ANALYSES_PER_DAY,
-        help=(
-            f"Maximum analyses to run per day "
-            f"(default: {DEFAULT_MAX_ANALYSES_PER_DAY})"
-        ),
-    )
-    parser.add_argument(
-        "--min-analysis-gap", type=int, default=DEFAULT_MIN_ANALYSIS_GAP_HOURS,
-        help=(
-            f"Minimum hours between analyses "
-            f"(default: {DEFAULT_MIN_ANALYSIS_GAP_HOURS})"
-        ),
-    )
-    parser.add_argument(
         "--dry-run", action="store_true",
-        help="Propose and debate only; skip execution",
-    )
-    parser.add_argument(
-        "--skip-analysis", action="store_true",
-        help="Skip Phase A (government decision checking)",
-    )
-    parser.add_argument(
-        "--skip-improve", action="store_true",
-        help="Skip Phase B (self-improvement proposals + debate)",
-    )
-    parser.add_argument(
-        "--skip-research", action="store_true",
-        help="Skip Phase F (Research Scout AI ecosystem scanning)",
+        help="Conductor plans but pick_and_execute does not actually run tasks",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
@@ -3927,25 +4298,19 @@ def main() -> None:
         print(f"Reached max cycles ({args.max_cycles}). Stopping.")
         return
 
-    async def _run() -> int:
+    suggested_cooldown = args.cooldown
+
+    async def _run() -> tuple[int, int]:
         return await run_one_cycle(
             cycle=cycle,
             productive_cycles=productive_cycles,
-            proposals_per_cycle=args.proposals,
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
-            director_interval=args.director_interval,
-            strategic_director_interval=args.strategic_director_interval,
-            max_analyses_per_day=args.max_analyses_per_day,
-            min_analysis_gap=args.min_analysis_gap,
             dry_run=args.dry_run,
-            skip_analysis=args.skip_analysis,
-            skip_improve=args.skip_improve,
-            skip_research=args.skip_research,
         )
 
     try:
-        productive_cycles = anyio.run(_run)
+        productive_cycles, suggested_cooldown = anyio.run(_run)
     except KeyboardInterrupt:
         print("\nMain loop interrupted.")
         sys.exit(1)
@@ -3959,55 +4324,26 @@ def main() -> None:
                 finished_at=datetime.now(UTC),
                 errors=[f"Top-level crash: {exc}"],
                 dry_run=args.dry_run,
-                skip_analysis=args.skip_analysis,
-                skip_improve=args.skip_improve,
-                skip_research=args.skip_research,
             )
             append_telemetry(TELEMETRY_PATH, partial)
         except Exception:
             log.exception("Failed to write crash telemetry")
 
-    # Cooldown before next cycle — sleep longer when rate-limited with nothing to do
+    # Cooldown: use Conductor's suggestion, but enforce minimum from CLI
     remaining = 0 if args.max_cycles > 0 and cycle >= args.max_cycles else 1
     if remaining:
-        wait = analysis_wait_seconds(min_gap_hours=args.min_analysis_gap)
-        has_work = _backlog_has_executable_tasks()
-        # Sleep long only when analysis tasks are in the backlog but blocked
-        # by the rate limit.  When the backlog is empty, use the normal
-        # cooldown so the next cycle can discover new work via News Scout
-        # or proposals.
-        backlog = list_backlog_issues()
-        has_blocked_analysis = (
-            wait > 0
-            and any(_issue_has_label(i, LABEL_TASK_ANALYSIS) for i in backlog)
-        )
-        if has_blocked_analysis and not has_work:
-            cooldown = min(wait, 1800)
-            print(f"\nRate-limited, no other tasks. Sleeping {cooldown // 60}m...")
-        else:
-            cooldown = args.cooldown
-            print(f"\nCooling down for {cooldown}s...")
+        cooldown = max(suggested_cooldown, args.cooldown)
+        print(f"\nCooling down for {cooldown}s (Conductor suggested {suggested_cooldown}s)...")
         time.sleep(cooldown)
 
-        # Re-exec: pull latest code from main and restart the process.
-        # This means if this script was modified during the cycle,
-        # the next cycle runs the new version.
         _reexec(
             cycle_offset=cycle,
             productive_cycles_offset=productive_cycles,
             max_cycles=args.max_cycles,
             cooldown=args.cooldown,
-            proposals=args.proposals,
             model=args.model,
             max_pr_rounds=args.max_pr_rounds,
-            director_interval=args.director_interval,
-            strategic_director_interval=args.strategic_director_interval,
-            max_analyses_per_day=args.max_analyses_per_day,
-            min_analysis_gap=args.min_analysis_gap,
             dry_run=args.dry_run,
-            skip_analysis=args.skip_analysis,
-            skip_improve=args.skip_improve,
-            skip_research=args.skip_research,
             verbose=args.verbose,
         )
     else:

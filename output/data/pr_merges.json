@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-17T00:21:19Z",
+    "pr_number": 234,
+    "pr_title": "Add effort option to ClaudeAgentOptions for cost-efficient agents",
+    "actor": "vindl",
+    "issue_number": 230
+  },
+  {
     "timestamp": "2026-02-16T23:56:25Z",
     "pr_number": 232,
     "pr_title": "Use SDK structured outputs instead of manual JSON parsing",

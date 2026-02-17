@@ -258,12 +258,12 @@ def test_build_transparency_page_with_pr_merges(
     assert "PR #48: Fix scoring bug" in content
 
     # PR merge type labels
-    assert "PR spojen" in content
-    assert "PR merged" in content
+    assert "PR kreiran od strane covjeka" in content
+    assert "Human-initiated PR" in content
 
-    # Merged by labels
-    assert "Spojio:" in content
-    assert "Merged by:" in content
+    # Author labels
+    assert "Autor:" in content
+    assert "Author:" in content
 
     # Linked issue
     assert "issues/42" in content
@@ -286,7 +286,7 @@ def test_build_transparency_page_pr_merges_only(
     content = transparency_page.read_text()
 
     assert "PR #50: Add transparency report" in content
-    assert "PR merged" in content
+    assert "Human-initiated PR" in content
     assert content.count("override-record") == 2
 
 

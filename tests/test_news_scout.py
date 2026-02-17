@@ -17,6 +17,7 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from main_loop import (  # noqa: E402
     NewsScoutState,
+    _build_category_distribution_context,
     _generate_decision_id,
     _parse_json_array,
     should_fetch_news,
@@ -160,6 +161,150 @@ class TestParseJsonArray:
 # ---------------------------------------------------------------------------
 # Decision JSON embedding in issue body
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# _build_category_distribution_context()
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCategoryDistributionContext:
+    """Test the category distribution context builder for news scout."""
+
+    def test_returns_empty_when_no_data_dir(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr("main_loop.DATA_DIR", tmp_path / "nonexistent")
+        assert _build_category_distribution_context() == ""
+
+    def test_returns_empty_when_no_results(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        assert _build_category_distribution_context() == ""
+
+    def test_shows_category_counts_and_percentages(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from government.models.decision import GovernmentDecision
+        from government.orchestrator import SessionResult
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create 3 results: 2 legal, 1 fiscal
+        for i, cat in enumerate(["legal", "legal", "fiscal"]):
+            result = SessionResult(
+                decision=GovernmentDecision(
+                    id=f"item-2026-02-14-{i:08x}",
+                    title=f"Decision {i}",
+                    summary="Summary",
+                    date=_dt.date(2026, 2, 14),
+                    category=cat,
+                ),
+            )
+            (data_dir / f"result_{i}.json").write_text(
+                result.model_dump_json(indent=2)
+            )
+
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        ctx = _build_category_distribution_context()
+
+        assert "## Recent Category Distribution" in ctx
+        assert "3 published analyses" in ctx
+        assert "legal: 2 (67%)" in ctx
+        assert "fiscal: 1 (33%)" in ctx
+
+    def test_lists_uncovered_categories(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from government.models.decision import GovernmentDecision
+        from government.orchestrator import SessionResult
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        result = SessionResult(
+            decision=GovernmentDecision(
+                id="item-2026-02-14-00000000",
+                title="Test",
+                summary="Summary",
+                date=_dt.date(2026, 2, 14),
+                category="legal",
+            ),
+        )
+        (data_dir / "result_0.json").write_text(
+            result.model_dump_json(indent=2)
+        )
+
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        ctx = _build_category_distribution_context()
+
+        assert "Categories NOT yet covered:" in ctx
+        # These high-resonance categories should appear as uncovered
+        for cat in ["economy", "health", "education"]:
+            assert cat in ctx
+
+    def test_includes_diversify_instruction(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from government.models.decision import GovernmentDecision
+        from government.orchestrator import SessionResult
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        result = SessionResult(
+            decision=GovernmentDecision(
+                id="item-2026-02-14-00000000",
+                title="Test",
+                summary="Summary",
+                date=_dt.date(2026, 2, 14),
+                category="legal",
+            ),
+        )
+        (data_dir / "result_0.json").write_text(
+            result.model_dump_json(indent=2)
+        )
+
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        ctx = _build_category_distribution_context()
+
+        assert "diversify" in ctx.lower()
+
+
+# ---------------------------------------------------------------------------
+# News scout prompt content
+# ---------------------------------------------------------------------------
+
+
+class TestNewsScoutPromptContent:
+    """Verify the news scout prompt includes topic-resonance weighting."""
+
+    def test_prompt_has_resonance_tiers(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "HIGH resonance" in content
+        assert "LOW resonance" in content
+        # High-resonance topics should be listed
+        for topic in ["economy", "health", "education"]:
+            assert topic in content
+
+    def test_prompt_deprioritizes_routine_legal(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "routine legal harmonization" in content
+        assert "procedural legislative amendments" in content
+
+    def test_prompt_references_historical_balance(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "Recent Category Distribution" in content
 
 
 class TestDecisionJsonEmbedding:

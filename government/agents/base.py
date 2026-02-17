@@ -55,8 +55,10 @@ def parse_structured_or_text(state: dict[str, Any]) -> dict[str, Any] | None:
     if text:
         parsed = extract_json(text)
         if parsed is not None:
-            log.debug("Parsed JSON from result text")
             return parsed
+        log.warning("Result text present (%d chars) but JSON extraction failed", len(text))
+    else:
+        log.warning("ResultMessage had no result text")
     return None
 
 

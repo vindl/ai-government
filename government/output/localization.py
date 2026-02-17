@@ -46,6 +46,7 @@ async def _translate_fields(fields: dict[str, Any], model: str) -> dict[str, Any
             system_prompt=TRANSLATION_SYSTEM_PROMPT,
             model=model,
             max_turns=1,
+            effort="low",
         ),
     ):
         if isinstance(message, AssistantMessage):

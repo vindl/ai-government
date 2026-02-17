@@ -1106,9 +1106,22 @@ def collect_pr_merges() -> list[PRMerge]:
         except (ValueError, AttributeError):
             timestamp = datetime.now(UTC)
 
+        body = pr.get("body", "") or ""
+
+        # Skip AI-authored PRs — they start with "Written by Coder agent"
+        if "written by coder agent" in body.lower():
+            continue
+
+        # Tag human-initiated PRs on GitHub for visibility
+        pr_labels = [l.get("name", "") for l in pr.get("labels", [])]
+        if "human-initiated" not in pr_labels:
+            _run_gh(
+                ["gh", "pr", "edit", str(pr["number"]), "--add-label", "human-initiated"],
+                check=False,
+            )
+
         # Extract linked issue number from PR body
         issue_number: int | None = None
-        body = pr.get("body", "") or ""
         # Match patterns like "Closes #123", "Fixes #45", "Resolves #678"
         issue_match = re.search(
             r"(?:closes|fixes|resolves)\s+#(\d+)", body, re.IGNORECASE

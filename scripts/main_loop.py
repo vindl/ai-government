@@ -1673,6 +1673,7 @@ async def step_execute_analysis(
     *,
     model: str,
     dry_run: bool = False,
+    telemetry: CycleTelemetry | None = None,
 ) -> bool:
     """Execute a government decision analysis. Returns True on success."""
     issue_number = issue["number"]
@@ -1811,6 +1812,8 @@ async def step_execute_analysis(
         try:
             if try_post_analysis(results[0]):
                 log.info("Posted analysis tweet for %s", results[0].decision.id)
+                if telemetry is not None:
+                    telemetry.tweet_posted = True
         except Exception:
             log.exception("Analysis tweet failed (non-fatal)")
 
@@ -2398,10 +2401,11 @@ async def step_execute(
     model: str,
     max_pr_rounds: int,
     dry_run: bool = False,
+    telemetry: CycleTelemetry | None = None,
 ) -> bool:
     """Route execution by task type. Returns True on success."""
     if _issue_has_label(issue, LABEL_TASK_ANALYSIS):
-        return await step_execute_analysis(issue, model=model, dry_run=dry_run)
+        return await step_execute_analysis(issue, model=model, dry_run=dry_run, telemetry=telemetry)
     return await step_execute_code_change(
         issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
     )
@@ -3833,6 +3837,7 @@ async def _dispatch_action(
                             try:
                                 success = await step_execute(
                                     issue, model=model, max_pr_rounds=max_pr_rounds, dry_run=dry_run,
+                                    telemetry=telemetry,
                                 )
                             except Exception as exc:
                                 if isinstance(exc, _get_infrastructure_error()):

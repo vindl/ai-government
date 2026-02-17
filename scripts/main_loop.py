@@ -1500,26 +1500,49 @@ def _build_category_distribution_context() -> str:
         category_counts[r.decision.category or "general"] += 1
 
     total = sum(category_counts.values())
+    overrepresentation_threshold = 40  # percent
     lines = []
     for cat, cnt in category_counts.most_common():
         pct = round(100 * cnt / total)
-        lines.append(f"  {cat}: {cnt} ({pct}%)")
+        marker = " ⚠️ OVER" if pct > overrepresentation_threshold else ""
+        lines.append(f"  {cat}: {cnt} ({pct}%){marker}")
 
-    return (
-        "\n\n## Recent Category Distribution\n\n"
+    all_categories = [
+        "fiscal", "legal", "eu", "health", "security",
+        "education", "economy", "tourism", "environment", "general",
+    ]
+    uncovered = [c for c in all_categories if c not in category_counts]
+
+    # Identify high-resonance categories that are underrepresented
+    high_resonance = ["economy", "health", "education", "fiscal", "security"]
+    starved = [c for c in high_resonance if category_counts.get(c, 0) == 0]
+
+    parts = [
+        f"\n\n## Recent Category Distribution\n\n"
         f"Out of {total} published analyses:\n"
-        + "\n".join(lines)
-        + "\n\nCategories NOT yet covered: "
-        + ", ".join(
-            c for c in [
-                "fiscal", "legal", "eu", "health", "security",
-                "education", "economy", "tourism", "environment", "general",
-            ]
-            if c not in category_counts
+        + "\n".join(lines),
+    ]
+
+    if uncovered:
+        parts.append(
+            "\n\nCategories NOT yet covered: " + ", ".join(uncovered)
         )
-        + "\n\nUse this data to diversify coverage — avoid overrepresented "
-        "categories unless the story has exceptionally high citizen impact."
+
+    if starved:
+        parts.append(
+            "\n\n**Priority gaps** (high-resonance categories with ZERO coverage): "
+            + ", ".join(starved)
+            + ". Actively seek stories in these categories."
+        )
+
+    parts.append(
+        "\n\nUse this data to diversify coverage. Categories marked ⚠️ OVER "
+        "(above 40%) should only be included if the story has exceptionally "
+        "high citizen impact AND no alternative from an underrepresented "
+        "category exists."
     )
+
+    return "".join(parts)
 
 
 async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
@@ -3458,6 +3481,11 @@ def _prefetch_conductor_context(
         f"- strategic_director: ~every 10 productive cycles\n"
         f"- research_scout: ~1x/week\n"
     )
+
+    # Analysis category distribution (helps conductor diversify topic picks)
+    cat_dist = _build_category_distribution_context()
+    if cat_dist:
+        sections.append(cat_dist.strip())
 
     # Conductor journal (last 10 entries)
     journal = _load_conductor_journal(last_n=10)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -58,6 +59,23 @@ async def run_session(decision_file: Path, config: SessionConfig) -> None:
     print("\nDone.")
 
 
+def check_api_key() -> None:
+    """Verify ANTHROPIC_API_KEY is set before running agents.
+
+    The Claude Agent SDK requires authentication. When running in CI or
+    headless environments, ANTHROPIC_API_KEY must be set and non-empty.
+    """
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not key.strip():
+        print(
+            "Error: ANTHROPIC_API_KEY environment variable is not set or empty.\n"
+            "The Claude Agent SDK requires authentication to run.\n"
+            "Set ANTHROPIC_API_KEY in your environment or repository secrets.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main() -> None:
     """CLI entrypoint."""
     parser = argparse.ArgumentParser(description="Run an AI Government cabinet session")
@@ -86,6 +104,8 @@ def main() -> None:
     )
 
     args = parser.parse_args()
+
+    check_api_key()
 
     config = SessionConfig(
         output_dir=args.output_dir,

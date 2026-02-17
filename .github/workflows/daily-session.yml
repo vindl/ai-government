@@ -28,6 +28,13 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Verify API key is configured
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::ANTHROPIC_API_KEY secret is not configured. Add it to repository secrets."
+            exit 1
+          fi
+
       - name: Run AI cabinet session
         run: |
           uv run python scripts/run_session.py \

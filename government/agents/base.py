@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Final, Literal
 
 import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
@@ -17,6 +17,12 @@ if TYPE_CHECKING:
     from government.models.decision import GovernmentDecision
 
 log = logging.getLogger(__name__)
+
+#: Beta flag for 1M token context window (up from 200K default).
+#: See https://github.com/anthropics/claude-agent-sdk-python/blob/main/CHANGELOG.md
+CONTEXT_1M_BETA: Final[list[Literal["context-1m-2025-08-07"]]] = [
+    "context-1m-2025-08-07"
+]
 
 
 def collect_structured_or_text(
@@ -102,6 +108,7 @@ class GovernmentAgent:
             model=self.config.model,
             max_turns=2,
             effort=effort or self.default_effort,
+            betas=CONTEXT_1M_BETA,
         )
 
         state: dict[str, Any] = {}

@@ -9,6 +9,7 @@ import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions
 
 from government.agents.base import (
+    CONTEXT_1M_BETA,
     collect_structured_or_text,
     parse_structured_or_text,
 )
@@ -68,6 +69,7 @@ class ParliamentAgent:
             model=self.config.model,
             max_turns=2,
             effort=effort or self.default_effort,
+            betas=CONTEXT_1M_BETA,
         )
         state: dict[str, Any] = {}
         async for message in claude_agent_sdk.query(prompt=prompt, options=opts):

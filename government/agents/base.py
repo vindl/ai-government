@@ -79,6 +79,8 @@ class GovernmentAgent:
     by running a Claude Code SDK subprocess with a ministry-specific prompt.
     """
 
+    default_effort: Literal["low", "medium", "high", "max"] = "medium"
+
     def __init__(
         self,
         ministry_config: MinistryConfig,
@@ -99,7 +101,7 @@ class GovernmentAgent:
             system_prompt=self.ministry.system_prompt,
             model=self.config.model,
             max_turns=2,
-            effort=effort,
+            effort=effort or self.default_effort,
         )
 
         state: dict[str, Any] = {}

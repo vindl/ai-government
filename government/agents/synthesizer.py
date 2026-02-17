@@ -26,6 +26,8 @@ log = logging.getLogger(__name__)
 class SynthesizerAgent:
     """Consolidates per-ministry counter-proposals into a unified alternative."""
 
+    default_effort: Literal["low", "medium", "high", "max"] = "high"
+
     def __init__(self, session_config: SessionConfig | None = None) -> None:
         self.config = session_config or SessionConfig()
 
@@ -65,7 +67,7 @@ class SynthesizerAgent:
             system_prompt=SYNTHESIZER_SYSTEM_PROMPT,
             model=self.config.model,
             max_turns=2,
-            effort=effort,
+            effort=effort or self.default_effort,
         )
         state: dict[str, Any] = {}
         async for message in claude_agent_sdk.query(prompt=prompt, options=opts):

@@ -200,6 +200,7 @@ class TestGovernmentAgent:
         from government.agents.ministry_health import create_health_agent
         from government.agents.ministry_interior import create_interior_agent
         from government.agents.ministry_justice import create_justice_agent
+        from government.agents.ministry_labour import create_labour_agent
         from government.agents.ministry_tourism import create_tourism_agent
 
         agents = [
@@ -212,6 +213,7 @@ class TestGovernmentAgent:
             create_economy_agent(),
             create_tourism_agent(),
             create_environment_agent(),
+            create_labour_agent(),
         ]
         names = [a.ministry.name for a in agents]
         assert "Finance" in names
@@ -223,5 +225,6 @@ class TestGovernmentAgent:
         assert "Economy" in names
         assert "Tourism" in names
         assert "Environment" in names
+        assert "Labour and Social Welfare" in names
 
 

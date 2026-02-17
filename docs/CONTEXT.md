@@ -40,6 +40,7 @@ Montenegro is a small country with an active government making consequential dec
 | EU Integration | EU alignment, accession progress | EU acquis, benchmarks, reform alignment |
 | Health | Public health impact | Healthcare access, safety, epidemiology |
 | Interior | Security, administration | Public safety, administrative capacity, enforcement |
+| Labour and Social Welfare | Workers' rights, social protection, pensions | Labour law, welfare programs, EU Chapter 19 |
 
 ## Meta-Agents
 | Agent | Role |

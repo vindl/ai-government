@@ -61,6 +61,10 @@ Target rhythm — deviate when circumstances warrant it:
 
 Review the action frequency summary against the baseline rates. If an action is significantly below its baseline and there's no good reason, include it. Conversely, running an action more than baseline is fine if circumstances demand it (e.g., a burst of urgent issues).
 
+## Analysis Topic Diversity
+
+When choosing which `task:analysis` issue to pick via `pick_and_execute`, prefer **topic diversity**. If the backlog has multiple analysis issues, favor non-legal categories (economy, health, education, corruption/security, fiscal) over legal/procedural ones. Legal-category analyses should only be prioritized if they have clearly higher citizen impact than alternatives, or if no non-legal alternatives exist. Check the issue title and category label to infer the topic domain.
+
 ## Regression Detection
 
 If errors spiked after a recent PR merge:

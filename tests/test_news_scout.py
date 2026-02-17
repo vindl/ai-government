@@ -217,6 +217,111 @@ class TestBuildCategoryDistributionContext:
         assert "legal: 2 (67%)" in ctx
         assert "fiscal: 1 (33%)" in ctx
 
+    def test_marks_overrepresented_categories(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from government.models.decision import GovernmentDecision
+        from government.orchestrator import SessionResult
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create 10 results: 6 legal (60%), 2 fiscal, 2 economy
+        cats = ["legal"] * 6 + ["fiscal"] * 2 + ["economy"] * 2
+        for i, cat in enumerate(cats):
+            result = SessionResult(
+                decision=GovernmentDecision(
+                    id=f"item-2026-02-14-{i:08x}",
+                    title=f"Decision {i}",
+                    summary="Summary",
+                    date=_dt.date(2026, 2, 14),
+                    category=cat,
+                ),
+            )
+            (data_dir / f"result_{i}.json").write_text(
+                result.model_dump_json(indent=2)
+            )
+
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        ctx = _build_category_distribution_context()
+
+        # legal at 60% should be marked as overrepresented
+        assert "OVER" in ctx
+        assert "legal: 6 (60%)" in ctx
+        # fiscal at 20% should NOT be marked
+        assert "fiscal: 2 (20%)" in ctx
+        # Verify the fiscal line itself doesn't contain the OVER marker
+        fiscal_line = next(line for line in ctx.split("\n") if "fiscal:" in line)
+        assert "OVER" not in fiscal_line
+
+    def test_no_over_marker_when_balanced(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from government.models.decision import GovernmentDecision
+        from government.orchestrator import SessionResult
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Create 5 results across 5 categories (each at 20%)
+        cats = ["legal", "fiscal", "economy", "health", "education"]
+        for i, cat in enumerate(cats):
+            result = SessionResult(
+                decision=GovernmentDecision(
+                    id=f"item-2026-02-14-{i:08x}",
+                    title=f"Decision {i}",
+                    summary="Summary",
+                    date=_dt.date(2026, 2, 14),
+                    category=cat,
+                ),
+            )
+            (data_dir / f"result_{i}.json").write_text(
+                result.model_dump_json(indent=2)
+            )
+
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        ctx = _build_category_distribution_context()
+
+        # No category above 40%, so no OVER markers on category lines
+        # (the instruction text mentions "OVER" generically)
+        cat_lines = [
+            line for line in ctx.split("\n")
+            if line.strip().startswith(("legal:", "fiscal:", "economy:", "health:", "education:"))
+        ]
+        for line in cat_lines:
+            assert "OVER" not in line
+
+    def test_shows_priority_gaps_for_missing_high_resonance(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from government.models.decision import GovernmentDecision
+        from government.orchestrator import SessionResult
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Only legal and eu covered — economy, health, education, fiscal, security are missing
+        for i, cat in enumerate(["legal", "eu"]):
+            result = SessionResult(
+                decision=GovernmentDecision(
+                    id=f"item-2026-02-14-{i:08x}",
+                    title=f"Decision {i}",
+                    summary="Summary",
+                    date=_dt.date(2026, 2, 14),
+                    category=cat,
+                ),
+            )
+            (data_dir / f"result_{i}.json").write_text(
+                result.model_dump_json(indent=2)
+            )
+
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        ctx = _build_category_distribution_context()
+
+        assert "Priority gaps" in ctx
+        for cat in ["economy", "health", "education", "fiscal", "security"]:
+            assert cat in ctx
+
     def test_lists_uncovered_categories(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
@@ -306,6 +411,35 @@ class TestNewsScoutPromptContent:
 
         assert "Recent Category Distribution" in content
 
+    def test_prompt_has_legal_hard_cap(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "Hard cap on legal category" in content
+        assert "At most 1 out of 3" in content
+
+    def test_prompt_includes_corruption_as_high_resonance(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "corruption" in content.lower()
+        # Corruption should be in the HIGH resonance tier
+        high_section = content.split("HIGH resonance")[1].split("MEDIUM resonance")[0]
+        assert "corruption" in high_section.lower()
+
+    def test_prompt_requests_category_diversity_in_output(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "at least 2 different categories" in content
+
+    def test_prompt_overrepresentation_threshold(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "40%" in content
+        assert "OVER" in content
+
     def test_prompt_includes_official_gazette(self) -> None:
         prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
         content = prompt_path.read_text()
@@ -339,6 +473,24 @@ class TestNewsScoutPromptContent:
             "portalanalitika.me",
         ]:
             assert source in content
+
+
+class TestConductorPromptDiversity:
+    """Verify the conductor prompt includes topic-diversity guidance."""
+
+    def test_conductor_has_diversity_section(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "conductor" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "Analysis Topic Diversity" in content
+
+    def test_conductor_prefers_non_legal(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "conductor" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "non-legal" in content.lower() or "non-legal" in content
+        for topic in ["economy", "health", "education"]:
+            assert topic in content.lower()
 
 
 class TestDecisionJsonEmbedding:

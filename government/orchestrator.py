@@ -86,12 +86,12 @@ class Orchestrator:
 
             async def run_parliament() -> None:
                 result.debate = await self.parliament.debate(
-                    decision, result.assessments
+                    decision, result.assessments, effort="high",
                 )
 
             async def run_critic() -> None:
                 result.critic_report = await self.critic.review(
-                    decision, result.assessments
+                    decision, result.assessments, effort="high",
                 )
 
             tg.start_soon(run_parliament)
@@ -99,7 +99,7 @@ class Orchestrator:
 
         # Phase 3: Synthesize unified counter-proposal
         result.counter_proposal = await self.synthesizer.synthesize(
-            decision, result.assessments
+            decision, result.assessments, effort="high",
         )
 
         return result
@@ -115,7 +115,7 @@ class Orchestrator:
             for agent in self.ministry_agents:
 
                 async def analyze(a: GovernmentAgent = agent) -> None:
-                    assessment = await a.analyze(decision)
+                    assessment = await a.analyze(decision, effort="medium")
                     assessments.append(assessment)
 
                 tg.start_soon(analyze)
@@ -129,6 +129,6 @@ class Orchestrator:
         """Run ministry agents one at a time (for debugging/budget control)."""
         assessments: list[Assessment] = []
         for agent in self.ministry_agents:
-            assessment = await agent.analyze(decision)
+            assessment = await agent.analyze(decision, effort="medium")
             assessments.append(assessment)
         return assessments

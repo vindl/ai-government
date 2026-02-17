@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
@@ -29,11 +29,13 @@ class ParliamentAgent:
         self,
         decision: GovernmentDecision,
         assessments: list[Assessment],
+        *,
+        effort: Literal["low", "medium", "high", "max"] | None = None,
     ) -> ParliamentDebate:
         """Run a parliamentary debate on the decision given all ministry assessments."""
         prompt = self._build_prompt(decision, assessments)
 
-        structured = await self._call_model(prompt)
+        structured = await self._call_model(prompt, effort=effort)
 
         if structured is not None:
             return self._build_debate(structured, decision.id)
@@ -44,7 +46,12 @@ class ParliamentAgent:
         )
         return self._fallback(decision.id)
 
-    async def _call_model(self, prompt: str) -> dict[str, Any] | None:
+    async def _call_model(
+        self,
+        prompt: str,
+        *,
+        effort: Literal["low", "medium", "high", "max"] | None = None,
+    ) -> dict[str, Any] | None:
         """Call Claude Code SDK and return structured output dict."""
         structured: dict[str, Any] | None = None
         async for message in claude_agent_sdk.query(
@@ -54,6 +61,7 @@ class ParliamentAgent:
                 model=self.config.model,
                 max_turns=1,
                 output_format=_output_format_for(ParliamentDebate),
+                effort=effort,
             ),
         ):
             if isinstance(message, ResultMessage) and message.structured_output is not None:

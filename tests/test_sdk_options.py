@@ -84,3 +84,95 @@ def test_main_loop_sdk_options_output_format_none_by_default() -> None:
         allowed_tools=[],
     )
     assert opts.output_format is None
+
+
+# ---------------------------------------------------------------------------
+# effort parameter tests
+# ---------------------------------------------------------------------------
+
+
+def test_main_loop_sdk_options_effort_with_tools() -> None:
+    """main_loop._sdk_options passes effort to ClaudeAgentOptions (tools branch)."""
+    opts = main_loop._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=["Read"],
+        effort="low",
+    )
+    assert isinstance(opts, ClaudeAgentOptions)
+    assert opts.effort == "low"
+
+
+def test_main_loop_sdk_options_effort_without_tools() -> None:
+    """main_loop._sdk_options passes effort to ClaudeAgentOptions (no-tools branch)."""
+    opts = main_loop._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=[],
+        effort="high",
+    )
+    assert isinstance(opts, ClaudeAgentOptions)
+    assert opts.effort == "high"
+
+
+def test_main_loop_sdk_options_effort_none_by_default() -> None:
+    """effort defaults to None when not specified."""
+    opts = main_loop._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=[],
+    )
+    assert opts.effort is None
+
+
+def test_main_loop_sdk_options_effort_all_levels() -> None:
+    """All valid effort levels are accepted."""
+    for level in ("low", "medium", "high", "max"):
+        opts = main_loop._sdk_options(
+            system_prompt="test prompt",
+            model="claude-sonnet-4-5-20250929",
+            max_turns=1,
+            allowed_tools=[],
+            effort=level,  # type: ignore[arg-type]
+        )
+        assert opts.effort == level
+
+
+def test_pr_workflow_sdk_options_effort_with_tools() -> None:
+    """pr_workflow._sdk_options passes effort to ClaudeAgentOptions (tools branch)."""
+    opts = pr_workflow._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=["Bash", "Read"],
+        effort="high",
+    )
+    assert isinstance(opts, ClaudeAgentOptions)
+    assert opts.effort == "high"
+
+
+def test_pr_workflow_sdk_options_effort_without_tools() -> None:
+    """pr_workflow._sdk_options passes effort to ClaudeAgentOptions (no-tools branch)."""
+    opts = pr_workflow._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=[],
+        effort="medium",
+    )
+    assert isinstance(opts, ClaudeAgentOptions)
+    assert opts.effort == "medium"
+
+
+def test_pr_workflow_sdk_options_effort_none_by_default() -> None:
+    """pr_workflow effort defaults to None when not specified."""
+    opts = pr_workflow._sdk_options(
+        system_prompt="test prompt",
+        model="claude-sonnet-4-5-20250929",
+        max_turns=1,
+        allowed_tools=[],
+    )
+    assert opts.effort is None

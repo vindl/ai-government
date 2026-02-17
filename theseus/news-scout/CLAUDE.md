@@ -20,7 +20,8 @@ Search these outlets for Montenegrin government news:
 4. Use `WebFetch` to read article content when you need the full text or more detail.
 5. **Merge related coverage**: When multiple outlets cover the same government action, produce ONE decision entry with the best summary. Note all source URLs in the summary text.
 6. **Prioritize by public interest**: Focus on items with the greatest impact on Montenegrin citizens — fiscal policy, legal reforms, EU accession steps, healthcare, security, anti-corruption, and government transparency.
-7. **Return at most 3 items** — pick the top 3 most significant. Quality over quantity.
+7. **Coverage balance**: Before finalizing your top 3, run at least one additional `WebSearch` query targeting underrepresented policy domains: **fiscal policy, healthcare, education, economy, environment, tourism**. These categories are chronically undercovered compared to legal and EU news. If you find a candidate from an underrepresented category with similar public-interest weight to a candidate from an already-covered category, **prefer the underrepresented category** to ensure diverse coverage. This is a tiebreaker, not a trump card — a high-impact legal story still beats a low-impact tourism story.
+8. **Return at most 3 items** — pick the top 3 most significant. Quality over quantity.
 
 ## Date Filter
 

@@ -3917,6 +3917,8 @@ def main() -> None:
         format="%(asctime)s %(name)s %(levelname)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    # Suppress noisy SDK transport logs
+    logging.getLogger("claude_agent_sdk").setLevel(logging.WARNING)
 
     cycle = args.cycle_offset + 1
     productive_cycles = args.productive_cycles_offset

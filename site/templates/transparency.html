@@ -12,67 +12,57 @@
   <h1 class="lang-mne">Izvještaj o transparentnosti ljudskog uticaja</h1>
   <h1 class="lang-en">Human Influence Transparency Report</h1>
 
-  <div class="transparency-intro">
-    <p class="lang-mne">
-      Ovaj projekat funkcioniše po Ustavu (članovi 5 i 22) koji zahtijeva potpunu transparentnost.
-      AI ne radi bez nadzora — ljudi intervenišu kada je potrebno, a svaka intervencija je
-      javni zapis.
-    </p>
-    <p class="lang-en">
-      This project operates under a Constitution (Articles 5 and 22) that demands full transparency.
-      The AI does not run unchecked — humans intervene when necessary, and every intervention is
-      public record.
-    </p>
-    <p class="lang-mne">
-      Ova stranica dokumentuje sav ljudski uticaj na AI sistem: zadatke koje su direktno podnijeli ljudi
-      i slučajeve u kojima su ljudski operateri zamijenili AI odluke u procesu analize vlade
-      ili razvojnom toku.
-    </p>
-    <p class="lang-en">
-      This page documents all human influence on the AI system: tasks directly filed by humans
-      and instances where human operators overrode AI decisions in the government analysis pipeline
-      or development workflow.
-    </p>
-  </div>
+  <p class="lang-mne">
+    Ovaj projekat funkcioniše po Ustavu (članovi 5 i 22) koji zahtijeva potpunu transparentnost.
+    AI ne radi bez nadzora — ljudi intervenišu kada je potrebno, a svaka intervencija je
+    javni zapis. Ova stranica dokumentuje sav ljudski uticaj na AI sistem: zadatke koje su direktno podnijeli ljudi
+    i slučajeve u kojima su ljudski operateri zamijenili AI odluke u procesu analize vlade
+    ili razvojnom toku.
+  </p>
+  <p class="lang-en">
+    This project operates under a Constitution (Articles 5 and 22) that demands full transparency.
+    The AI does not run unchecked — humans intervene when necessary, and every intervention is
+    public record. This page documents all human influence on the AI system: tasks directly filed by humans
+    and instances where human operators overrode AI decisions in the government analysis pipeline
+    or development workflow.
+  </p>
 
-  <div class="transparency-footer">
-    <h2 class="lang-mne">Kako funkcionišu ljudske intervencije</h2>
-    <h2 class="lang-en">How Human Interventions Work</h2>
-    <p class="lang-mne">
-      Ova stranica prati tri vrste ljudskog uticaja na AI sistem:
-    </p>
-    <p class="lang-en">
-      This page tracks three types of human influence on the AI system:
-    </p>
-    <ol class="lang-mne">
-      <li><strong>Zamjene:</strong> Kada AI trijaža odbije prijedlog, čovjek može ponovo otvoriti
-          pitanje ili dodati komentar "HUMAN OVERRIDE" da premjesti pitanje u red čekanja,
-          zaobilazeći AI odluku.</li>
-      <li><strong>Zadaci koje su odredili ljudi:</strong> Pitanja direktno kreirana od strane ljudi,
-          koja usmjeravaju AI da radi na određenim zadacima.</li>
-      <li><strong>PR-ovi kreirani od strane ljudi:</strong> Pull zahtjevi koje je covjek inicirao
-          i napisao, za razliku od automatski generisanih AI PR-ova.</li>
-    </ol>
-    <ol class="lang-en">
-      <li><strong>Overrides:</strong> When AI triage rejects a proposal, a human can reopen the
-          issue or add a "HUMAN OVERRIDE" comment to move it to the backlog,
-          bypassing the AI decision.</li>
-      <li><strong>Human-directed tasks:</strong> Issues filed directly by humans,
-          directing the AI to work on specific tasks.</li>
-      <li><strong>Human-initiated PRs:</strong> Pull requests initiated and written by a human,
-          as opposed to automatically generated AI PRs.</li>
-    </ol>
-    <p class="lang-mne">
-      Svaka intervencija je zabilježena sa akterom, vremenskim pečatom i punim detaljima.
-      Ovo osigurava odgovornost i demonstrira da projekat funkcioniše transparentno —
-      ne kao automatizacija bez nadzora, već kao AI analiza pod ljudskim nadzorom.
-    </p>
-    <p class="lang-en">
-      Every intervention is logged with the actor, timestamp, and full details.
-      This ensures accountability and demonstrates that the project operates transparently —
-      not as unchecked automation, but as human-supervised AI analysis.
-    </p>
-  </div>
+  <h2 class="lang-mne">Kako funkcionišu ljudske intervencije</h2>
+  <h2 class="lang-en">How Human Interventions Work</h2>
+  <p class="lang-mne">
+    Ova stranica prati tri vrste ljudskog uticaja na AI sistem:
+  </p>
+  <p class="lang-en">
+    This page tracks three types of human influence on the AI system:
+  </p>
+  <ol class="lang-mne">
+    <li><strong>Zamjene:</strong> Kada AI trijaža odbije prijedlog, čovjek može ponovo otvoriti
+        pitanje ili dodati komentar "HUMAN OVERRIDE" da premjesti pitanje u red čekanja,
+        zaobilazeći AI odluku.</li>
+    <li><strong>Zadaci koje su odredili ljudi:</strong> Pitanja direktno kreirana od strane ljudi,
+        koja usmjeravaju AI da radi na određenim zadacima.</li>
+    <li><strong>PR-ovi kreirani od strane ljudi:</strong> Pull zahtjevi koje je covjek inicirao
+        i napisao, za razliku od automatski generisanih AI PR-ova.</li>
+  </ol>
+  <ol class="lang-en">
+    <li><strong>Overrides:</strong> When AI triage rejects a proposal, a human can reopen the
+        issue or add a "HUMAN OVERRIDE" comment to move it to the backlog,
+        bypassing the AI decision.</li>
+    <li><strong>Human-directed tasks:</strong> Issues filed directly by humans,
+        directing the AI to work on specific tasks.</li>
+    <li><strong>Human-initiated PRs:</strong> Pull requests initiated and written by a human,
+        as opposed to automatically generated AI PRs.</li>
+  </ol>
+  <p class="lang-mne">
+    Svaka intervencija je zabilježena sa akterom, vremenskim pečatom i punim detaljima.
+    Ovo osigurava odgovornost i demonstrira da projekat funkcioniše transparentno —
+    ne kao automatizacija bez nadzora, već kao AI analiza pod ljudskim nadzorom.
+  </p>
+  <p class="lang-en">
+    Every intervention is logged with the actor, timestamp, and full details.
+    This ensures accountability and demonstrates that the project operates transparently —
+    not as unchecked automation, but as human-supervised AI analysis.
+  </p>
 
   {% if interventions %}
   <div class="override-stats">

@@ -526,6 +526,7 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
   color: white;
   padding: 1rem 1.5rem;
   border-radius: 8px;
+  margin-top: 1.5rem;
   margin-bottom: 2rem;
 }
 
@@ -560,6 +561,8 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
   margin: 0;
   font-size: 1.25rem;
   font-weight: 600;
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .override-header h2 a {
@@ -709,10 +712,30 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
   margin: 0;
 }
 
-/* Table — prevent Ministry column from wrapping */
+/* Tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+table th,
+table td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+table th {
+  background: var(--color-bg);
+  font-weight: 600;
+}
+
+/* Table — give Ministry column breathing room */
 table th:nth-child(2),
 table td:nth-child(2) {
   white-space: nowrap;
+  min-width: 12rem;
 }
 
 /* Language visibility — driven by data-lang attribute on <html> */

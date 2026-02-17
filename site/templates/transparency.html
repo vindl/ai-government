@@ -50,8 +50,8 @@
           zaobilazeći AI odluku.</li>
       <li><strong>Zadaci koje su odredili ljudi:</strong> Pitanja direktno kreirana od strane ljudi,
           koja usmjeravaju AI da radi na određenim zadacima.</li>
-      <li><strong>Spajanja PR-ova:</strong> Kada čovjek pregleda i spoji AI-generisani pull request,
-          odobravajući AI kod za primjenu.</li>
+      <li><strong>PR-ovi kreirani od strane ljudi:</strong> Pull zahtjevi koje je covjek inicirao
+          i napisao, za razliku od automatski generisanih AI PR-ova.</li>
     </ol>
     <ol class="lang-en">
       <li><strong>Overrides:</strong> When AI triage rejects a proposal, a human can reopen the
@@ -59,8 +59,8 @@
           bypassing the AI decision.</li>
       <li><strong>Human-directed tasks:</strong> Issues filed directly by humans,
           directing the AI to work on specific tasks.</li>
-      <li><strong>PR merges:</strong> When a human reviews and merges an AI-generated pull request,
-          approving AI code for deployment.</li>
+      <li><strong>Human-initiated PRs:</strong> Pull requests initiated and written by a human,
+          as opposed to automatically generated AI PRs.</li>
     </ol>
     <p class="lang-mne">
       Svaka intervencija je zabilježena sa akterom, vremenskim pečatom i punim detaljima.
@@ -158,12 +158,12 @@
           <dt class="lang-mne">Tip:</dt>
           <dt class="lang-en">Type:</dt>
           <dd>
-            <span class="lang-mne">PR spojen</span>
-            <span class="lang-en">PR merged</span>
+            <span class="lang-mne">PR kreiran od strane covjeka</span>
+            <span class="lang-en">Human-initiated PR</span>
           </dd>
 
-          <dt class="lang-mne">Spojio:</dt>
-          <dt class="lang-en">Merged by:</dt>
+          <dt class="lang-mne">Autor:</dt>
+          <dt class="lang-en">Author:</dt>
           <dd>
             <a href="https://github.com/{{ entry.item.actor }}"
                target="_blank" rel="noopener noreferrer">

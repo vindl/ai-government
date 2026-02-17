@@ -325,11 +325,14 @@ class SiteBuilder:
         suggestions: list[HumanSuggestion],
         pr_merges: list[PRMerge] | None = None,
     ) -> None:
-        """Build the human overrides transparency report page."""
+        """Build the human overrides transparency report page.
+
+        PR merges are excluded — the AI merges its own PRs using the
+        repo owner's token, so they are not genuine human interventions.
+        """
         transparency_dir = self.output_dir / "transparency"
         transparency_dir.mkdir(parents=True, exist_ok=True)
 
-        # Merge overrides, suggestions, and PR merges into a single chronological list
         interventions: list[dict[str, Any]] = []
         for o in overrides:
             interventions.append({"type": "override", "item": o, "timestamp": o.timestamp})

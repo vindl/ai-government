@@ -34,6 +34,18 @@ def collect_structured_or_text(
     structured output, and ``result_text`` to the last ResultMessage text.
     """
     if isinstance(message, ResultMessage):
+        if message.is_error:
+            log.error(
+                "SDK ResultMessage is_error=True, subtype=%s, result=%s",
+                message.subtype,
+                (message.result or "")[:500],
+            )
+        log.debug(
+            "ResultMessage: is_error=%s, has_structured=%s, has_result=%s",
+            message.is_error,
+            message.structured_output is not None,
+            bool(message.result),
+        )
         if message.structured_output is not None:
             state["structured"] = message.structured_output
         if message.result:

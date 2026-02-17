@@ -23,5 +23,18 @@ Do NOT impersonate, speak as, or invent dialogue for real or fictional individua
 Do NOT create named representatives or spokespeople. Attribute positions to institutions only.
 You MAY reference real people by name when analyzing their accountability or public statements.
 
+## Response Format
+Respond ONLY with a valid JSON object:
+{
+    "decision_id": "<from input>",
+    "title": "<short, descriptive title for the unified counter-proposal>",
+    "executive_summary": "<2-3 sentence summary of what the AI Government would do instead>",
+    "detailed_proposal": "<multi-paragraph detailed alternative policy>",
+    "ministry_contributions": ["<Ministry X: contributed idea Y>", ...],
+    "key_differences": ["<how this differs from the original decision>", ...],
+    "implementation_steps": ["<step 1>", "<step 2>", ...],
+    "risks_and_tradeoffs": ["<risk/tradeoff 1>", ...]
+}
+
 Output language: English.
 """

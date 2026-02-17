@@ -133,6 +133,10 @@ class CriticReport(BaseModel):
     blind_spots: list[str] = Field(default_factory=list, description="What the ministries missed")
     overall_analysis: str = Field(description="Critic's independent analysis")
     headline: str = Field(description="Punchy headline for the scorecard")
+    eu_chapter_relevance: list[str] = Field(
+        default_factory=list,
+        description="EU accession chapters affected by this decision, e.g. 'Ch.23 Judiciary — ...'",
+    )
     # Montenegrin translations (populated by localization step)
     headline_mne: str = Field(default="", description="Montenegrin translation of headline")
     overall_analysis_mne: str = Field(default="", description="Montenegrin translation of overall_analysis")

@@ -90,6 +90,59 @@ class TestBuildReport:
         assert result.decision_id == "test-099"
 
 
+class TestCriticPrompt:
+    """Tests that the critic prompt includes EU accession chapter data."""
+
+    def test_prompt_contains_chapter_23(self) -> None:
+        from government.prompts.critic import CRITIC_SYSTEM_PROMPT
+
+        assert "Ch. 23" in CRITIC_SYSTEM_PROMPT or "23" in CRITIC_SYSTEM_PROMPT
+        assert "Judiciary and Fundamental Rights" in CRITIC_SYSTEM_PROMPT
+
+    def test_prompt_contains_eu_chapter_relevance_field(self) -> None:
+        from government.prompts.critic import CRITIC_SYSTEM_PROMPT
+
+        assert "eu_chapter_relevance" in CRITIC_SYSTEM_PROMPT
+
+    def test_prompt_mentions_key_benchmark_chapters(self) -> None:
+        from government.prompts.critic import CRITIC_SYSTEM_PROMPT
+
+        assert "key benchmark chapter" in CRITIC_SYSTEM_PROMPT
+
+
+class TestEuChapterRelevance:
+    """Tests for the eu_chapter_relevance field on CriticReport."""
+
+    def test_field_defaults_to_empty_list(self) -> None:
+        report = CriticReport(**VALID_REPORT_DATA)
+        assert report.eu_chapter_relevance == []
+
+    def test_field_accepts_chapters(self) -> None:
+        data = {
+            **VALID_REPORT_DATA,
+            "eu_chapter_relevance": [
+                "Ch.23 Judiciary and Fundamental Rights — strengthens judicial independence",
+                "Ch.32 Financial Control — improves audit mechanisms",
+            ],
+        }
+        report = CriticReport(**data)
+        assert len(report.eu_chapter_relevance) == 2
+        assert "Ch.23" in report.eu_chapter_relevance[0]
+
+    def test_field_roundtrips_through_parse(self, agent: CriticAgent) -> None:
+        data = {
+            **VALID_REPORT_DATA,
+            "eu_chapter_relevance": ["Ch.27 Environment — sets emission targets"],
+        }
+        report_json = json.dumps(data)
+        result = agent._parse_response(report_json, "test-001")
+        assert result.eu_chapter_relevance == ["Ch.27 Environment — sets emission targets"]
+
+    def test_fallback_has_empty_eu_chapters(self, agent: CriticAgent) -> None:
+        result = agent._parse_response("not json", "test-001")
+        assert result.eu_chapter_relevance == []
+
+
 class TestReviewStructuredOutput:
     @pytest.mark.anyio
     async def test_success(

@@ -6,9 +6,13 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal
 
 import claude_agent_sdk
-from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
+from claude_agent_sdk import ClaudeAgentOptions
 
-from government.agents.base import _output_format_for
+from government.agents.base import (
+    _output_format_for,
+    collect_structured_or_text,
+    parse_structured_or_text,
+)
 from government.config import SessionConfig
 from government.models.assessment import Assessment, CriticReport
 from government.prompts.critic import CRITIC_SYSTEM_PROMPT
@@ -53,7 +57,7 @@ class CriticAgent:
         effort: Literal["low", "medium", "high", "max"] | None = None,
     ) -> dict[str, Any] | None:
         """Call Claude Code SDK and return structured output dict."""
-        structured: dict[str, Any] | None = None
+        state: dict[str, Any] = {}
         async for message in claude_agent_sdk.query(
             prompt=prompt,
             options=ClaudeAgentOptions(
@@ -64,9 +68,8 @@ class CriticAgent:
                 effort=effort,
             ),
         ):
-            if isinstance(message, ResultMessage) and message.structured_output is not None:
-                structured = message.structured_output
-        return structured
+            collect_structured_or_text(message, state)
+        return parse_structured_or_text(state)
 
     def _build_prompt(
         self,

@@ -265,7 +265,6 @@ def _sdk_options(
     model: str,
     max_turns: int,
     allowed_tools: list[str],
-    output_format: dict[str, Any] | None = None,
     effort: EffortLevel | None = None,
 ) -> ClaudeAgentOptions:
     # Agents WITH tools: use SystemPromptPreset with "append" so they get
@@ -282,7 +281,6 @@ def _sdk_options(
             cwd=PROJECT_ROOT,
             env=SDK_ENV,
             setting_sources=["project"],
-            output_format=output_format,
             effort=effort,
         )
     return ClaudeAgentOptions(
@@ -293,7 +291,6 @@ def _sdk_options(
         permission_mode="bypassPermissions",
         cwd=PROJECT_ROOT,
         env=SDK_ENV,
-        output_format=output_format,
         effort=effort,
     )
 
@@ -313,9 +310,10 @@ async def _collect_agent_output(
 async def _collect_structured_output(
     stream: AsyncIterator[claude_agent_sdk.Message],
 ) -> dict[str, Any] | None:
-    """Collect structured output from an SDK stream that uses ``output_format``.
+    """Collect structured output from an SDK stream.
 
-    Falls back to JSON extraction from result text if structured_output is None.
+    Extracts JSON from result text via prompt-based format instructions.
+    Also accepts structured_output if the SDK provides it.
     """
     from government.agents.base import collect_structured_or_text, parse_structured_or_text
 
@@ -1792,14 +1790,11 @@ Review criteria:
 Most analyses should pass. Only block publication for clear factual errors or Constitution violations.
 """
 
-    from government.agents.base import _output_format_for
-
     opts = _sdk_options(
         system_prompt=system_prompt,
         model=model,
         max_turns=EDITORIAL_DIRECTOR_MAX_TURNS,
         allowed_tools=["Read"],
-        output_format=_output_format_for(EditorialReview),
         effort="medium",
     )
 

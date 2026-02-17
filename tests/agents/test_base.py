@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from government.agents.base import GovernmentAgent, MinistryConfig, _output_format_for
+from government.agents.base import GovernmentAgent, MinistryConfig
 from government.config import SessionConfig
 from government.models.assessment import Assessment, Verdict
 from government.models.decision import GovernmentDecision
@@ -225,17 +225,3 @@ class TestGovernmentAgent:
         assert "Environment" in names
 
 
-class TestOutputFormatFor:
-    def test_returns_json_schema_dict(self) -> None:
-        result = _output_format_for(Assessment)
-        assert result["type"] == "json_schema"
-        assert "schema" in result
-        assert result["schema"]["type"] == "object"
-
-    def test_schema_has_required_fields(self) -> None:
-        result = _output_format_for(Assessment)
-        schema = result["schema"]
-        assert "properties" in schema
-        assert "ministry" in schema["properties"]
-        assert "verdict" in schema["properties"]
-        assert "score" in schema["properties"]

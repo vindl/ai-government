@@ -19,11 +19,6 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def _output_format_for(model_cls: type[Any]) -> dict[str, Any]:
-    """Build an ``output_format`` dict accepted by the SDK from a Pydantic model."""
-    return {"type": "json_schema", "schema": model_cls.model_json_schema()}
-
-
 def collect_structured_or_text(
     message: claude_agent_sdk.Message,
     state: dict[str, Any],
@@ -106,7 +101,6 @@ class GovernmentAgent:
                 system_prompt=self.ministry.system_prompt,
                 model=self.config.model,
                 max_turns=1,
-                output_format=_output_format_for(Assessment),
                 effort=effort,
             ),
         ):

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
 
+from government.agents.json_parsing import extract_json
 from government.config import SessionConfig
 from government.models.assessment import Assessment
 
@@ -21,6 +22,35 @@ log = logging.getLogger(__name__)
 def _output_format_for(model_cls: type[Any]) -> dict[str, Any]:
     """Build an ``output_format`` dict accepted by the SDK from a Pydantic model."""
     return {"type": "json_schema", "schema": model_cls.model_json_schema()}
+
+
+def collect_structured_or_text(
+    message: claude_agent_sdk.Message,
+    state: dict[str, Any],
+) -> None:
+    """Collect structured output from a message, falling back to result text.
+
+    Mutates *state* in-place — sets ``structured`` to the first non-None
+    structured output, and ``result_text`` to the last ResultMessage text.
+    """
+    if isinstance(message, ResultMessage):
+        if message.structured_output is not None:
+            state["structured"] = message.structured_output
+        if message.result:
+            state["result_text"] = message.result
+
+
+def parse_structured_or_text(state: dict[str, Any]) -> dict[str, Any] | None:
+    """Return structured output if available, else try to extract JSON from text."""
+    if state.get("structured") is not None:
+        return state["structured"]  # type: ignore[return-value]
+    text = state.get("result_text", "")
+    if text:
+        parsed = extract_json(text)
+        if parsed is not None:
+            log.info("Fell back to JSON extraction from result text")
+            return parsed
+    return None
 
 
 @dataclass(frozen=True)
@@ -57,7 +87,7 @@ class GovernmentAgent:
         """Analyze a government decision and return an assessment."""
         prompt = self._build_prompt(decision)
 
-        structured: dict[str, Any] | None = None
+        state: dict[str, Any] = {}
         async for message in claude_agent_sdk.query(
             prompt=prompt,
             options=ClaudeAgentOptions(
@@ -68,10 +98,9 @@ class GovernmentAgent:
                 effort=effort,
             ),
         ):
-            if isinstance(message, ResultMessage) and message.structured_output is not None:
-                structured = message.structured_output
+            collect_structured_or_text(message, state)
 
-        return self._parse_response(structured, decision.id)
+        return self._parse_response(parse_structured_or_text(state), decision.id)
 
     def _build_prompt(self, decision: GovernmentDecision) -> str:
         """Build the analysis prompt for the agent."""

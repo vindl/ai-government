@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import anyio
 import claude_agent_sdk
-from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, ResultMessage, TextBlock
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 from government.config import SessionConfig
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from government.models.telemetry import (
@@ -313,12 +313,16 @@ async def _collect_agent_output(
 async def _collect_structured_output(
     stream: AsyncIterator[claude_agent_sdk.Message],
 ) -> dict[str, Any] | None:
-    """Collect structured output from an SDK stream that uses ``output_format``."""
-    structured: dict[str, Any] | None = None
+    """Collect structured output from an SDK stream that uses ``output_format``.
+
+    Falls back to JSON extraction from result text if structured_output is None.
+    """
+    from government.agents.base import collect_structured_or_text, parse_structured_or_text
+
+    state: dict[str, Any] = {}
     async for message in stream:
-        if isinstance(message, ResultMessage) and message.structured_output is not None:
-            structured = message.structured_output
-    return structured
+        collect_structured_or_text(message, state)
+    return parse_structured_or_text(state)
 
 
 # ---------------------------------------------------------------------------

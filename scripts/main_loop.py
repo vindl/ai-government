@@ -1480,6 +1480,48 @@ def _generate_decision_id(title: str, date: _dt.date) -> str:
     return f"item-{date.isoformat()}-{h}"
 
 
+def _build_category_distribution_context() -> str:
+    """Build a summary of recent analysis category distribution for the news scout.
+
+    Returns a formatted string with category counts, or empty string if no data.
+    """
+    if not DATA_DIR.exists():
+        return ""
+    try:
+        results = load_results_from_dir(DATA_DIR)
+    except Exception:
+        log.warning("Failed to load results for category distribution context")
+        return ""
+    if not results:
+        return ""
+
+    category_counts: Counter[str] = Counter()
+    for r in results:
+        category_counts[r.decision.category or "general"] += 1
+
+    total = sum(category_counts.values())
+    lines = []
+    for cat, cnt in category_counts.most_common():
+        pct = round(100 * cnt / total)
+        lines.append(f"  {cat}: {cnt} ({pct}%)")
+
+    return (
+        "\n\n## Recent Category Distribution\n\n"
+        f"Out of {total} published analyses:\n"
+        + "\n".join(lines)
+        + "\n\nCategories NOT yet covered: "
+        + ", ".join(
+            c for c in [
+                "fiscal", "legal", "eu", "health", "security",
+                "education", "economy", "tourism", "environment", "general",
+            ]
+            if c not in category_counts
+        )
+        + "\n\nUse this data to diversify coverage — avoid overrepresented "
+        "categories unless the story has exceptionally high citizen impact."
+    )
+
+
 async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
     """Run the News Scout agent to discover today's government decisions.
 
@@ -1492,6 +1534,7 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
         system_prompt = _load_role_prompt("news-scout")
         today = _dt.date.today()
         prompt = system_prompt.replace("{today}", today.isoformat())
+        prompt += _build_category_distribution_context()
         prompt += f"\n\nFind today's ({today.isoformat()}) Montenegrin government decisions."
 
         opts = _sdk_options(

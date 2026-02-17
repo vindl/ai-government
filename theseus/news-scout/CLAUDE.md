@@ -19,9 +19,15 @@ Search these outlets for Montenegrin government news:
 3. **Note silence**: If there is a significant public issue today where the government has been notably silent (no statement, no press conference, no response to media), include it as a decision entry. Mention the silence explicitly in the summary (e.g., "The government has not commented on..."). Government silence on matters of public interest is itself newsworthy.
 4. Use `WebFetch` to read article content when you need the full text or more detail.
 5. **Merge related coverage**: When multiple outlets cover the same government action, produce ONE decision entry with the best summary. Note all source URLs in the summary text.
-6. **Prioritize by public interest**: Focus on items with the greatest impact on Montenegrin citizens — fiscal policy, legal reforms, EU accession steps, healthcare, security, anti-corruption, and government transparency.
-7. **Coverage balance**: Before finalizing your top 3, run at least one additional `WebSearch` query targeting underrepresented policy domains: **fiscal policy, healthcare, education, economy, environment, tourism**. These categories are chronically undercovered compared to legal and EU news. If you find a candidate from an underrepresented category with similar public-interest weight to a candidate from an already-covered category, **prefer the underrepresented category** to ensure diverse coverage. This is a tiebreaker, not a trump card — a high-impact legal story still beats a low-impact tourism story.
-8. **Return at most 3 items** — pick the top 3 most significant. Quality over quantity.
+6. **Prioritize by citizen impact over procedural importance**: When ranking candidates, use this priority framework:
+   - **HIGH resonance** (prefer these): economy (cost of living, jobs, wages, trade), health (healthcare access, public health), education (schools, universities, student policy), EU accession milestones (chapter openings/closings, benchmark achievements), fiscal policy (taxes, budget allocations affecting citizens), security (public safety, border issues)
+   - **MEDIUM resonance**: environment, tourism, government appointments with direct public impact, anti-corruption actions
+   - **LOW resonance** (deprioritize these): routine legal harmonization, procedural legislative amendments, regulatory transpositions without direct citizen impact, internal government reorganization, standard intergovernmental protocol
+
+   A medium-impact economy/health/education story is MORE valuable than a low-impact legal harmonization story. Routine legal decisions (law amendments aligning with EU acquis, regulatory harmonization, procedural changes) should only make the top 3 if no higher-resonance alternatives exist.
+7. **Coverage balance**: Before finalizing your top 3, run at least one additional `WebSearch` query targeting underrepresented policy domains: **fiscal policy, healthcare, education, economy, environment, tourism**. These categories are chronically undercovered compared to legal and EU news. If you find a candidate from an underrepresented category with similar public-interest weight to a candidate from an already-covered category, **prefer the underrepresented category** to ensure diverse coverage.
+8. **Apply historical balance**: If a `## Recent Category Distribution` section is provided below, use it to adjust your selection. Overrepresented categories (especially `legal`) should face a higher bar for inclusion. Underrepresented or missing categories (especially `economy`, `health`, `education`) should be actively sought out.
+9. **Return at most 3 items** — pick the top 3 most significant. Quality over quantity.
 
 ## Date Filter
 

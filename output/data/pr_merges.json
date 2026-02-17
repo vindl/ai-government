@@ -1,5 +1,75 @@
 [
   {
+    "timestamp": "2026-02-17T04:07:02Z",
+    "pr_number": 259,
+    "pr_title": "Replace rigid main loop phases with Conductor agent",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T03:34:02Z",
+    "pr_number": 258,
+    "pr_title": "Add JSON retry for agents on parse failure",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T03:30:04Z",
+    "pr_number": 257,
+    "pr_title": "Add diagnostic logging for agent parse failures",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T03:24:35Z",
+    "pr_number": 256,
+    "pr_title": "Downgrade JSON parse log to DEBUG",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T03:21:05Z",
+    "pr_number": 255,
+    "pr_title": "Remove SDK output_format that breaks analysis pipeline",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T03:09:20Z",
+    "pr_number": 254,
+    "pr_title": "Restore JSON format instructions to agent prompts",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T03:02:27Z",
+    "pr_number": 253,
+    "pr_title": "Split long prose into paragraphs on analysis pages",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T02:55:55Z",
+    "pr_number": 252,
+    "pr_title": "Make English the primary tweet, Montenegrin threaded",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T02:52:52Z",
+    "pr_number": 251,
+    "pr_title": "Fix mypy type-ignore error code",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T02:48:25Z",
+    "pr_number": 249,
+    "pr_title": "Fix broken analysis pipeline: add text fallback for structured output",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-17T01:54:33Z",
     "pr_number": 244,
     "pr_title": "CSS and transparency page polish",

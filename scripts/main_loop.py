@@ -3704,6 +3704,7 @@ async def _dispatch_action(
     max_pr_rounds: int,
     dry_run: bool,
     productive_cycles: int,
+    pending_proposals: list[dict[str, Any]],
 ) -> str | None:
     """Execute a single Conductor action. Returns 'halt' to stop the loop."""
     t0 = time.monotonic()
@@ -3728,6 +3729,7 @@ async def _dispatch_action(
                         num_proposals=DEFAULT_PROPOSALS_PER_CYCLE, model=model,
                     )
                     telemetry.proposals_made = len(proposals)
+                    pending_proposals.extend(proposals)
                     # Ingest human suggestions
                     human_issues = list_human_suggestions()
                     human_accepted = 0
@@ -3764,7 +3766,7 @@ async def _dispatch_action(
                     phase.detail = f"{len(proposals)} proposals, {human_accepted} human suggestions"
 
             case "debate":
-                # Debate any undebated proposed issues
+                # Debate any undebated proposed issues from GitHub
                 result = _run_gh([
                     "gh", "issue", "list",
                     "--label", LABEL_PROPOSED,
@@ -3783,6 +3785,16 @@ async def _dispatch_action(
                                 "domain": "dev",
                                 "issue_number": iss["number"],
                             })
+                # Merge in-memory proposals from the propose phase
+                # (issue_number=None triggers step_debate to create GH issues)
+                for prop in pending_proposals:
+                    proposals_to_debate.append({
+                        "title": prop.get("title", "Untitled"),
+                        "description": prop.get("description", ""),
+                        "domain": prop.get("domain", "dev"),
+                        "issue_number": None,
+                    })
+                pending_proposals.clear()
                 if proposals_to_debate:
                     accepted, rejected = await step_debate(proposals_to_debate, model=model)
                     telemetry.proposals_accepted = len(accepted)
@@ -4145,6 +4157,10 @@ async def run_one_cycle(
     print(f"Suggested cooldown: {plan.suggested_cooldown_seconds}s\n")
 
     # --- Execute plan ---
+    # Cycle-scoped buffer for proposals from step_propose() so the debate
+    # phase can consume them even though propose and debate are separate
+    # Conductor actions.
+    pending_proposals: list[dict[str, Any]] = []
     for action in plan.actions:
         result = await _dispatch_action(
             action,
@@ -4153,6 +4169,7 @@ async def run_one_cycle(
             max_pr_rounds=max_pr_rounds,
             dry_run=dry_run,
             productive_cycles=productive_cycles,
+            pending_proposals=pending_proposals,
         )
         if result == "halt":
             # Finalize telemetry before halting

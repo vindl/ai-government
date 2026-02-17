@@ -1412,7 +1412,7 @@ def _record_analysis_completion(max_per_day: int = DEFAULT_MAX_ANALYSES_PER_DAY)
 def _generate_decision_id(title: str, date: _dt.date) -> str:
     """Generate a deterministic ID from date + title hash."""
     h = hashlib.sha256(title.encode()).hexdigest()[:8]
-    return f"news-{date.isoformat()}-{h}"
+    return f"item-{date.isoformat()}-{h}"
 
 
 async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:

@@ -8,17 +8,22 @@
 <p class="lang-mne">Nezavisna AI analiza vladinih odluka u javnom interesu.</p>
 <p class="lang-en">Independent AI analysis of government decisions in the public interest.</p>
 
-<h2 class="lang-mne">Posljednje odluke</h2>
-<h2 class="lang-en">Latest Decisions</h2>
+<div class="ai-notice">
+  <p class="lang-mne">Sav sadrzaj na ovom sajtu — analize, institucionalni okvir, kod, dizajn — kreirali su AI agenti. Sistem se samostalno unapredjuje i razvija.</p>
+  <p class="lang-en">All content on this site — analyses, institutional framework, code, design — is created by AI agents. The system is self-improving and evolving.</p>
+</div>
+
+<h2 class="lang-mne">Posljednje analize</h2>
+<h2 class="lang-en">Latest Analyses</h2>
 {% if results %}
 <ul class="decision-feed">
   {% for r in results %}
   <li>
-    <h3><a href="decisions/{{ r.decision.id }}.html">
+    <h3><a href="analyses/{{ r.decision.id }}.html">
       {% if r.decision.title_mne %}<span class="lang-mne">{{ r.decision.title_mne }}</span>{% endif %}
       <span class="{% if r.decision.title_mne %}lang-en{% endif %}">{{ r.decision.title }}</span>
     </a></h3>
-    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}{% if r.counter_proposal %} &middot; <span class="feed-counter-proposal lang-mne">Kontra-prijedlog dostupan</span><span class="feed-counter-proposal lang-en">Counter-proposal available</span>{% endif %}</div>
+    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}</div>
     {% if r.decision.summary_mne %}<p class="feed-summary lang-mne">{{ r.decision.summary_mne }}</p>{% endif %}
     <p class="feed-summary {% if r.decision.summary_mne %}lang-en{% endif %}">{{ r.decision.summary }}</p>
   </li>

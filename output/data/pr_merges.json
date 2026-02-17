@@ -1,8 +1,421 @@
 [
   {
+    "timestamp": "2026-02-17T01:54:33Z",
+    "pr_number": 244,
+    "pr_title": "CSS and transparency page polish",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-17T01:43:34Z",
+    "pr_number": 241,
+    "pr_title": "Suppress noisy claude_agent_sdk INFO logs",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-17T01:28:38Z",
     "pr_number": 237,
     "pr_title": "Site visual updates: rename to Analyses, reorder nav, add AI notices",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T22:56:45Z",
+    "pr_number": 227,
+    "pr_title": "Decouple analysis and self-improvement pipelines",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T22:54:38Z",
+    "pr_number": 226,
+    "pr_title": "Only sleep long when analysis tasks are blocked in backlog",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T21:18:09Z",
+    "pr_number": 222,
+    "pr_title": "Fix idle loop spinning when analysis is rate-limited",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T11:05:09Z",
+    "pr_number": 221,
+    "pr_title": "Fix: integrate MNE translations into analysis pipeline",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T10:11:56Z",
+    "pr_number": 220,
+    "pr_title": "Fix mobile layout: sidebar nav items not visible",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T09:53:01Z",
+    "pr_number": 216,
+    "pr_title": "Add self-healing safeguards for the main loop",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T09:27:52Z",
+    "pr_number": 215,
+    "pr_title": "Fix append_system_prompt breakage from claude-agent-sdk migration",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T03:48:18Z",
+    "pr_number": 205,
+    "pr_title": "Add change impact feedback loop for Directors",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T03:24:18Z",
+    "pr_number": 200,
+    "pr_title": "Fix: commit output data immediately after analysis",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T03:01:02Z",
+    "pr_number": 199,
+    "pr_title": "Fix editorial review ARG_MAX crash and placeholder tweets",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T02:52:08Z",
+    "pr_number": 198,
+    "pr_title": "Tell Directors that activity gaps are normal",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T02:48:33Z",
+    "pr_number": 197,
+    "pr_title": "sync docs with current project state",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T02:45:39Z",
+    "pr_number": 196,
+    "pr_title": "Reorder scorecard: critic + counter-proposal before wall-of-text",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T02:41:24Z",
+    "pr_number": 195,
+    "pr_title": "Add Tourism + Environment ministries, Cabinet page, bloat guardrails",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T02:30:55Z",
+    "pr_number": 194,
+    "pr_title": "Fix bilingual nav test for sidebar layout",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T02:29:13Z",
+    "pr_number": 193,
+    "pr_title": "Fix scorecard localization issues",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T00:58:37Z",
+    "pr_number": 192,
+    "pr_title": "Move navigation to fixed left sidebar",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T00:37:31Z",
+    "pr_number": 191,
+    "pr_title": "Add bilingual support for Constitution and News pages",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T00:22:04Z",
+    "pr_number": 189,
+    "pr_title": "Add bilingual Challenges page",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T00:15:37Z",
+    "pr_number": 188,
+    "pr_title": "Rename src/ai_government to government, theseus-fleet to theseus",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T00:08:44Z",
+    "pr_number": 187,
+    "pr_title": "Rename dev-fleet to theseus-fleet",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-16T00:05:10Z",
+    "pr_number": 186,
+    "pr_title": "Add Research Scout agent (Phase F)",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-15T23:49:50Z",
+    "pr_number": 185,
+    "pr_title": "Add bilingual Architecture Decisions page",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-15T23:29:53Z",
+    "pr_number": 184,
+    "pr_title": "docs: document strategic trade-offs (ADRs 018-023)",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-15T23:26:42Z",
+    "pr_number": 183,
+    "pr_title": "Bilingual site overhaul + PR merge transparency tracking",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-15T00:38:22Z",
+    "pr_number": 123,
+    "pr_title": "Sleep until rate limit clears instead of spinning every 60s",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T23:43:57Z",
+    "pr_number": 116,
+    "pr_title": "Commit analysis results to fix 404 scorecard pages",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T23:23:44Z",
+    "pr_number": 111,
+    "pr_title": "Skip news scout when analysis backlog full; ban personal names in output",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T22:02:27Z",
+    "pr_number": 99,
+    "pr_title": "Switch agent prompts to English output",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T21:54:29Z",
+    "pr_number": 98,
+    "pr_title": "Update default model to Claude Opus 4.6",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T21:47:49Z",
+    "pr_number": 97,
+    "pr_title": "Translate entire site to English",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T21:28:15Z",
+    "pr_number": 95,
+    "pr_title": "Translate about page to Montenegrin",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T21:24:21Z",
+    "pr_number": 94,
+    "pr_title": "Fix Pregled 404 and update site title",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T21:19:19Z",
+    "pr_number": 93,
+    "pr_title": "Add daily digest pages to static site",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T20:46:52Z",
+    "pr_number": 92,
+    "pr_title": "Add News Scout agent for daily news ingestion",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T20:26:36Z",
+    "pr_number": 91,
+    "pr_title": "Align agent SDK usage with best practices",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T20:17:23Z",
+    "pr_number": 90,
+    "pr_title": "Add Project Director agent with telemetry-driven process improvement",
+    "actor": "vindl",
+    "issue_number": 82
+  },
+  {
+    "timestamp": "2026-02-14T19:55:28Z",
+    "pr_number": 88,
+    "pr_title": "Update .env.example to match current Docker setup",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T19:43:54Z",
+    "pr_number": 87,
+    "pr_title": "Uncap agent turns and improve issue scoping",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T19:27:48Z",
+    "pr_number": 86,
+    "pr_title": "Fix failed issues being re-ingested to backlog in infinite loop",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T19:09:31Z",
+    "pr_number": 85,
+    "pr_title": "Enforce test writing in coder and reviewer prompts",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T19:03:50Z",
+    "pr_number": 84,
+    "pr_title": "Make loop resilient to transient GitHub API failures",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T14:47:49Z",
+    "pr_number": 27,
+    "pr_title": "Tell reviewer agent not to paste raw terminal output in PR comments",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T14:44:28Z",
+    "pr_number": 26,
+    "pr_title": "Add community infrastructure \u2014 Discussions, templates, contributing guide",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T13:59:30Z",
+    "pr_number": 22,
+    "pr_title": "Add GitHub Projects integration as workflow view layer",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T13:23:59Z",
+    "pr_number": 21,
+    "pr_title": "Add counter-proposals \u2014 AI Government as a parallel body",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T12:55:06Z",
+    "pr_number": 20,
+    "pr_title": "Add X daily digest posting to main loop",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T12:04:00Z",
+    "pr_number": 19,
+    "pr_title": "Add GitHub Pages static site for public scorecards",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T10:45:16Z",
+    "pr_number": 12,
+    "pr_title": "Unify main loop: analysis + self-improvement in one cycle",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T10:20:39Z",
+    "pr_number": 11,
+    "pr_title": "Dockerize self-improvement loop for host isolation",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T10:05:54Z",
+    "pr_number": 10,
+    "pr_title": "Reframe debate as constructive refinement, standardize attribution",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T09:55:56Z",
+    "pr_number": 9,
+    "pr_title": "Make reviewer agent more critical with inline comments",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T09:31:29Z",
+    "pr_number": 8,
+    "pr_title": "Add rebuttal round to debate and prefix all AI output",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T09:25:44Z",
+    "pr_number": 7,
+    "pr_title": "Make self-improvement loop self-improvable via os.execv",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T09:20:22Z",
+    "pr_number": 3,
+    "pr_title": "Add autonomous self-improvement loop",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T08:52:26Z",
+    "pr_number": 2,
+    "pr_title": "Add PR workflow, project constitution, and doc conventions",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-14T08:05:43Z",
+    "pr_number": 1,
+    "pr_title": "Add sponsorship button",
     "actor": "vindl",
     "issue_number": null
   }

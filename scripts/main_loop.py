@@ -1113,7 +1113,7 @@ def collect_pr_merges() -> list[PRMerge]:
             continue
 
         # Tag human-initiated PRs on GitHub for visibility
-        pr_labels = [l.get("name", "") for l in pr.get("labels", [])]
+        pr_labels = [label.get("name", "") for label in pr.get("labels", [])]
         if "human-initiated" not in pr_labels:
             _run_gh(
                 ["gh", "pr", "edit", str(pr["number"]), "--add-label", "human-initiated"],

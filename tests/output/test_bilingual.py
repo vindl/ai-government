@@ -186,7 +186,7 @@ class TestBilingualScorecardRendering:
         builder = SiteBuilder(tmp_path)
         result = _make_bilingual_result()
         builder._build_scorecards([result])
-        path = tmp_path / "decisions" / "bi-001.html"
+        path = tmp_path / "analyses" / "bi-001.html"
         return path.read_text()
 
     @pytest.fixture()
@@ -194,7 +194,7 @@ class TestBilingualScorecardRendering:
         builder = SiteBuilder(tmp_path)
         result = _make_english_only_result()
         builder._build_scorecards([result])
-        path = tmp_path / "decisions" / "en-001.html"
+        path = tmp_path / "analyses" / "en-001.html"
         return path.read_text()
 
     def test_contains_language_toggle(self, bilingual_html: str) -> None:
@@ -300,7 +300,7 @@ class TestBilingualMetaLabels:
         builder = SiteBuilder(tmp_path)
         result = _make_bilingual_result()
         builder._build_scorecards([result])
-        path = tmp_path / "decisions" / "bi-001.html"
+        path = tmp_path / "analyses" / "bi-001.html"
         return path.read_text()
 
     def test_no_dual_datum_date_label(self, bilingual_html: str) -> None:
@@ -321,7 +321,7 @@ class TestBilingualMinistryNames:
         builder = SiteBuilder(tmp_path)
         result = _make_bilingual_result()
         builder._build_scorecards([result])
-        path = tmp_path / "decisions" / "bi-001.html"
+        path = tmp_path / "analyses" / "bi-001.html"
         return path.read_text()
 
     def test_mne_ministry_name_in_cards(self, bilingual_html: str) -> None:
@@ -340,7 +340,7 @@ class TestBilingualCounterProposalFields:
         builder = SiteBuilder(tmp_path)
         result = _make_bilingual_result()
         builder._build_scorecards([result])
-        path = tmp_path / "decisions" / "bi-001.html"
+        path = tmp_path / "analyses" / "bi-001.html"
         return path.read_text()
 
     def test_key_changes_mne_rendered(self, bilingual_html: str) -> None:

@@ -80,12 +80,12 @@ class TestGlobalLanguageToggle:
         html = self._read(site_dir, "index.html")
         assert 'class="lang-toggle"' in html
 
-    def test_toggle_on_decisions_index(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/index.html")
+    def test_toggle_on_analyses_index(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "analyses/index.html")
         assert 'class="lang-toggle"' in html
 
     def test_toggle_on_scorecard(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/chrome-001.html")
+        html = self._read(site_dir, "analyses/chrome-001.html")
         assert 'class="lang-toggle"' in html
 
     def test_toggle_on_constitution(self, site_dir: Path) -> None:
@@ -105,7 +105,7 @@ class TestScoreardToggleRemoved:
     """The toggle should live only in base.html, not duplicated in scorecard."""
 
     def test_only_one_toggle_in_scorecard(self, site_dir: Path) -> None:
-        html = (site_dir / "decisions" / "chrome-001.html").read_text()
+        html = (site_dir / "analyses" / "chrome-001.html").read_text()
         # Should have exactly one lang-toggle (from base.html nav)
         assert html.count('class="lang-toggle"') == 1
 
@@ -122,14 +122,14 @@ class TestBilingualNav:
         return html[start:end]
 
     def test_nav_contains_mne_links(self, nav_html: str) -> None:
-        assert "Odluke" in nav_html
+        assert "Analize" in nav_html
         assert "Transparentnost" in nav_html
         assert "Ustav" in nav_html
         assert "Vijesti" in nav_html
         assert "Kabinet" in nav_html
 
     def test_nav_contains_en_links(self, nav_html: str) -> None:
-        assert "Decisions" in nav_html
+        assert "Analyses" in nav_html
         assert "Transparency" in nav_html
         assert "Constitution" in nav_html
         assert "News" in nav_html
@@ -180,11 +180,11 @@ class TestIndexPageBilingual:
     def test_en_heading(self, html: str) -> None:
         assert "AI Government of Montenegro" in html
 
-    def test_mne_latest_decisions(self, html: str) -> None:
-        assert "Posljednje odluke" in html
+    def test_mne_latest_analyses(self, html: str) -> None:
+        assert "Posljednje analize" in html
 
-    def test_en_latest_decisions(self, html: str) -> None:
-        assert "Latest Decisions" in html
+    def test_en_latest_analyses(self, html: str) -> None:
+        assert "Latest Analyses" in html
 
     def test_mne_cta(self, html: str) -> None:
         assert "Predložite odluku za analizu" in html
@@ -193,24 +193,24 @@ class TestIndexPageBilingual:
         assert "Suggest a decision for analysis" in html
 
 
-class TestDecisionsIndexBilingual:
-    """decisions_index.html has bilingual headings."""
+class TestAnalysesIndexBilingual:
+    """decisions_index.html (now analyses/) has bilingual headings."""
 
     @pytest.fixture()
     def html(self, site_dir: Path) -> str:
-        return (site_dir / "decisions" / "index.html").read_text()
+        return (site_dir / "analyses" / "index.html").read_text()
 
     def test_mne_heading(self, html: str) -> None:
-        assert "Sve odluke" in html
+        assert "Sve analize" in html
 
     def test_en_heading(self, html: str) -> None:
-        assert "All Decisions" in html
+        assert "All Analyses" in html
 
     def test_mne_description(self, html: str) -> None:
-        assert "Kompletna lista analiziranih vladinih odluka" in html
+        assert "Kompletna lista analiza vladinih odluka" in html
 
     def test_en_description(self, html: str) -> None:
-        assert "Complete list of analyzed government decisions" in html
+        assert "Complete list of government decision analyses" in html
 
 
 class TestTransparencyPageBilingual:
@@ -290,18 +290,18 @@ class TestTransparencyPageWithData:
         assert "Human-directed task" in html
 
     def test_pr_merge_has_type_label(self, html: str) -> None:
-        assert "PR merged" in html
-        assert "PR spojen" in html
+        assert "Human-initiated PR" in html
+        assert "PR kreiran od strane covjeka" in html
 
     def test_mne_labels(self, html: str) -> None:
         assert "Akter" in html
         assert "Podnio" in html
-        assert "Spojio" in html
+        assert "Autor:" in html
 
     def test_en_labels(self, html: str) -> None:
         assert "Actor:" in html
         assert "Filed by:" in html
-        assert "Merged by:" in html
+        assert "Author:" in html
 
     def test_all_entries_use_override_record_class(self, html: str) -> None:
         assert html.count("override-record") == 3
@@ -330,36 +330,36 @@ class TestBilingualDecisionTitles:
         html = self._read(site_dir, "index.html")
         assert "A test decision." in html
 
-    def test_decisions_index_has_mne_title(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/index.html")
+    def test_analyses_index_has_mne_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "analyses/index.html")
         assert '<span class="lang-mne">Testna odluka</span>' in html
 
-    def test_decisions_index_has_en_title(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/index.html")
+    def test_analyses_index_has_en_title(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "analyses/index.html")
         assert '<span class="lang-en">Test Decision</span>' in html
 
-    def test_decisions_index_has_mne_summary(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/index.html")
+    def test_analyses_index_has_mne_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "analyses/index.html")
         assert "Testna odluka opis." in html
 
-    def test_decisions_index_has_en_summary(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/index.html")
+    def test_analyses_index_has_en_summary(self, site_dir: Path) -> None:
+        html = self._read(site_dir, "analyses/index.html")
         assert "A test decision." in html
 
     def test_scorecard_has_mne_title(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/chrome-001.html")
+        html = self._read(site_dir, "analyses/chrome-001.html")
         assert '<h1 class="lang-mne">Testna odluka</h1>' in html
 
     def test_scorecard_has_en_title(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/chrome-001.html")
+        html = self._read(site_dir, "analyses/chrome-001.html")
         assert '<h1 class="lang-en">Test Decision</h1>' in html
 
     def test_scorecard_has_mne_summary(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/chrome-001.html")
+        html = self._read(site_dir, "analyses/chrome-001.html")
         assert "Testna odluka opis." in html
 
     def test_scorecard_has_en_summary(self, site_dir: Path) -> None:
-        html = self._read(site_dir, "decisions/chrome-001.html")
+        html = self._read(site_dir, "analyses/chrome-001.html")
         assert "A test decision." in html
 
 class TestBilingualTitlesBackwardCompat:
@@ -406,6 +406,6 @@ class TestBilingualTitlesBackwardCompat:
         # No lang-mne span for the title since title_mne is empty
         assert "lang-mne" not in html or '<span class="lang-mne">English Only Title' not in html
 
-    def test_decisions_index_no_lang_class_when_empty(self, site_dir_no_mne: Path) -> None:
-        html = (site_dir_no_mne / "decisions" / "index.html").read_text()
+    def test_analyses_index_no_lang_class_when_empty(self, site_dir_no_mne: Path) -> None:
+        html = (site_dir_no_mne / "analyses" / "index.html").read_text()
         assert "English Only Title" in html

@@ -326,25 +326,23 @@ class TestComposeAnalysisTweet:
         tweets = compose_analysis_tweet(result)
         assert "Score: 7/10" in tweets.en
 
-    def test_en_tweet_has_globe_prefix(self) -> None:
-        """English reply should start with a globe emoji."""
+    def test_me_tweet_has_flag_prefix(self) -> None:
+        """Montenegrin reply should start with a flag emoji."""
         result = _make_result(
             "d1", "Budget Law", date(2026, 2, 14),
             critic_score=7, headline="Strong fiscal policy",
         )
         tweets = compose_analysis_tweet(result)
-        assert tweets.en.startswith("\U0001f310")
+        assert tweets.me.startswith("\U0001f1f2\U0001f1ea")
 
-    def test_me_tweet_leads_with_headline(self) -> None:
-        """Montenegrin tweet should start with the headline."""
+    def test_en_tweet_leads_with_headline(self) -> None:
+        """English primary tweet should start with the headline."""
         result = _make_result(
             "d1", "Budget Law", date(2026, 2, 14),
             critic_score=7, headline="Strong fiscal policy for Montenegro",
         )
-        tweets = compose_analysis_tweet(
-            result, headline_me="Jaka fiskalna politika",
-        )
-        assert tweets.me.startswith("Jaka fiskalna politika")
+        tweets = compose_analysis_tweet(result)
+        assert tweets.en.startswith("Strong fiscal policy for Montenegro")
 
     def test_no_official_title(self) -> None:
         """Official decision title should NOT appear in either tweet."""
@@ -373,8 +371,8 @@ class TestComposeAnalysisTweet:
             critic_score=7, headline="Strong fiscal policy",
         )
         tweets = compose_analysis_tweet(result)
-        assert "/decisions/d1.html" in tweets.me
-        assert "/decisions/d1.html" in tweets.en
+        assert "/analyses/d1.html" in tweets.me
+        assert "/analyses/d1.html" in tweets.en
 
     def test_both_tweets_fit_280_chars(self) -> None:
         """Both tweets must independently fit within 280 characters."""
@@ -415,8 +413,8 @@ class TestComposeAnalysisTweet:
         tweets = compose_analysis_tweet(result)
         assert "Ocjena: 7/10" in tweets.me
         assert "Score: 7/10" in tweets.en
-        assert "/decisions/d1.html" in tweets.me
-        assert "/decisions/d1.html" in tweets.en
+        assert "/analyses/d1.html" in tweets.me
+        assert "/analyses/d1.html" in tweets.en
         assert len(tweets.me) <= MAX_TWEET_LENGTH
         assert len(tweets.en) <= MAX_TWEET_LENGTH
 
@@ -464,7 +462,7 @@ class TestComposeAnalysisTweet:
 
 class TestTryPostAnalysis:
     def test_successful_post_creates_thread(self) -> None:
-        """try_post_analysis should post MNE primary and EN reply."""
+        """try_post_analysis should post EN primary and MNE reply."""
         with (
             patch("government.output.twitter.load_state") as mock_load,
             patch("government.output.twitter.save_state") as mock_save,
@@ -539,7 +537,7 @@ class TestTryPostAnalysis:
         mock_post.assert_called_once()
 
     def test_reply_failure_still_succeeds(self) -> None:
-        """If the EN reply fails, the post is still considered successful."""
+        """If the MNE reply fails, the post is still considered successful."""
         with (
             patch("government.output.twitter.load_state") as mock_load,
             patch("government.output.twitter.save_state") as mock_save,

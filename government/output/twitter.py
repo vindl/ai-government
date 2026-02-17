@@ -24,10 +24,10 @@ STATE_FILE = Path("output/twitter_state.json")
 
 
 class BilingualTweet(NamedTuple):
-    """A bilingual tweet pair: Montenegrin primary + English reply."""
+    """A bilingual tweet pair: English primary + Montenegrin reply."""
 
-    me: str  # Montenegrin (primary tweet)
-    en: str  # English (thread reply)
+    en: str  # English (primary tweet)
+    me: str  # Montenegrin (thread reply)
 
 
 def translate_headline(headline: str) -> str:
@@ -135,27 +135,27 @@ def compose_analysis_tweet(
 ) -> BilingualTweet:
     """Build a bilingual tweet pair for a single completed analysis.
 
-    Returns a ``BilingualTweet`` with Montenegrin primary and English reply.
+    Returns a ``BilingualTweet`` with English primary and Montenegrin reply.
 
-    Montenegrin format::
+    English format::
 
-        <headline_me>
-
-        Ocjena: X/10
-
-        <link>
-
-        #AIVlada #CrnaGora
-
-    English reply::
-
-        🌐 <headline_en>
+        <headline_en>
 
         Score: X/10
 
         <link>
 
         #AIGovernment #Montenegro
+
+    Montenegrin reply::
+
+        🇲🇪 <headline_me>
+
+        Ocjena: X/10
+
+        <link>
+
+        #AIVlada #CrnaGora
 
     If *headline_me* is not provided, the English headline is used as-is for
     the Montenegrin tweet (caller should translate beforehand).
@@ -164,34 +164,34 @@ def compose_analysis_tweet(
     headline_en = result.critic_report.headline if result.critic_report else ""
     if not headline_me:
         headline_me = headline_en
-    link = f"{SITE_BASE_URL}/decisions/{result.decision.id}.html"
+    link = f"{SITE_BASE_URL}/analyses/{result.decision.id}.html"
 
-    # --- Montenegrin primary tweet ---
-    me_suffix = f"\n\nOcjena: {score}/10\n\n{link}\n\n#AIVlada #CrnaGora"
-    if headline_me:
-        max_hl = MAX_TWEET_LENGTH - len(me_suffix)
-        me_text = _truncate_at_word_boundary(headline_me, max_hl) + me_suffix
-    else:
-        me_text = f"Ocjena: {score}/10\n\n{link}\n\n#AIVlada #CrnaGora"
-    me_text = me_text[:MAX_TWEET_LENGTH]
-
-    # --- English reply ---
+    # --- English primary tweet ---
     en_suffix = f"\n\nScore: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"
-    en_prefix = "\U0001f310 "  # 🌐
     if headline_en:
-        max_hl = MAX_TWEET_LENGTH - len(en_suffix) - len(en_prefix)
-        en_text = en_prefix + _truncate_at_word_boundary(headline_en, max_hl) + en_suffix
+        max_hl = MAX_TWEET_LENGTH - len(en_suffix)
+        en_text = _truncate_at_word_boundary(headline_en, max_hl) + en_suffix
     else:
-        en_text = f"\U0001f310 Score: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"
+        en_text = f"Score: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"
     en_text = en_text[:MAX_TWEET_LENGTH]
 
-    return BilingualTweet(me=me_text, en=en_text)
+    # --- Montenegrin thread reply ---
+    me_suffix = f"\n\nOcjena: {score}/10\n\n{link}\n\n#AIVlada #CrnaGora"
+    me_prefix = "\U0001f1f2\U0001f1ea "  # 🇲🇪
+    if headline_me:
+        max_hl = MAX_TWEET_LENGTH - len(me_suffix) - len(me_prefix)
+        me_text = me_prefix + _truncate_at_word_boundary(headline_me, max_hl) + me_suffix
+    else:
+        me_text = f"\U0001f1f2\U0001f1ea Ocjena: {score}/10\n\n{link}\n\n#AIVlada #CrnaGora"
+    me_text = me_text[:MAX_TWEET_LENGTH]
+
+    return BilingualTweet(en=en_text, me=me_text)
 
 
 def try_post_analysis(result: SessionResult) -> bool:
     """Post a bilingual tweet thread for a completed analysis.
 
-    Posts a Montenegrin primary tweet and an English reply thread.
+    Posts an English primary tweet and a Montenegrin reply thread.
     Both tweets count as a single post toward the monthly limit.
 
     Returns True if posted, False otherwise. Non-fatal.
@@ -218,22 +218,22 @@ def try_post_analysis(result: SessionResult) -> bool:
     headline_me = translate_headline(headline_en)
 
     tweets = compose_analysis_tweet(result, headline_me=headline_me)
-    if not tweets.me:
+    if not tweets.en:
         return False
 
-    log.info("Composed analysis tweet (MNE):\n%s", tweets.me)
     log.info("Composed analysis tweet (EN):\n%s", tweets.en)
+    log.info("Composed analysis tweet (MNE):\n%s", tweets.me)
 
-    # Post Montenegrin primary
-    tweet_id = post_tweet(tweets.me)
+    # Post English primary
+    tweet_id = post_tweet(tweets.en)
     if tweet_id is None:
         return False
 
-    # Post English reply in thread
-    if tweets.en:
-        reply_id = post_tweet(tweets.en, in_reply_to_tweet_id=tweet_id)
+    # Post Montenegrin reply in thread
+    if tweets.me:
+        reply_id = post_tweet(tweets.me, in_reply_to_tweet_id=tweet_id)
         if reply_id is None:
-            log.warning("Failed to post English reply — primary tweet still posted")
+            log.warning("Failed to post Montenegrin reply — primary tweet still posted")
 
     state.last_posted_at = datetime.now(UTC)
     state.posted_decision_ids.append(result.decision.id)

@@ -306,6 +306,40 @@ class TestNewsScoutPromptContent:
 
         assert "Recent Category Distribution" in content
 
+    def test_prompt_includes_official_gazette(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "sluzbenilist.me" in content
+        assert "Službeni list Crne Gore" in content
+        # Should have specific search guidance, not just a name
+        for term in ["zakoni", "uredbe", "odluke"]:
+            assert term in content
+
+    def test_prompt_includes_parliament_website(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "skupstina.me" in content
+        assert "Skupština Crne Gore" in content
+        # Should have specific search guidance
+        assert "plenary" in content.lower() or "session" in content.lower()
+        assert "committee" in content.lower()
+
+    def test_existing_sources_unchanged(self) -> None:
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        for source in [
+            "vijesti.me",
+            "rtcg.me",
+            "pobjeda.me",
+            "gov.me",
+            "cdm.me",
+            "portalanalitika.me",
+        ]:
+            assert source in content
+
 
 class TestDecisionJsonEmbedding:
     """Test that we can embed and extract GovernmentDecision JSON from issue bodies."""

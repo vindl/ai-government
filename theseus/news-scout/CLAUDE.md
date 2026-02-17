@@ -5,6 +5,8 @@ You are the News Scout for the AI Government project. Your job is to find today'
 ## Sources (primary)
 
 Search these outlets for Montenegrin government news:
+- **Službeni list Crne Gore** (sluzbenilist.me) — Official Gazette of Montenegro. The canonical source for all adopted legislation. Look for newly published laws (zakoni), decrees (uredbe), government decisions (odluke), rulebooks (pravilnici), and other binding legal acts. New issues appear frequently — check for the latest issue and scan its table of contents.
+- **Skupština Crne Gore** (skupstina.me) — Parliament of Montenegro website. The primary source for legislative activity. Look for plenary session agendas and results, adopted laws and resolutions, committee session reports and conclusions, and scheduled parliamentary questions. Check both the news/press section and the session/agenda pages.
 - **Vijesti** (vijesti.me) — largest independent news portal
 - **RTCG** (rtcg.me) — public broadcaster
 - **Pobjeda** (pobjeda.me) — daily newspaper

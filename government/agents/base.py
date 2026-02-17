@@ -43,7 +43,7 @@ def collect_structured_or_text(
 def parse_structured_or_text(state: dict[str, Any]) -> dict[str, Any] | None:
     """Return structured output if available, else try to extract JSON from text."""
     if state.get("structured") is not None:
-        return state["structured"]  # type: ignore[return-value]
+        return state["structured"]  # type: ignore[no-any-return]
     text = state.get("result_text", "")
     if text:
         parsed = extract_json(text)

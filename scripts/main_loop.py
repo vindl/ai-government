@@ -1643,6 +1643,31 @@ async def step_execute_analysis(
             mark_issue_failed(issue_number, reason)
             return False
 
+        # Pipeline health check — catch systemic failures before publishing
+        health = results[0].check_health()
+        if not health.passed:
+            failure_details = "; ".join(health.failures)
+            reason = f"Pipeline health check failed: {failure_details}"
+            log.error(
+                "Health check failed for issue #%d (%d/%d assessments failed): %s",
+                issue_number, health.failed_assessments,
+                health.total_assessments, failure_details,
+            )
+            mark_issue_failed(issue_number, reason)
+            _log_error(
+                "step_execute_analysis",
+                RuntimeError(reason),
+                issue_number=issue_number,
+            )
+            return False
+
+        if health.failures:
+            # Some components failed but not enough to block — log warnings
+            log.warning(
+                "Health check warnings for issue #%d: %s",
+                issue_number, "; ".join(health.failures),
+            )
+
         # Translate to Montenegrin (non-fatal — English-only is better than no publish)
         try:
             from government.output.localization import localize_result

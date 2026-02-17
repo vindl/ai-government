@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import anyio
@@ -26,6 +27,65 @@ from government.models.decision import GovernmentDecision
 if TYPE_CHECKING:
     from government.agents.base import GovernmentAgent
 
+log = logging.getLogger(__name__)
+
+# Sentinel strings used in agent fallbacks to detect failed responses.
+FALLBACK_MARKERS: frozenset[str] = frozenset({
+    "could not be fully parsed",
+    "No response received",
+    "Response parsing failed",
+    "No debate generated",
+    "No review generated",
+    "Synthesis not generated",
+    "Synthesis of ministry counter-proposals failed",
+    "Analiza u toku",
+})
+
+
+def _is_fallback_assessment(assessment: Assessment) -> bool:
+    """Return True if the assessment looks like an agent fallback."""
+    text = f"{assessment.summary} {assessment.reasoning} {' '.join(assessment.key_concerns)}"
+    return any(marker in text for marker in FALLBACK_MARKERS)
+
+
+def _is_fallback_debate(debate: ParliamentDebate | None) -> bool:
+    """Return True if the debate is missing or a fallback."""
+    if debate is None:
+        return True
+    text = f"{debate.consensus_summary} {debate.debate_transcript}"
+    return any(marker in text for marker in FALLBACK_MARKERS)
+
+
+def _is_fallback_critic(report: CriticReport | None) -> bool:
+    """Return True if the critic report is missing or a fallback."""
+    if report is None:
+        return True
+    text = f"{report.overall_analysis} {report.headline} {' '.join(report.blind_spots)}"
+    return any(marker in text for marker in FALLBACK_MARKERS)
+
+
+def _is_fallback_counter_proposal(proposal: CounterProposal | None) -> bool:
+    """Return True if the counter-proposal is missing or a fallback."""
+    if proposal is None:
+        return True
+    text = (
+        f"{proposal.executive_summary} {proposal.detailed_proposal} "
+        f"{' '.join(proposal.ministry_contributions)}"
+    )
+    return any(marker in text for marker in FALLBACK_MARKERS)
+
+
+class PipelineHealthCheck(BaseModel):
+    """Result of a pipeline health check on a SessionResult."""
+
+    passed: bool = Field(description="Whether the analysis is healthy enough to publish")
+    failed_assessments: int = Field(description="Number of ministry assessments that failed")
+    total_assessments: int = Field(description="Total number of ministry assessments")
+    debate_failed: bool = Field(description="Whether the parliament debate failed")
+    critic_failed: bool = Field(description="Whether the critic report failed")
+    counter_proposal_failed: bool = Field(description="Whether the counter-proposal failed")
+    failures: list[str] = Field(default_factory=list, description="List of failure descriptions")
+
 
 class SessionResult(BaseModel):
     """Complete result of a cabinet session for one decision."""
@@ -35,6 +95,61 @@ class SessionResult(BaseModel):
     debate: ParliamentDebate | None = None
     critic_report: CriticReport | None = None
     counter_proposal: CounterProposal | None = None
+
+    def check_health(self) -> PipelineHealthCheck:
+        """Validate that the pipeline produced substantive output.
+
+        Returns a PipelineHealthCheck indicating whether the analysis is
+        healthy enough to publish. A result is considered unhealthy (and
+        should not be published) when the majority of assessments are
+        fallbacks, signaling a systemic pipeline failure.
+        """
+        failed_assessments = sum(
+            1 for a in self.assessments if _is_fallback_assessment(a)
+        )
+        total = len(self.assessments)
+        debate_failed = _is_fallback_debate(self.debate)
+        critic_failed = _is_fallback_critic(self.critic_report)
+        cp_failed = _is_fallback_counter_proposal(self.counter_proposal)
+
+        failures: list[str] = []
+
+        if total == 0:
+            failures.append("No ministry assessments were produced")
+        elif failed_assessments == total:
+            failures.append(
+                f"All {total} ministry assessments failed (fallback responses)"
+            )
+        elif failed_assessments > total // 2:
+            failures.append(
+                f"{failed_assessments}/{total} ministry assessments failed "
+                f"(majority are fallback responses)"
+            )
+
+        if debate_failed:
+            failures.append("Parliament debate is missing or a fallback")
+        if critic_failed:
+            failures.append("Critic report is missing or a fallback")
+        if cp_failed:
+            failures.append("Counter-proposal is missing or a fallback")
+
+        # The pipeline fails health check when the majority of assessments
+        # are fallbacks. Individual component failures (debate, critic,
+        # counter-proposal) are noted but don't alone block publishing.
+        passed = (
+            total > 0
+            and failed_assessments <= total // 2
+        )
+
+        return PipelineHealthCheck(
+            passed=passed,
+            failed_assessments=failed_assessments,
+            total_assessments=total,
+            debate_failed=debate_failed,
+            critic_failed=critic_failed,
+            counter_proposal_failed=cp_failed,
+            failures=failures,
+        )
 
 
 class Orchestrator:

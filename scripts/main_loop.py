@@ -72,6 +72,8 @@ ERROR_PATTERN_WINDOW = 5
 ERROR_PATTERN_THRESHOLD = 3
 CIRCUIT_BREAKER_THRESHOLD = 3
 MAX_BACKOFF_SECONDS = 1800  # 30 minutes
+SDK_RETRY_ATTEMPTS = 2  # retries *after* the first attempt (3 total tries)
+SDK_RETRY_BASE_DELAY = 5  # seconds between retries
 
 # Signatures that indicate a transient SDK/API outage (not a code bug).
 # These should NOT trigger the circuit breaker.
@@ -375,6 +377,50 @@ async def _collect_structured_output(
     with anyio.fail_after(timeout_seconds):
         await _drain()
     return parse_structured_or_text(state)
+
+
+async def _run_sdk_with_retry(
+    prompt: str,
+    opts: ClaudeAgentOptions,
+    *,
+    retries: int = SDK_RETRY_ATTEMPTS,
+    base_delay: float = SDK_RETRY_BASE_DELAY,
+) -> str:
+    """Run an SDK query with retries for transient errors.
+
+    Wraps ``claude_agent_sdk.query()`` + ``_collect_agent_output()``.
+    On transient SDK failures (exit code 1, timeout), retries up to
+    ``retries`` times with linear backoff before re-raising.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(1 + retries):
+        try:
+            stream = claude_agent_sdk.query(prompt=prompt, options=opts)
+            return await _collect_agent_output(stream)
+        except Exception as exc:
+            last_exc = exc
+            if not _is_sdk_transient_error(exc):
+                raise
+            if attempt < retries:
+                delay = base_delay * (attempt + 1)
+                log.warning(
+                    "SDK transient error (attempt %d/%d), retrying in %ds: %s",
+                    attempt + 1,
+                    1 + retries,
+                    delay,
+                    exc,
+                )
+                await anyio.sleep(delay)
+            else:
+                log.warning(
+                    "SDK transient error (attempt %d/%d), giving up: %s",
+                    attempt + 1,
+                    1 + retries,
+                    exc,
+                )
+    # Should be unreachable, but satisfy the type checker
+    assert last_exc is not None
+    raise last_exc
 
 
 # ---------------------------------------------------------------------------
@@ -2091,8 +2137,7 @@ acceptance criteria. List specific files to change.",
     )
 
     log.info("Running PM agent to propose %d improvements...", num_proposals)
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    output = await _collect_agent_output(stream)
+    output = await _run_sdk_with_retry(prompt, opts)
 
     # Extract and validate JSON from the output
     raw = _parse_json_array(output)
@@ -2258,8 +2303,7 @@ Write a concise argument (~200 words) covering:
         allowed_tools=[],
         effort="medium",
     )
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    return await _collect_agent_output(stream)
+    return await _run_sdk_with_retry(prompt, opts)
 
 
 async def _run_skeptic_challenge(
@@ -2301,8 +2345,7 @@ Do NOT give a verdict yet. Just provide your feedback so the PM can refine.
         allowed_tools=[],
         effort="medium",
     )
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    return await _collect_agent_output(stream)
+    return await _run_sdk_with_retry(prompt, opts)
 
 
 async def _run_advocate_rebuttal(
@@ -2337,8 +2380,7 @@ Write a concise response (~200 words):
         allowed_tools=[],
         effort="medium",
     )
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    return await _collect_agent_output(stream)
+    return await _run_sdk_with_retry(prompt, opts)
 
 
 async def _run_skeptic_verdict(
@@ -2379,8 +2421,7 @@ When in doubt, accept.
         allowed_tools=[],
         effort="medium",
     )
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    return await _collect_agent_output(stream)
+    return await _run_sdk_with_retry(prompt, opts)
 
 
 # ---------------------------------------------------------------------------
@@ -3651,8 +3692,7 @@ Remember:
 
     try:
         log.info("Running Conductor agent...")
-        stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-        output = await _collect_agent_output(stream)
+        output = await _run_sdk_with_retry(prompt, opts)
 
         # Parse JSON object from output
         plan = _parse_conductor_plan(output)
@@ -3780,8 +3820,7 @@ Context:
     )
 
     log.info("Running recovery agent...")
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    output = await _collect_agent_output(stream)
+    output = await _run_sdk_with_retry(prompt, opts)
     return _parse_conductor_plan(output)
 
 

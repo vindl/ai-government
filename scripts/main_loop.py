@@ -60,6 +60,7 @@ if TYPE_CHECKING:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "claude-opus-4-6"
 DEFAULT_COOLDOWN_SECONDS = 60
+AGENT_TIMEOUT_SECONDS = 600  # 10 minutes — kill hung SDK subprocesses
 DEFAULT_PROPOSALS_PER_CYCLE = 1
 DEFAULT_MAX_PR_ROUNDS = 0  # 0 = unlimited
 DEFAULT_DIRECTOR_INTERVAL = 5
@@ -77,6 +78,7 @@ MAX_BACKOFF_SECONDS = 1800  # 30 minutes
 SDK_TRANSIENT_SIGNATURES = frozenset({
     "Command failed with exit code 1",
     "exit code: 1",
+    "timed out",
 })
 
 LABEL_PROPOSED = "self-improve:proposed"
@@ -335,18 +337,27 @@ def _sdk_options(
 
 async def _collect_agent_output(
     stream: AsyncIterator[claude_agent_sdk.Message],
+    *,
+    timeout_seconds: float = AGENT_TIMEOUT_SECONDS,
 ) -> str:
     text_parts: list[str] = []
-    async for message in stream:
-        if isinstance(message, AssistantMessage):
-            for block in message.content:
-                if isinstance(block, TextBlock):
-                    text_parts.append(block.text)
+
+    async def _drain() -> None:
+        async for message in stream:
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if isinstance(block, TextBlock):
+                        text_parts.append(block.text)
+
+    with anyio.fail_after(timeout_seconds):
+        await _drain()
     return "\n".join(text_parts)
 
 
 async def _collect_structured_output(
     stream: AsyncIterator[claude_agent_sdk.Message],
+    *,
+    timeout_seconds: float = AGENT_TIMEOUT_SECONDS,
 ) -> dict[str, Any] | None:
     """Collect structured output from an SDK stream.
 
@@ -356,8 +367,13 @@ async def _collect_structured_output(
     from government.agents.base import collect_structured_or_text, parse_structured_or_text
 
     state: dict[str, Any] = {}
-    async for message in stream:
-        collect_structured_or_text(message, state)
+
+    async def _drain() -> None:
+        async for message in stream:
+            collect_structured_or_text(message, state)
+
+    with anyio.fail_after(timeout_seconds):
+        await _drain()
     return parse_structured_or_text(state)
 
 
@@ -3677,6 +3693,8 @@ Remember:
 
 def _is_sdk_transient_error(exc: BaseException) -> bool:
     """Check if an exception looks like a transient SDK/API outage."""
+    if isinstance(exc, TimeoutError):
+        return True
     msg = str(exc)
     return any(sig in msg for sig in SDK_TRANSIENT_SIGNATURES)
 

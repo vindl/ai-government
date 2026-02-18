@@ -72,8 +72,8 @@ ERROR_PATTERN_WINDOW = 5
 ERROR_PATTERN_THRESHOLD = 3
 CIRCUIT_BREAKER_THRESHOLD = 3
 MAX_BACKOFF_SECONDS = 1800  # 30 minutes
-SDK_RETRY_ATTEMPTS = 2  # retries *after* the first attempt (3 total tries)
-SDK_RETRY_BASE_DELAY = 5  # seconds between retries
+SDK_RETRY_ATTEMPTS = 3  # retries *after* the first attempt (4 total tries)
+SDK_RETRY_BASE_DELAY = 5  # seconds between retries (exponential: 5, 10, 20)
 
 # Signatures that indicate a transient SDK/API outage (not a code bug).
 # These should NOT trigger the circuit breaker.
@@ -390,7 +390,7 @@ async def _run_sdk_with_retry(
 
     Wraps ``claude_agent_sdk.query()`` + ``_collect_agent_output()``.
     On transient SDK failures (exit code 1, timeout), retries up to
-    ``retries`` times with linear backoff before re-raising.
+    ``retries`` times with exponential backoff before re-raising.
     """
     last_exc: Exception | None = None
     for attempt in range(1 + retries):
@@ -402,7 +402,7 @@ async def _run_sdk_with_retry(
             if not _is_sdk_transient_error(exc):
                 raise
             if attempt < retries:
-                delay = base_delay * (attempt + 1)
+                delay = base_delay * (2 ** attempt)
                 log.warning(
                     "SDK transient error (attempt %d/%d), retrying in %ds: %s",
                     attempt + 1,
@@ -3853,9 +3853,23 @@ async def _dispatch_action(
                     log.info("Skipping proposals: %d improvement issues in backlog", len(non_analysis))
                     phase.detail = f"skipped ({len(non_analysis)} issues in backlog)"
                 else:
-                    proposals = await step_propose(
-                        num_proposals=DEFAULT_PROPOSALS_PER_CYCLE, model=model,
-                    )
+                    # Graceful degradation: if the SDK crashes after all retries,
+                    # treat as 0 proposals instead of failing the entire phase.
+                    # Human suggestion ingestion can still proceed.
+                    proposals: list[dict[str, str]] = []
+                    try:
+                        proposals = await step_propose(
+                            num_proposals=DEFAULT_PROPOSALS_PER_CYCLE, model=model,
+                        )
+                    except Exception as propose_exc:
+                        if _is_sdk_transient_error(propose_exc):
+                            log.warning(
+                                "Propose failed with transient SDK error after retries, "
+                                "continuing with 0 proposals: %s",
+                                propose_exc,
+                            )
+                        else:
+                            raise
                     telemetry.proposals_made = len(proposals)
                     pending_proposals.extend(proposals)
                     # Ingest human suggestions
@@ -4059,14 +4073,18 @@ def _check_error_patterns() -> None:
         if len(entries) < ERROR_PATTERN_THRESHOLD:
             return
 
-        # Collect all errors across recent cycles
+        # Collect all errors across recent cycles, skipping transient SDK errors
+        # that are already handled by _run_sdk_with_retry (same logic as circuit breaker).
         pattern_counts: Counter[str] = Counter()
         for entry in entries:
             for err in entry.errors:
                 # Extract a stable pattern: first line (exception class + message prefix)
                 pattern = err.strip().split("\n")[0][:120]
-                if pattern:
-                    pattern_counts[pattern] += 1
+                if not pattern:
+                    continue
+                if any(sig in pattern for sig in SDK_TRANSIENT_SIGNATURES):
+                    continue
+                pattern_counts[pattern] += 1
 
         # Find patterns that exceed threshold
         for pattern, count in pattern_counts.most_common():

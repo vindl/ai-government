@@ -126,8 +126,8 @@ class TestRunSDKWithRetry:
         assert collect_mock.call_count == 1
 
     @pytest.mark.anyio
-    async def test_backoff_delay_increases(self) -> None:
-        """Verify that delay increases linearly with each retry."""
+    async def test_backoff_delay_increases_exponentially(self) -> None:
+        """Verify that delay increases exponentially with each retry."""
         opts = _make_opts()
         transient_exc = Exception("Command failed with exit code 1")
         mock_stream = AsyncMock()
@@ -147,10 +147,10 @@ class TestRunSDKWithRetry:
             patch("main_loop.anyio.sleep", side_effect=fake_sleep),
             pytest.raises(Exception, match="exit code 1"),
         ):
-            await _run_sdk_with_retry("test prompt", opts, retries=2, base_delay=5)
+            await _run_sdk_with_retry("test prompt", opts, retries=3, base_delay=5)
 
-        # attempt 0 sleeps 5*1=5, attempt 1 sleeps 5*2=10, attempt 2 gives up (no sleep)
-        assert sleep_calls == [5, 10]
+        # exponential: 5*2^0=5, 5*2^1=10, 5*2^2=20, attempt 3 gives up (no sleep)
+        assert sleep_calls == [5, 10, 20]
 
     @pytest.mark.anyio
     async def test_timeout_error_is_retried(self) -> None:

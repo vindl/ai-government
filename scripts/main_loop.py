@@ -70,6 +70,14 @@ EDITORIAL_DIRECTOR_MAX_TURNS = 8
 ERROR_PATTERN_WINDOW = 5
 ERROR_PATTERN_THRESHOLD = 3
 CIRCUIT_BREAKER_THRESHOLD = 3
+MAX_BACKOFF_SECONDS = 1800  # 30 minutes
+
+# Signatures that indicate a transient SDK/API outage (not a code bug).
+# These should NOT trigger the circuit breaker.
+SDK_TRANSIENT_SIGNATURES = frozenset({
+    "Command failed with exit code 1",
+    "exit code: 1",
+})
 
 LABEL_PROPOSED = "self-improve:proposed"
 LABEL_BACKLOG = "self-improve:backlog"
@@ -3507,8 +3515,22 @@ def _default_plan(
     *,
     productive_cycles: int,
     dry_run: bool,
+    sdk_down: bool = False,
 ) -> ConductorPlan:
-    """Build a safe default plan when both Conductor and recovery agent fail."""
+    """Build a safe default plan when both Conductor and recovery agent fail.
+
+    When ``sdk_down`` is True, the API/SDK is unreachable — all LLM-dependent
+    actions would fail too.  Return a ``skip_cycle`` plan so the loop backs off
+    gracefully instead of burning through the circuit breaker.
+    """
+    if sdk_down:
+        return ConductorPlan(
+            reasoning="SDK/API appears down — skipping cycle to avoid wasted calls",
+            actions=[ConductorAction(action="skip_cycle", reason="SDK/API unreachable")],
+            suggested_cooldown_seconds=300,
+            notes_for_next_cycle="SDK was down; skipped cycle",
+        )
+
     actions: list[ConductorAction] = []
 
     if should_fetch_news():
@@ -3609,6 +3631,8 @@ Remember:
         effort="low",
     )
 
+    sdk_failures = 0
+
     try:
         log.info("Running Conductor agent...")
         stream = claude_agent_sdk.query(prompt=prompt, options=opts)
@@ -3619,8 +3643,12 @@ Remember:
         if plan is not None:
             return plan
         log.warning("Conductor returned no valid plan, trying recovery agent")
-    except Exception:
-        log.exception("Conductor agent failed, trying recovery agent")
+    except Exception as exc:
+        if _is_sdk_transient_error(exc):
+            sdk_failures += 1
+            log.warning("Conductor failed with transient SDK error: %s", exc)
+        else:
+            log.exception("Conductor agent failed, trying recovery agent")
 
     # Recovery agent
     try:
@@ -3633,13 +3661,24 @@ Remember:
         if plan is not None:
             return plan
         log.warning("Recovery agent returned no valid plan, using default")
-    except Exception:
-        log.exception("Recovery agent also failed, using default plan")
+    except Exception as exc:
+        if _is_sdk_transient_error(exc):
+            sdk_failures += 1
+            log.warning("Recovery agent failed with transient SDK error: %s", exc)
+        else:
+            log.exception("Recovery agent also failed, using default plan")
 
     return _default_plan(
         productive_cycles=productive_cycles,
         dry_run=dry_run,
+        sdk_down=sdk_failures >= 2,
     )
+
+
+def _is_sdk_transient_error(exc: BaseException) -> bool:
+    """Check if an exception looks like a transient SDK/API outage."""
+    msg = str(exc)
+    return any(sig in msg for sig in SDK_TRANSIENT_SIGNATURES)
 
 
 def _parse_conductor_plan(text: str) -> ConductorPlan | None:
@@ -4057,6 +4096,20 @@ def _check_circuit_breaker() -> None:
         if not common:
             return
 
+        # Don't circuit-break on transient SDK/API errors — those resolve
+        # on their own and the exponential backoff handles them.
+        common = {
+            sig for sig in common
+            if not any(ts in sig for ts in SDK_TRANSIENT_SIGNATURES)
+        }
+        if not common:
+            log.info(
+                "Circuit breaker: all %d common signatures are transient SDK errors, "
+                "not tripping (backoff will handle it)",
+                len(sigs_per_cycle[0]),
+            )
+            return
+
         banner = (
             "\n" + "!" * 60 + "\n"
             "CIRCUIT BREAKER TRIPPED\n"
@@ -4283,6 +4336,7 @@ def _reexec(
     max_pr_rounds: int,
     dry_run: bool,
     verbose: bool,
+    fail_streak: int = 0,
 ) -> None:
     """Re-exec the script to pick up any code changes from disk.
 
@@ -4319,6 +4373,8 @@ def _reexec(
         argv += ["--dry-run"]
     if verbose:
         argv += ["--verbose"]
+    if fail_streak > 0:
+        argv += ["--_fail-streak", str(fail_streak)]
 
     print(f"\n--- Re-execing to pick up latest code (cycle offset {cycle_offset}) ---\n")
     os.execv(sys.executable, argv)
@@ -4372,6 +4428,10 @@ def main() -> None:
         "--_productive-cycles-offset", type=int, default=0, dest="productive_cycles_offset",
         help=argparse.SUPPRESS,
     )
+    parser.add_argument(
+        "--_fail-streak", type=int, default=0, dest="fail_streak",
+        help=argparse.SUPPRESS,
+    )
 
     args = parser.parse_args()
 
@@ -4392,6 +4452,8 @@ def main() -> None:
         return
 
     suggested_cooldown = args.cooldown
+    fail_streak = args.fail_streak
+    cycle_failed = False
 
     async def _run() -> tuple[int, int]:
         return await run_one_cycle(
@@ -4411,6 +4473,7 @@ def main() -> None:
         # Layer 1: never crash the loop — record the error and move on
         log.exception("Cycle %d crashed at top level", cycle)
         _log_error("main_loop_cycle", exc)
+        cycle_failed = True
         try:
             partial = CycleTelemetry(
                 cycle=cycle,
@@ -4422,11 +4485,39 @@ def main() -> None:
         except Exception:
             log.exception("Failed to write crash telemetry")
 
-    # Cooldown: use Conductor's suggestion, but enforce minimum from CLI
+    # Check telemetry to detect SDK-down skip cycles (also count as failures
+    # for backoff purposes even though they don't throw exceptions)
+    if not cycle_failed:
+        try:
+            last = load_telemetry(TELEMETRY_PATH, last_n=1)
+            if last and last[0].conductor_fallback and last[0].errors:
+                cycle_failed = True
+        except Exception:
+            pass
+
+    # Update fail streak: reset on success, increment on failure
+    if cycle_failed:
+        fail_streak += 1
+        log.warning("Cycle %d failed (fail streak: %d)", cycle, fail_streak)
+    else:
+        if fail_streak > 0:
+            log.info("Cycle %d succeeded, resetting fail streak (was %d)", cycle, fail_streak)
+        fail_streak = 0
+
+    # Cooldown: use Conductor's suggestion, but enforce minimum from CLI.
+    # Apply exponential backoff when cycles keep failing.
     remaining = 0 if args.max_cycles > 0 and cycle >= args.max_cycles else 1
     if remaining:
         cooldown = max(suggested_cooldown, args.cooldown)
-        print(f"\nCooling down for {cooldown}s (Conductor suggested {suggested_cooldown}s)...")
+        if fail_streak > 0:
+            backoff = min(cooldown * (2 ** fail_streak), MAX_BACKOFF_SECONDS)
+            print(
+                f"\nFail streak {fail_streak}: backing off for {backoff}s "
+                f"(base {cooldown}s × 2^{fail_streak}, max {MAX_BACKOFF_SECONDS}s)"
+            )
+            cooldown = backoff
+        else:
+            print(f"\nCooling down for {cooldown}s (Conductor suggested {suggested_cooldown}s)...")
         time.sleep(cooldown)
 
         _reexec(
@@ -4438,6 +4529,7 @@ def main() -> None:
             max_pr_rounds=args.max_pr_rounds,
             dry_run=args.dry_run,
             verbose=args.verbose,
+            fail_streak=fail_streak,
         )
     else:
         print("\nMain loop finished.")

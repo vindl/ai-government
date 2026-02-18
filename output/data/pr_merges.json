@@ -1,5 +1,19 @@
 [
   {
+    "timestamp": "2026-02-18T22:36:06Z",
+    "pr_number": 286,
+    "pr_title": "Add 10-minute timeout to SDK agent calls",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-18T20:49:31Z",
+    "pr_number": 285,
+    "pr_title": "Add API crash resilience for main loop",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-17T04:07:02Z",
     "pr_number": 259,
     "pr_title": "Replace rigid main loop phases with Conductor agent",

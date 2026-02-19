@@ -39,7 +39,7 @@ class TestTranslateFieldsEffort:
             side_effect=fake_query,
         ):
             result = await _translate_fields(
-                {"headline": "Good news"}, "claude-sonnet-4-5-20250929"
+                {"headline": "Good news"}, "claude-sonnet-4-6"
             )
 
         # Should fall back to originals since no response was generated
@@ -56,7 +56,7 @@ class TestTranslateFieldsEffort:
             new_callable=AsyncMock,
         ) as mock_query:
             result = await _translate_fields(
-                {"headline": "", "summary": ""}, "claude-sonnet-4-5-20250929"
+                {"headline": "", "summary": ""}, "claude-sonnet-4-6"
             )
 
         assert result == {"headline": "", "summary": ""}

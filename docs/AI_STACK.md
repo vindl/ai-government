@@ -2,13 +2,14 @@
 
 Current model versions, SDK versions, agent architecture, and agent roster used by the AI Government project. This document is also injected as context for the Research Scout agent.
 
-*Last updated: 2026-02-16*
+*Last updated: 2026-02-19*
 
 ## Models
 
 | Component | Model | Notes |
 |-----------|-------|-------|
 | All agents (default) | `claude-opus-4-6` | Set via `DEFAULT_MODEL` in `scripts/main_loop.py` |
+| Localization (translation) | `claude-sonnet-4-6` | Cost-effective model for Montenegrin translation |
 
 ## SDK & Tooling
 
@@ -64,3 +65,4 @@ Current model versions, SDK versions, agent architecture, and agent roster used 
 |------|--------|-----|
 | 2026-02-14 | Initial scaffold with `claude-opus-4-6` | ADR-001 |
 | 2026-02-16 | Added Research Scout agent (Phase F) | ADR-024 |
+| 2026-02-19 | Upgrade localization model from Sonnet 4.5 to Sonnet 4.6 | — |

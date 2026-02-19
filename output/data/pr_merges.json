@@ -1,5 +1,19 @@
 [
   {
+    "timestamp": "2026-02-19T01:33:18Z",
+    "pr_number": 297,
+    "pr_title": "Strip markdown formatting from agent output on site",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
+    "timestamp": "2026-02-19T01:11:42Z",
+    "pr_number": 295,
+    "pr_title": "Fix agent JSON failures: betas, retry context, localization parsing",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-18T22:36:06Z",
     "pr_number": 286,
     "pr_title": "Add 10-minute timeout to SDK agent calls",

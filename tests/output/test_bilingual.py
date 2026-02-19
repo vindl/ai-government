@@ -355,8 +355,10 @@ class TestBilingualCounterProposalFields:
     def test_ministry_contributions_mne_rendered(self, bilingual_html: str) -> None:
         assert "analiza fiskalnog uticaja" in bilingual_html
 
-    def test_transcript_mne_note(self, bilingual_html: str) -> None:
-        assert "(na engleskom)" in bilingual_html
+    def test_transcript_heading(self, bilingual_html: str) -> None:
+        """Transcript heading should not have '(na engleskom)' now that MNE is supported."""
+        assert "(na engleskom)" not in bilingual_html
+        assert "Transkript" in bilingual_html
 
 
 class TestBilingualModelFields:
@@ -412,6 +414,7 @@ class TestBilingualModelFields:
         )
         assert pd.consensus_summary_mne == ""
         assert pd.disagreements_mne == []
+        assert pd.debate_transcript_mne == ""
 
     def test_ministry_counter_proposal_mne_defaults(self) -> None:
         mcp = MinistryCounterProposal(

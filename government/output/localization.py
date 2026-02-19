@@ -153,6 +153,7 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-6
         d_fields: dict[str, Any] = {
             "consensus_summary": result.debate.consensus_summary,
             "disagreements": result.debate.disagreements,
+            "debate_transcript": result.debate.debate_transcript,
         }
         translated = await _translate_fields(d_fields, model)
         result.debate.consensus_summary_mne = translated.get(
@@ -160,6 +161,9 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-6
         )
         result.debate.disagreements_mne = translated.get(
             "disagreements", result.debate.disagreements
+        )
+        result.debate.debate_transcript_mne = translated.get(
+            "debate_transcript", result.debate.debate_transcript
         )
 
     # Translate unified counter-proposal

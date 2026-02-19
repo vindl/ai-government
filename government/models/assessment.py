@@ -85,6 +85,7 @@ class ParliamentDebate(BaseModel):
     disagreements_mne: list[str] = Field(
         default_factory=list, description="Montenegrin translation of disagreements"
     )
+    debate_transcript_mne: str = Field(default="", description="Montenegrin translation of debate_transcript")
 
 
 class CounterProposal(BaseModel):

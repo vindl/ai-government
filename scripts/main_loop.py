@@ -1525,13 +1525,16 @@ def _backlog_has_executable_tasks() -> bool:
 
 
 def should_fetch_news() -> bool:
-    """Return True if news has not been fetched today and analysis queue is empty."""
-    # Tighter gate: wait until analysis queue is fully drained
+    """Return True if news has not been fetched today and analysis queue is low enough."""
+    # Allow fetching when pending analysis issues are at or below the threshold.
+    # Previously this required 0 pending, which created a starvation loop when
+    # old analysis issues sat in the backlog and blocked all news ingestion.
     pending = _count_pending_analysis_issues()
-    if pending > 0:
+    if pending > NEWS_GATE_MAX_PENDING:
         log.info(
-            "Skipping News Scout: %d analysis issue(s) still open (must be 0)",
+            "Skipping News Scout: %d analysis issue(s) still open (max %d)",
             pending,
+            NEWS_GATE_MAX_PENDING,
         )
         return False
 
@@ -1702,6 +1705,12 @@ def _build_category_distribution_context() -> str:
 CATEGORY_CAP_THRESHOLD = 40  # percent — if a category exceeds this share of
 # historical analyses, cap new decisions in that category to MAX_PER_FETCH.
 CATEGORY_CAP_MAX_PER_FETCH = 1  # max decisions per overrepresented category
+CATEGORY_CAP_MIN_KEPT = 1  # always keep at least this many decisions after cap
+
+# News gate: allow fetching when pending analysis issues are at or below this.
+# Setting this > 0 prevents the starvation loop where the queue never refills
+# because news fetching is blocked while old analyses sit unprocessed.
+NEWS_GATE_MAX_PENDING = 2
 
 
 def _get_historical_category_distribution() -> Counter[str]:
@@ -1745,6 +1754,7 @@ def _enforce_category_caps(
         return decisions
 
     kept: list[GovernmentDecision] = []
+    dropped: list[GovernmentDecision] = []
     seen: Counter[str] = Counter()
     for d in decisions:
         cat = d.category or "general"
@@ -1758,8 +1768,22 @@ def _enforce_category_caps(
                     cat,
                     CATEGORY_CAP_THRESHOLD,
                 )
+                dropped.append(d)
                 continue
         kept.append(d)
+
+    # Guarantee at least CATEGORY_CAP_MIN_KEPT decisions survive the cap.
+    # This prevents starvation when ALL fetched decisions belong to
+    # overrepresented categories — at least one still gets through.
+    while len(kept) < CATEGORY_CAP_MIN_KEPT and dropped:
+        rescued = dropped.pop(0)
+        log.info(
+            "Category cap: rescuing '%s' to meet minimum of %d kept decision(s)",
+            rescued.title,
+            CATEGORY_CAP_MIN_KEPT,
+        )
+        kept.append(rescued)
+
     return kept
 
 
@@ -1776,7 +1800,10 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
         today = _dt.date.today()
         prompt = system_prompt.replace("{today}", today.isoformat())
         prompt += _build_category_distribution_context()
-        prompt += f"\n\nFind today's ({today.isoformat()}) Montenegrin government decisions."
+        prompt += (
+            f"\n\nFind recent Montenegrin government decisions (today is "
+            f"{today.isoformat()}, look back up to 3 days)."
+        )
 
         opts = _sdk_options(
             system_prompt=prompt,
@@ -1786,9 +1813,11 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
             effort="low",
         )
 
+        lookback_start = (today - _dt.timedelta(days=2)).isoformat()
         user_prompt = (
-            f"Search for Montenegrin government decisions from {today.isoformat()}. "
-            "Return a JSON array of the top 3 most significant decisions."
+            f"Search for Montenegrin government decisions from {lookback_start} to "
+            f"{today.isoformat()}. Prefer today's decisions, but include recent ones "
+            "if today is quiet. Return a JSON array of the top 3 most significant decisions."
         )
 
         log.info("Running News Scout agent for %s...", today.isoformat())

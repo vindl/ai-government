@@ -1,35 +1,25 @@
-"""Tests for 1M context window beta flag on all agents."""
+"""Tests that agents do NOT pass betas to ClaudeAgentOptions.
+
+The context-1m beta was removed because OAuth users cannot use custom betas —
+the SDK warns and may return empty ResultMessage responses.
+"""
 
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
 import pytest
-from claude_agent_sdk import ClaudeAgentOptions
-from government.agents.base import CONTEXT_1M_BETA, GovernmentAgent, MinistryConfig
+from government.agents.base import GovernmentAgent, MinistryConfig
+
+if TYPE_CHECKING:
+    from claude_agent_sdk import ClaudeAgentOptions
 from government.agents.critic import CriticAgent
 from government.agents.parliament import ParliamentAgent
 from government.agents.synthesizer import SynthesizerAgent
 from government.models.assessment import Assessment, Verdict
 from government.models.decision import GovernmentDecision
-
-
-class TestContext1MBetaConstant:
-    """The CONTEXT_1M_BETA constant should be a valid beta identifier."""
-
-    def test_is_non_empty_list(self) -> None:
-        assert isinstance(CONTEXT_1M_BETA, list)
-        assert len(CONTEXT_1M_BETA) == 1
-
-    def test_contains_expected_beta_id(self) -> None:
-        assert CONTEXT_1M_BETA == ["context-1m-2025-08-07"]
-
-    def test_accepted_by_sdk(self) -> None:
-        """ClaudeAgentOptions should accept the beta without error."""
-        opts = ClaudeAgentOptions(betas=CONTEXT_1M_BETA)
-        assert opts.betas == CONTEXT_1M_BETA
 
 
 @pytest.fixture
@@ -64,11 +54,11 @@ async def _empty_stream(*args: Any, **kwargs: Any) -> Any:
     yield  # pragma: no cover
 
 
-class TestGovernmentAgentBeta:
-    """GovernmentAgent.analyze() should pass betas to ClaudeAgentOptions."""
+class TestGovernmentAgentNoBeta:
+    """GovernmentAgent.analyze() should NOT pass betas to ClaudeAgentOptions."""
 
     @pytest.mark.anyio
-    async def test_betas_passed_to_options(self, decision: GovernmentDecision) -> None:
+    async def test_no_betas_in_options(self, decision: GovernmentDecision) -> None:
         config = MinistryConfig(
             name="Finance",
             slug="finance",
@@ -89,14 +79,14 @@ class TestGovernmentAgentBeta:
             await agent.analyze(decision)
 
         assert len(captured_opts) >= 1
-        assert captured_opts[0].betas == CONTEXT_1M_BETA
+        assert not captured_opts[0].betas
 
 
-class TestParliamentAgentBeta:
-    """ParliamentAgent._call_model() should pass betas to ClaudeAgentOptions."""
+class TestParliamentAgentNoBeta:
+    """ParliamentAgent._call_model() should NOT pass betas."""
 
     @pytest.mark.anyio
-    async def test_betas_passed_to_options(self) -> None:
+    async def test_no_betas_in_options(self) -> None:
         agent = ParliamentAgent()
         captured_opts: list[ClaudeAgentOptions] = []
 
@@ -110,14 +100,14 @@ class TestParliamentAgentBeta:
             await agent._call_model("test prompt")
 
         assert len(captured_opts) >= 1
-        assert captured_opts[0].betas == CONTEXT_1M_BETA
+        assert not captured_opts[0].betas
 
 
-class TestSynthesizerAgentBeta:
-    """SynthesizerAgent._call_model() should pass betas to ClaudeAgentOptions."""
+class TestSynthesizerAgentNoBeta:
+    """SynthesizerAgent._call_model() should NOT pass betas."""
 
     @pytest.mark.anyio
-    async def test_betas_passed_to_options(self) -> None:
+    async def test_no_betas_in_options(self) -> None:
         agent = SynthesizerAgent()
         captured_opts: list[ClaudeAgentOptions] = []
 
@@ -131,14 +121,14 @@ class TestSynthesizerAgentBeta:
             await agent._call_model("test prompt")
 
         assert len(captured_opts) >= 1
-        assert captured_opts[0].betas == CONTEXT_1M_BETA
+        assert not captured_opts[0].betas
 
 
-class TestCriticAgentBeta:
-    """CriticAgent._call_model() should pass betas to ClaudeAgentOptions."""
+class TestCriticAgentNoBeta:
+    """CriticAgent._call_model() should NOT pass betas."""
 
     @pytest.mark.anyio
-    async def test_betas_passed_to_options(self) -> None:
+    async def test_no_betas_in_options(self) -> None:
         agent = CriticAgent()
         captured_opts: list[ClaudeAgentOptions] = []
 
@@ -152,4 +142,4 @@ class TestCriticAgentBeta:
             await agent._call_model("test prompt")
 
         assert len(captured_opts) >= 1
-        assert captured_opts[0].betas == CONTEXT_1M_BETA
+        assert not captured_opts[0].betas

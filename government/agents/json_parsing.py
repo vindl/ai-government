@@ -8,13 +8,28 @@ import re
 
 log = logging.getLogger(__name__)
 
-# Follow-up prompt sent when the first response contains no valid JSON.
-RETRY_PROMPT = (
+# Follow-up instruction appended to the original prompt on retry.
+_RETRY_SUFFIX = (
+    "\n\n--- IMPORTANT ---\n"
     "Your previous response did not contain a valid JSON object. "
     "Please respond ONLY with the JSON object as specified in your instructions. "
     "Do not include any preamble, explanation, or markdown formatting — "
     "output the raw JSON object and nothing else."
 )
+
+# Kept for backwards compatibility with imports.
+RETRY_PROMPT = _RETRY_SUFFIX
+
+
+def retry_prompt(original_prompt: str) -> str:
+    """Build a retry prompt that includes the original context.
+
+    Previous approach sent RETRY_PROMPT alone as a *new* conversation,
+    so the model had no context about what to produce.  This version
+    re-sends the original prompt with an explicit JSON-only instruction
+    appended.
+    """
+    return original_prompt + _RETRY_SUFFIX
 
 
 def extract_json(text: str) -> dict[str, object] | None:

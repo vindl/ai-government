@@ -18,6 +18,8 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from main_loop import (  # noqa: E402
+    CATEGORY_CAP_MIN_KEPT,
+    NEWS_GATE_MAX_PENDING,
     NewsScoutState,
     _build_category_distribution_context,
     _enforce_category_caps,
@@ -89,19 +91,29 @@ class TestShouldFetchNews:
         monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 0)
         assert should_fetch_news() is True
 
-    def test_returns_false_when_backlog_not_empty(
+    def test_returns_true_when_backlog_within_threshold(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """News scout waits until analysis queue is fully drained."""
+        """News scout runs when pending issues are at or below threshold."""
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        # 1 pending issue is within the NEWS_GATE_MAX_PENDING=2 threshold
         monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 1)
-        assert should_fetch_news() is False
+        assert should_fetch_news() is True
 
-    def test_returns_false_when_backlog_has_multiple(
+    def test_returns_true_when_backlog_at_threshold(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
     ) -> None:
+        """News scout runs when pending issues are exactly at threshold."""
         monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
-        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: 3)
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: NEWS_GATE_MAX_PENDING)
+        assert should_fetch_news() is True
+
+    def test_returns_false_when_backlog_exceeds_threshold(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """News scout blocks when pending issues exceed threshold."""
+        monkeypatch.setattr("main_loop.NEWS_SCOUT_STATE_PATH", tmp_path / "nonexistent.json")
+        monkeypatch.setattr("main_loop._count_pending_analysis_issues", lambda: NEWS_GATE_MAX_PENDING + 1)
         assert should_fetch_news() is False
 
 
@@ -463,6 +475,14 @@ class TestNewsScoutPromptContent:
         assert "plenary" in content.lower() or "session" in content.lower()
         assert "committee" in content.lower()
 
+    def test_prompt_has_lookback_window(self) -> None:
+        """News scout prompt allows looking back up to 3 days."""
+        prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
+        content = prompt_path.read_text()
+
+        assert "3 days" in content
+        assert "look back" in content.lower()
+
     def test_existing_sources_unchanged(self) -> None:
         prompt_path = Path(__file__).resolve().parent.parent / "theseus" / "news-scout" / "CLAUDE.md"
         content = prompt_path.read_text()
@@ -753,3 +773,73 @@ class TestEnforceCategoryCaps:
         ]
         result = _enforce_category_caps(decisions)
         assert len(result) == 2  # 40% is not > 40%, so no cap
+
+    def test_rescues_decision_when_all_dropped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When all decisions would be dropped, at least MIN_KEPT survives."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # economy at 50% — overrepresented
+        _write_historical_results(
+            data_dir, ["economy"] * 5 + ["fiscal"] * 5,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        # Both categories are overrepresented (50% each > 40%)
+        # With max_per_fetch=1, economy gets 1 kept + 1 dropped,
+        # fiscal gets 1 kept + 1 dropped → 2 kept, 2 dropped.
+        # But if ALL decisions are from one overrepresented category:
+        decisions = [
+            _make_decision("Econ 1", "economy"),
+            _make_decision("Econ 2", "economy"),
+            _make_decision("Econ 3", "economy"),
+        ]
+        result = _enforce_category_caps(decisions)
+        # Without rescue: would keep 1 (max_per_fetch). That's >= MIN_KEPT=1.
+        assert len(result) >= CATEGORY_CAP_MIN_KEPT
+        assert result[0].title == "Econ 1"
+
+    def test_rescues_when_kept_is_empty(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When cap would leave 0 items, rescue kicks in."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # economy at 60% — overrepresented
+        _write_historical_results(
+            data_dir, ["economy"] * 6 + ["legal"] * 4,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        # Monkeypatch MAX_PER_FETCH to 0 to force all drops
+        monkeypatch.setattr("main_loop.CATEGORY_CAP_MAX_PER_FETCH", 0)
+
+        decisions = [
+            _make_decision("Econ 1", "economy"),
+            _make_decision("Econ 2", "economy"),
+        ]
+        result = _enforce_category_caps(decisions)
+        # Rescue should bring back at least 1
+        assert len(result) >= CATEGORY_CAP_MIN_KEPT
+        assert result[0].title == "Econ 1"
+
+    def test_rescue_logs_message(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Rescued decisions are logged at INFO level."""
+        import logging
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        _write_historical_results(
+            data_dir, ["economy"] * 6 + ["legal"] * 4,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+        monkeypatch.setattr("main_loop.CATEGORY_CAP_MAX_PER_FETCH", 0)
+
+        decisions = [_make_decision("Econ 1", "economy")]
+        with caplog.at_level(logging.INFO):
+            _enforce_category_caps(decisions)
+
+        assert any("rescuing" in msg for msg in caplog.messages)

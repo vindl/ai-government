@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import anyio
 import claude_agent_sdk
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
+from government.agents.json_parsing import retry_prompt
 from government.config import SessionConfig
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from government.models.telemetry import (
@@ -421,6 +422,41 @@ async def _run_sdk_with_retry(
     # Should be unreachable, but satisfy the type checker
     assert last_exc is not None
     raise last_exc
+
+
+async def _run_sdk_for_json_array(
+    prompt: str,
+    opts: ClaudeAgentOptions,
+    *,
+    agent_name: str = "agent",
+) -> list[dict[str, str]]:
+    """Run SDK query, parse JSON array, retry with context on failure.
+
+    Combines ``_run_sdk_with_retry()`` (transient-error retry) with a
+    JSON-specific retry: if the first response doesn't contain a valid
+    JSON array, re-sends the original prompt with an explicit JSON-only
+    instruction appended.
+    """
+    output = await _run_sdk_with_retry(prompt, opts)
+    raw = _parse_json_array(output)
+    if raw:
+        return raw
+
+    log.warning("%s: no parseable JSON array, retrying with context", agent_name)
+    output = await _run_sdk_with_retry(retry_prompt(prompt), opts)
+    raw = _parse_json_array(output)
+    if not raw:
+        log.warning("%s: retry also produced no parseable JSON array", agent_name)
+    return raw
+
+
+def _parse_structured_text(text: str) -> dict[str, Any] | None:
+    """Extract a JSON object from agent text output."""
+    from government.agents.json_parsing import extract_json
+
+    if not text:
+        return None
+    return extract_json(text)
 
 
 # ---------------------------------------------------------------------------
@@ -1750,15 +1786,15 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
             effort="low",
         )
 
-        log.info("Running News Scout agent for %s...", today.isoformat())
-        stream = claude_agent_sdk.query(
-            prompt=f"Search for Montenegrin government decisions from {today.isoformat()}. "
-                   "Return a JSON array of the top 3 most significant decisions.",
-            options=opts,
+        user_prompt = (
+            f"Search for Montenegrin government decisions from {today.isoformat()}. "
+            "Return a JSON array of the top 3 most significant decisions."
         )
-        output = await _collect_agent_output(stream)
 
-        raw = _parse_json_array(output)
+        log.info("Running News Scout agent for %s...", today.isoformat())
+        raw = await _run_sdk_for_json_array(
+            user_prompt, opts, agent_name="News Scout",
+        )
         if not raw:
             log.info("News Scout returned no decisions for %s", today.isoformat())
             return []
@@ -2079,8 +2115,15 @@ Most analyses should pass. Only block publication for clear factual errors or Co
 
     log.info("Running Editorial Director review for issue #%d...", issue_number)
     try:
-        stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-        review_data = await _collect_structured_output(stream)
+        output = await _run_sdk_with_retry(prompt, opts)
+        review_data = _parse_structured_text(output)
+
+        if review_data is None:
+            log.warning(
+                "Editorial Director: no structured output, retrying with context",
+            )
+            output = await _run_sdk_with_retry(retry_prompt(prompt), opts)
+            review_data = _parse_structured_text(output)
 
         if review_data is None:
             log.warning("Editorial Director returned no structured output")
@@ -2244,10 +2287,7 @@ acceptance criteria. List specific files to change.",
     )
 
     log.info("Running PM agent to propose %d improvements...", num_proposals)
-    output = await _run_sdk_with_retry(prompt, opts)
-
-    # Extract and validate JSON from the output
-    raw = _parse_json_array(output)
+    raw = await _run_sdk_for_json_array(prompt, opts, agent_name="PM")
     if not raw:
         log.warning("PM agent returned no parseable proposals")
         return []
@@ -3048,10 +3088,7 @@ Format:
     )
 
     log.info("Running Project Director agent...")
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    output = await _collect_agent_output(stream)
-
-    raw = _parse_json_array(output)
+    raw = await _run_sdk_for_json_array(prompt, opts, agent_name="Director")
 
     created: list[int] = []
     for item in raw[:2]:  # Hard cap at 2
@@ -3295,10 +3332,7 @@ Format:
     )
 
     log.info("Running Strategic Director agent...")
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    output = await _collect_agent_output(stream)
-
-    raw = _parse_json_array(output)
+    raw = await _run_sdk_for_json_array(prompt, opts, agent_name="Strategic Director")
 
     created: list[int] = []
     for item in raw[:2]:  # Hard cap at 2
@@ -3378,10 +3412,7 @@ async def step_research_scout(*, model: str) -> list[int]:
     )
 
     log.info("Running Research Scout agent...")
-    stream = claude_agent_sdk.query(prompt=prompt, options=opts)
-    output = await _collect_agent_output(stream)
-
-    raw = _parse_json_array(output)
+    raw = await _run_sdk_for_json_array(prompt, opts, agent_name="Research Scout")
 
     created: list[int] = []
     for item in raw[:RESEARCH_SCOUT_MAX_ISSUES]:

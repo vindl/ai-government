@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import hashlib
 import json
 import re
 import sys
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import pytest
+    from government.models.decision import GovernmentDecision
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
@@ -18,6 +20,7 @@ sys.path.insert(0, str(_SCRIPTS_DIR))
 from main_loop import (  # noqa: E402
     NewsScoutState,
     _build_category_distribution_context,
+    _enforce_category_caps,
     _generate_decision_id,
     _parse_json_array,
     should_fetch_news,
@@ -530,3 +533,223 @@ class TestDecisionJsonEmbedding:
         assert restored.title == decision.title
         assert restored.category == decision.category
         assert restored.date == decision.date
+
+
+# ---------------------------------------------------------------------------
+# _enforce_category_caps()
+# ---------------------------------------------------------------------------
+
+
+def _make_decision(title: str, category: str) -> GovernmentDecision:
+    """Helper to build a GovernmentDecision for testing."""
+    from government.models.decision import GovernmentDecision
+
+    return GovernmentDecision(
+        id=f"item-2026-02-14-{hashlib.sha256(title.encode()).hexdigest()[:8]}",
+        title=title,
+        summary="Summary",
+        date=_dt.date(2026, 2, 14),
+        category=category,
+    )
+
+
+def _write_historical_results(
+    data_dir: Path, categories: list[str],
+) -> None:
+    """Write fake SessionResult files to simulate historical analyses."""
+    from government.models.decision import GovernmentDecision
+    from government.orchestrator import SessionResult
+
+    for i, cat in enumerate(categories):
+        result = SessionResult(
+            decision=GovernmentDecision(
+                id=f"item-2026-02-14-{i:08x}",
+                title=f"Historical decision {i}",
+                summary="Summary",
+                date=_dt.date(2026, 2, 14),
+                category=cat,
+            ),
+        )
+        (data_dir / f"result_{i}.json").write_text(
+            result.model_dump_json(indent=2)
+        )
+
+
+class TestEnforceCategoryCaps:
+    """Tests for the _enforce_category_caps() diversity enforcement."""
+
+    def test_no_history_passes_all_through(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When there's no historical data, all decisions pass through."""
+        monkeypatch.setattr("main_loop.DATA_DIR", tmp_path / "nonexistent")
+        decisions = [
+            _make_decision("A", "legal"),
+            _make_decision("B", "legal"),
+            _make_decision("C", "legal"),
+        ]
+        result = _enforce_category_caps(decisions)
+        assert len(result) == 3
+
+    def test_balanced_history_passes_all_through(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When no category exceeds the threshold, all decisions pass."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # 5 categories, each at 20% — none over 40%
+        _write_historical_results(
+            data_dir, ["legal", "fiscal", "economy", "health", "education"],
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        decisions = [
+            _make_decision("A", "legal"),
+            _make_decision("B", "legal"),
+            _make_decision("C", "fiscal"),
+        ]
+        result = _enforce_category_caps(decisions)
+        assert len(result) == 3
+
+    def test_caps_overrepresented_category(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """When legal is >40%, at most 1 legal decision passes through."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # 6 legal out of 10 → 60%
+        _write_historical_results(
+            data_dir, ["legal"] * 6 + ["fiscal"] * 2 + ["economy"] * 2,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        decisions = [
+            _make_decision("Legal 1", "legal"),
+            _make_decision("Legal 2", "legal"),
+            _make_decision("Fiscal 1", "fiscal"),
+        ]
+        result = _enforce_category_caps(decisions)
+        assert len(result) == 2
+        # First legal kept, second dropped, fiscal kept
+        assert result[0].title == "Legal 1"
+        assert result[1].title == "Fiscal 1"
+
+    def test_keeps_first_decision_in_overrepresented_category(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The first decision in an overrepresented category is always kept."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # legal at 50%
+        _write_historical_results(
+            data_dir, ["legal"] * 5 + ["fiscal"] * 5,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        decisions = [
+            _make_decision("Legal 1", "legal"),
+            _make_decision("Legal 2", "legal"),
+            _make_decision("Legal 3", "legal"),
+        ]
+        result = _enforce_category_caps(decisions)
+        assert len(result) == 1
+        assert result[0].title == "Legal 1"
+
+    def test_non_overrepresented_categories_unaffected(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Categories below the threshold are not capped."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # legal at 60%, fiscal at 20%, economy at 20%
+        _write_historical_results(
+            data_dir, ["legal"] * 6 + ["fiscal"] * 2 + ["economy"] * 2,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        decisions = [
+            _make_decision("Fiscal 1", "fiscal"),
+            _make_decision("Fiscal 2", "fiscal"),
+            _make_decision("Fiscal 3", "fiscal"),
+        ]
+        result = _enforce_category_caps(decisions)
+        assert len(result) == 3  # fiscal is under threshold, all pass
+
+    def test_empty_decisions_list(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Empty input returns empty output."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        _write_historical_results(data_dir, ["legal"] * 10)
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        result = _enforce_category_caps([])
+        assert result == []
+
+    def test_logs_dropped_decisions(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Dropped decisions are logged at INFO level."""
+        import logging
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        _write_historical_results(
+            data_dir, ["legal"] * 6 + ["fiscal"] * 2 + ["economy"] * 2,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        decisions = [
+            _make_decision("Legal 1", "legal"),
+            _make_decision("Legal 2", "legal"),
+        ]
+        with caplog.at_level(logging.INFO):
+            _enforce_category_caps(decisions)
+
+        assert any("Category cap" in msg for msg in caplog.messages)
+        assert any("Legal 2" in msg for msg in caplog.messages)
+
+    def test_multiple_overrepresented_categories(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Multiple categories can be overrepresented and capped independently."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # legal at 50%, fiscal at 50% — both over 40%
+        _write_historical_results(
+            data_dir, ["legal"] * 5 + ["fiscal"] * 5,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        decisions = [
+            _make_decision("Legal 1", "legal"),
+            _make_decision("Legal 2", "legal"),
+            _make_decision("Fiscal 1", "fiscal"),
+            _make_decision("Fiscal 2", "fiscal"),
+        ]
+        result = _enforce_category_caps(decisions)
+        assert len(result) == 2
+        cats = [d.category for d in result]
+        assert cats.count("legal") == 1
+        assert cats.count("fiscal") == 1
+
+    def test_exactly_at_threshold_not_capped(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A category at exactly the threshold (40%) is NOT capped (> not >=)."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # legal at exactly 40% (4 out of 10)
+        _write_historical_results(
+            data_dir, ["legal"] * 4 + ["fiscal"] * 3 + ["economy"] * 3,
+        )
+        monkeypatch.setattr("main_loop.DATA_DIR", data_dir)
+
+        decisions = [
+            _make_decision("Legal 1", "legal"),
+            _make_decision("Legal 2", "legal"),
+        ]
+        result = _enforce_category_caps(decisions)
+        assert len(result) == 2  # 40% is not > 40%, so no cap

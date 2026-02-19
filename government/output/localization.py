@@ -63,7 +63,7 @@ async def _translate_fields(fields: dict[str, Any], model: str) -> dict[str, Any
     return fields
 
 
-async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-5-20250929") -> SessionResult:
+async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-6") -> SessionResult:
     """Populate Montenegrin translation fields on a SessionResult.
 
     Translates key public-facing fields: critic headline, assessment summaries,

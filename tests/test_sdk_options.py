@@ -21,7 +21,7 @@ def test_main_loop_sdk_options_with_tools() -> None:
     """main_loop._sdk_options with allowed_tools returns valid options."""
     opts = main_loop._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=["Read"],
     )
@@ -32,7 +32,7 @@ def test_main_loop_sdk_options_without_tools() -> None:
     """main_loop._sdk_options with empty tools returns valid options."""
     opts = main_loop._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=[],
     )
@@ -43,7 +43,7 @@ def test_pr_workflow_sdk_options_with_tools() -> None:
     """pr_workflow._sdk_options with allowed_tools returns valid options."""
     opts = pr_workflow._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=["Bash", "Read"],
     )
@@ -54,7 +54,7 @@ def test_pr_workflow_sdk_options_without_tools() -> None:
     """pr_workflow._sdk_options with empty tools returns valid options."""
     opts = pr_workflow._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=[],
     )
@@ -70,7 +70,7 @@ def test_main_loop_sdk_options_effort_with_tools() -> None:
     """main_loop._sdk_options passes effort to ClaudeAgentOptions (tools branch)."""
     opts = main_loop._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=["Read"],
         effort="low",
@@ -83,7 +83,7 @@ def test_main_loop_sdk_options_effort_without_tools() -> None:
     """main_loop._sdk_options passes effort to ClaudeAgentOptions (no-tools branch)."""
     opts = main_loop._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=[],
         effort="high",
@@ -96,7 +96,7 @@ def test_main_loop_sdk_options_effort_none_by_default() -> None:
     """effort defaults to None when not specified."""
     opts = main_loop._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=[],
     )
@@ -108,7 +108,7 @@ def test_main_loop_sdk_options_effort_all_levels() -> None:
     for level in ("low", "medium", "high", "max"):
         opts = main_loop._sdk_options(
             system_prompt="test prompt",
-            model="claude-sonnet-4-5-20250929",
+            model="claude-sonnet-4-6",
             max_turns=1,
             allowed_tools=[],
             effort=level,  # type: ignore[arg-type]
@@ -120,7 +120,7 @@ def test_pr_workflow_sdk_options_effort_with_tools() -> None:
     """pr_workflow._sdk_options passes effort to ClaudeAgentOptions (tools branch)."""
     opts = pr_workflow._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=["Bash", "Read"],
         effort="high",
@@ -133,7 +133,7 @@ def test_pr_workflow_sdk_options_effort_without_tools() -> None:
     """pr_workflow._sdk_options passes effort to ClaudeAgentOptions (no-tools branch)."""
     opts = pr_workflow._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=[],
         effort="medium",
@@ -146,7 +146,7 @@ def test_pr_workflow_sdk_options_effort_none_by_default() -> None:
     """pr_workflow effort defaults to None when not specified."""
     opts = pr_workflow._sdk_options(
         system_prompt="test prompt",
-        model="claude-sonnet-4-5-20250929",
+        model="claude-sonnet-4-6",
         max_turns=1,
         allowed_tools=[],
     )

@@ -1853,7 +1853,7 @@ async def step_execute_analysis(
         # Translate to Montenegrin (non-fatal — English-only is better than no publish)
         try:
             from government.output.localization import localize_result
-            await localize_result(results[0], model="claude-sonnet-4-5-20250929")
+            await localize_result(results[0], model="claude-sonnet-4-6")
             log.info("Montenegrin translations populated")
         except Exception:
             log.exception("Localization failed (non-fatal, publishing English-only)")

@@ -27,7 +27,7 @@ def test_sdk_options_failure_does_not_silently_return() -> None:
          pytest.raises(TypeError, match="bad kwarg"):
             _sdk_options(
                 system_prompt="test",
-                model="claude-sonnet-4-5-20250929",
+                model="claude-sonnet-4-6",
                 max_turns=1,
                 allowed_tools=["Read"],
             )
@@ -40,7 +40,7 @@ async def test_run_coder_raises_infrastructure_error_on_sdk_failure() -> None:
 
     with patch("pr_workflow._sdk_options", side_effect=TypeError("bad kwarg")), \
          pytest.raises(InfrastructureError, match="_sdk_options failed"):
-        await run_coder("do something", model="claude-sonnet-4-5-20250929", branch="test")
+        await run_coder("do something", model="claude-sonnet-4-6", branch="test")
 
 
 @pytest.mark.anyio
@@ -51,7 +51,7 @@ async def test_run_reviewer_raises_infrastructure_error_on_sdk_failure() -> None
     with patch("pr_workflow._build_reviewer_prompt", return_value="review this"), \
          patch("pr_workflow._sdk_options", side_effect=TypeError("bad kwarg")), \
          pytest.raises(InfrastructureError, match="_sdk_options failed"):
-        await run_reviewer(123, model="claude-sonnet-4-5-20250929")
+        await run_reviewer(123, model="claude-sonnet-4-6")
 
 
 @pytest.mark.anyio
@@ -69,6 +69,6 @@ async def test_run_coder_happy_path_no_infrastructure_error() -> None:
     ):
         mock_opts.return_value = "opts"
         output, had_error = await run_coder(
-            "do something", model="claude-sonnet-4-5-20250929", branch="test",
+            "do something", model="claude-sonnet-4-6", branch="test",
         )
     assert not had_error

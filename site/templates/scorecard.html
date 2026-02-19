@@ -318,9 +318,12 @@
     </ul>
     {% endif %}
 
-    <h3 class="lang-mne">Transkript <small>(na engleskom)</small></h3>
+    <h3 class="lang-mne">Transkript</h3>
     <h3 class="lang-en">Transcript</h3>
-    <div class="transcript">{% for para in result.debate.debate_transcript.split('\n\n') %}<p>{{ para | sm }}</p>{% endfor %}</div>
+    {% if result.debate.debate_transcript_mne %}
+    <div class="transcript lang-mne">{% for para in result.debate.debate_transcript_mne.split('\n\n') %}<p>{{ para | sm }}</p>{% endfor %}</div>
+    {% endif %}
+    <div class="transcript {% if result.debate.debate_transcript_mne %}lang-en{% endif %}">{% for para in result.debate.debate_transcript.split('\n\n') %}<p>{{ para | sm }}</p>{% endfor %}</div>
   </section>
   {% endif %}
 

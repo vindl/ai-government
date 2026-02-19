@@ -1659,6 +1659,74 @@ def _build_category_distribution_context() -> str:
     return "".join(parts)
 
 
+# ---------------------------------------------------------------------------
+# Category diversity enforcement
+# ---------------------------------------------------------------------------
+
+CATEGORY_CAP_THRESHOLD = 40  # percent — if a category exceeds this share of
+# historical analyses, cap new decisions in that category to MAX_PER_FETCH.
+CATEGORY_CAP_MAX_PER_FETCH = 1  # max decisions per overrepresented category
+
+
+def _get_historical_category_distribution() -> Counter[str]:
+    """Return a Counter mapping category → count from historical analyses."""
+    if not DATA_DIR.exists():
+        return Counter()
+    try:
+        results = load_results_from_dir(DATA_DIR)
+    except Exception:
+        log.warning("Failed to load results for category cap enforcement")
+        return Counter()
+    counts: Counter[str] = Counter()
+    for r in results:
+        counts[r.decision.category or "general"] += 1
+    return counts
+
+
+def _enforce_category_caps(
+    decisions: list[GovernmentDecision],
+) -> list[GovernmentDecision]:
+    """Drop decisions from overrepresented categories, keeping at most
+    CATEGORY_CAP_MAX_PER_FETCH per category that exceeds
+    CATEGORY_CAP_THRESHOLD% of historical analyses.
+
+    Decisions are kept in their original order; within an overrepresented
+    category the first decision encountered is kept.
+    """
+    hist = _get_historical_category_distribution()
+    total = sum(hist.values())
+
+    if total == 0:
+        return decisions  # no history → no enforcement
+
+    overrepresented: set[str] = set()
+    for cat, cnt in hist.items():
+        pct = 100 * cnt / total
+        if pct > CATEGORY_CAP_THRESHOLD:
+            overrepresented.add(cat)
+
+    if not overrepresented:
+        return decisions
+
+    kept: list[GovernmentDecision] = []
+    seen: Counter[str] = Counter()
+    for d in decisions:
+        cat = d.category or "general"
+        if cat in overrepresented:
+            seen[cat] += 1
+            if seen[cat] > CATEGORY_CAP_MAX_PER_FETCH:
+                log.info(
+                    "Category cap: dropping '%s' (category '%s' is >%d%% of "
+                    "historical analyses)",
+                    d.title,
+                    cat,
+                    CATEGORY_CAP_THRESHOLD,
+                )
+                continue
+        kept.append(d)
+    return kept
+
+
 async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
     """Run the News Scout agent to discover today's government decisions.
 
@@ -1716,6 +1784,7 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
                 log.warning("Skipping invalid news item: %s", item)
 
         log.info("News Scout found %d decisions for %s", len(decisions), today.isoformat())
+        decisions = _enforce_category_caps(decisions)
         return decisions
     except Exception:
         log.exception("News Scout failed (non-fatal)")

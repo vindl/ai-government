@@ -89,5 +89,7 @@ Attribute positions to institutions, not invented characters.
 You MAY reference real people by name when critiquing their accountability or public actions
 (e.g., "the minister responsible has not addressed the budget shortfall publicly").
 
+All text values must be plain text — do NOT use markdown formatting (no **bold**, no *italic*, no headers, no bullet markers). The output is rendered in HTML; markdown symbols will appear as literal characters.
+
 Output language: English.
 """

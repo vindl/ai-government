@@ -30,6 +30,19 @@ CONTENT_DIR = SITE_DIR / "content"
 DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "docs"
 
 
+def _strip_markdown(text: str) -> str:
+    """Remove markdown bold/italic markers from text.
+
+    Agent prompts instruct plain-text output, but LLMs sometimes slip in
+    ``**bold**`` or ``*italic*`` markers anyway.  This filter ensures they
+    don't appear as literal characters in the rendered HTML.
+    """
+    # **bold** → bold, *italic* → italic
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"\*(.+?)\*", r"\1", text)
+    return text
+
+
 def _create_env() -> Environment:
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -39,6 +52,7 @@ def _create_env() -> Environment:
     env.filters["verdict_label_mne"] = _verdict_label_mne
     env.filters["verdict_css_class"] = _verdict_css_class
     env.filters["ministry_name_mne"] = _ministry_name_mne
+    env.filters["sm"] = _strip_markdown
     return env
 
 

@@ -449,6 +449,64 @@ def _run_gh(
     return result
 
 
+# GitHub API body limit is 65,535 characters.  OS ARG_MAX can also bite
+# on long --body arguments.  Use --body-file via a temp file above this
+# conservative threshold.
+_GH_BODY_MAX = 60_000
+
+
+def _gh_comment(
+    issue_number: int,
+    body: str,
+    *,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    """Post a comment on an issue, using --body-file for large bodies."""
+    if len(body) <= _GH_BODY_MAX:
+        return _run_gh(
+            ["gh", "issue", "comment", str(issue_number), "--body", body],
+            check=check,
+        )
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False,
+    ) as tmp:
+        tmp.write(body)
+        tmp_path = tmp.name
+    try:
+        return _run_gh(
+            ["gh", "issue", "comment", str(issue_number),
+             "--body-file", tmp_path],
+            check=check,
+        )
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+def _gh_create_issue(
+    *,
+    title: str,
+    body: str,
+    labels: str,
+) -> subprocess.CompletedProcess[str]:
+    """Create a GitHub issue, using --body-file for large bodies."""
+    cmd: list[str] = ["gh", "issue", "create", "--title", title]
+    if len(body) <= _GH_BODY_MAX:
+        cmd += ["--body", body]
+        cmd += ["--label", labels]
+        return _run_gh(cmd)
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False,
+    ) as tmp:
+        tmp.write(body)
+        tmp_path = tmp.name
+    try:
+        cmd += ["--body-file", tmp_path]
+        cmd += ["--label", labels]
+        return _run_gh(cmd)
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
 def _get_repo_nwo() -> str:
     """Return 'owner/repo' for the current repository, cached after first call."""
     global _repo_nwo  # noqa: PLW0603
@@ -510,12 +568,7 @@ def ensure_github_resources_exist() -> None:
 def create_proposal_issue(title: str, body: str, *, domain: str = "N/A") -> int:
     """Create a GitHub Issue with the proposed label. Returns issue number."""
     ai_body = f"Written by PM agent:\n\n{body}"
-    result = _run_gh([
-        "gh", "issue", "create",
-        "--title", title,
-        "--body", ai_body,
-        "--label", LABEL_PROPOSED,
-    ])
+    result = _gh_create_issue(title=title, body=ai_body, labels=LABEL_PROPOSED)
     # gh issue create prints the URL; extract number from it
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
@@ -525,12 +578,10 @@ def create_proposal_issue(title: str, body: str, *, domain: str = "N/A") -> int:
 def create_director_issue(title: str, body: str) -> int:
     """Create a GitHub Issue from the Project Director. Returns issue number."""
     ai_body = f"Written by Project Director agent:\n\n{body}"
-    result = _run_gh([
-        "gh", "issue", "create",
-        "--title", title,
-        "--body", ai_body,
-        "--label", f"{LABEL_DIRECTOR},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
-    ])
+    result = _gh_create_issue(
+        title=title, body=ai_body,
+        labels=f"{LABEL_DIRECTOR},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+    )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
     return issue_number
@@ -539,12 +590,10 @@ def create_director_issue(title: str, body: str) -> int:
 def create_strategic_director_issue(title: str, body: str) -> int:
     """Create a GitHub Issue from the Strategic Director. Returns issue number."""
     ai_body = f"Written by Strategic Director agent:\n\n{body}"
-    result = _run_gh([
-        "gh", "issue", "create",
-        "--title", title,
-        "--body", ai_body,
-        "--label", f"{LABEL_STRATEGY},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
-    ])
+    result = _gh_create_issue(
+        title=title, body=ai_body,
+        labels=f"{LABEL_STRATEGY},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+    )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
     return issue_number
@@ -553,12 +602,10 @@ def create_strategic_director_issue(title: str, body: str) -> int:
 def create_research_scout_issue(title: str, body: str) -> int:
     """Create a GitHub Issue from the Research Scout. Returns issue number."""
     ai_body = f"Written by Research Scout agent:\n\n{body}"
-    result = _run_gh([
-        "gh", "issue", "create",
-        "--title", title,
-        "--body", ai_body,
-        "--label", f"{LABEL_RESEARCH_SCOUT},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
-    ])
+    result = _gh_create_issue(
+        title=title, body=ai_body,
+        labels=f"{LABEL_RESEARCH_SCOUT},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+    )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
     return issue_number
@@ -586,12 +633,11 @@ The coder agent should:
 3. Ensure all checks pass locally before pushing
 4. Close this issue once main is green again
 """
-    result = _run_gh([
-        "gh", "issue", "create",
-        "--title", f"CI failure on main (run {run_id})",
-        "--body", body,
-        "--label", f"{LABEL_CI_FAILURE},{LABEL_BACKLOG},{LABEL_TASK_FIX}",
-    ])
+    result = _gh_create_issue(
+        title=f"CI failure on main (run {run_id})",
+        body=body,
+        labels=f"{LABEL_CI_FAILURE},{LABEL_BACKLOG},{LABEL_TASK_FIX}",
+    )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
     return issue_number
@@ -734,7 +780,7 @@ def post_debate_comment(
         f"**Written by Critic agent (verdict):**\n{skeptic_verdict}\n\n"
         f"### Result: **{verdict}**"
     )
-    _run_gh(["gh", "issue", "comment", str(issue_number), "--body", body])
+    _gh_comment(issue_number, body)
 
 
 def accept_issue(issue_number: int) -> None:
@@ -859,10 +905,9 @@ def process_human_overrides() -> int:
         _run_gh(["gh", "issue", "edit", str(n),
                  "--remove-label", LABEL_REJECTED,
                  "--add-label", LABEL_BACKLOG])
-        _run_gh(["gh", "issue", "comment", str(n),
-                 "--body",
-                 f"Written by Triage agent: Issue reopened by @{actor_login} — "
-                 "moved to backlog via human override."])
+        _gh_comment(n,
+                    f"Written by Triage agent: Issue reopened by @{actor_login} — "
+                    "moved to backlog via human override.")
         log.info("Human override (reopened): #%d %s (by %s)", n, issue["title"], actor_login)
         count += 1
 
@@ -920,10 +965,9 @@ def process_human_overrides() -> int:
                      "--add-label", LABEL_BACKLOG])
             # Reopen if closed
             _run_gh(["gh", "issue", "reopen", str(n)], check=False)
-            _run_gh(["gh", "issue", "comment", str(n),
-                     "--body",
-                     f"Written by Triage agent: HUMAN OVERRIDE by @{override_user} — "
-                     "moved to backlog."])
+            _gh_comment(n,
+                        f"Written by Triage agent: HUMAN OVERRIDE by @{override_user} — "
+                        "moved to backlog.")
             log.info(
                 "Human override (comment): #%d %s (by %s)",
                 n, issue["title"], override_user,
@@ -1274,9 +1318,9 @@ def mark_issue_failed(issue_number: int, reason: str) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_IN_PROGRESS,
              "--add-label", LABEL_FAILED], check=False)
-    _run_gh(["gh", "issue", "comment", str(issue_number),
-             "--body", f"Written by Executor agent: Execution failed: {reason}"],
-            check=False)
+    _gh_comment(issue_number,
+                f"Written by Executor agent: Execution failed: {reason}",
+                check=False)
 
 
 def get_failed_issue_titles() -> list[str]:
@@ -1711,12 +1755,10 @@ def create_analysis_issue(decision: GovernmentDecision) -> int:
         f"<details><summary>Decision JSON</summary>\n\n"
         f"```json\n{decision_json}\n```\n</details>"
     )
-    result = _run_gh([
-        "gh", "issue", "create",
-        "--title", title,
-        "--body", body,
-        "--label", f"{LABEL_BACKLOG},{LABEL_TASK_ANALYSIS}",
-    ])
+    result = _gh_create_issue(
+        title=title, body=body,
+        labels=f"{LABEL_BACKLOG},{LABEL_TASK_ANALYSIS}",
+    )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
     return issue_number
@@ -1860,8 +1902,7 @@ async def step_execute_analysis(
 
         # Post scorecard as issue comment
         scorecard = render_scorecard(results[0])
-        _run_gh(["gh", "issue", "comment", str(issue_number),
-                 "--body", f"## AI Cabinet Scorecard\n\n{scorecard}"])
+        _gh_comment(issue_number, f"## AI Cabinet Scorecard\n\n{scorecard}")
 
         # Serialize result to JSON for the static site builder
         data_dir = Path(__file__).resolve().parent.parent / "output" / "data"
@@ -1889,12 +1930,12 @@ async def step_execute_analysis(
                     review=review,
                     decision_id=results[0].decision.id,
                 )
-                _run_gh(["gh", "issue", "comment", str(issue_number),
-                        "--body", f"⚠️ Editorial review flagged quality issues. "
-                                 f"See #{quality_issue_num} for details.\n\n"
-                                 f"**Quality score**: {review.quality_score}/10\n"
-                                 f"**Issues**: {len(review.issues)}\n"
-                                 f"**Recommendations**: {len(review.recommendations)}"])
+                _gh_comment(issue_number,
+                            f"⚠️ Editorial review flagged quality issues. "
+                            f"See #{quality_issue_num} for details.\n\n"
+                            f"**Quality score**: {review.quality_score}/10\n"
+                            f"**Issues**: {len(review.issues)}\n"
+                            f"**Recommendations**: {len(review.recommendations)}")
             except Exception:
                 log.exception("Failed to create editorial quality issue (non-fatal)")
         elif review is not None:
@@ -2023,13 +2064,10 @@ Original analysis issue: #{original_issue}
 Decision ID: {decision_id}
 """
 
-    result = _run_gh([
-        "gh", "issue", "create",
-        "--title", title,
-        "--body", body,
-        "--label", LABEL_EDITORIAL,
-        "--label", LABEL_BACKLOG,
-    ])
+    result = _gh_create_issue(
+        title=title, body=body,
+        labels=f"{LABEL_EDITORIAL},{LABEL_BACKLOG}",
+    )
 
     # Parse issue number from output
     match = re.search(r"/issues/(\d+)", result.stdout)

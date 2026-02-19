@@ -9,11 +9,10 @@ import claude_agent_sdk
 from claude_agent_sdk import ClaudeAgentOptions
 
 from government.agents.base import (
-    CONTEXT_1M_BETA,
     collect_structured_or_text,
     parse_structured_or_text,
 )
-from government.agents.json_parsing import RETRY_PROMPT
+from government.agents.json_parsing import retry_prompt
 from government.config import SessionConfig
 from government.models.assessment import Assessment, CounterProposal
 from government.prompts.synthesizer import SYNTHESIZER_SYSTEM_PROMPT
@@ -69,7 +68,6 @@ class SynthesizerAgent:
             model=self.config.model,
             max_turns=2,
             effort=effort or self.default_effort,
-            betas=CONTEXT_1M_BETA,
         )
         state: dict[str, Any] = {}
         async for message in claude_agent_sdk.query(prompt=prompt, options=opts):
@@ -78,9 +76,12 @@ class SynthesizerAgent:
         if result is not None:
             return result
 
+        # Retry with original context + explicit JSON-only instruction
         log.warning("SynthesizerAgent: first response had no valid JSON, retrying")
         state = {}
-        async for message in claude_agent_sdk.query(prompt=RETRY_PROMPT, options=opts):
+        async for message in claude_agent_sdk.query(
+            prompt=retry_prompt(prompt), options=opts,
+        ):
             collect_structured_or_text(message, state)
         return parse_structured_or_text(state)
 

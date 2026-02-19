@@ -2,7 +2,7 @@
 
 import json
 
-from government.agents.json_parsing import RETRY_PROMPT, extract_json
+from government.agents.json_parsing import RETRY_PROMPT, extract_json, retry_prompt
 
 
 class TestExtractJson:
@@ -87,3 +87,10 @@ class TestRetryPrompt:
 
     def test_retry_prompt_mentions_json(self) -> None:
         assert "JSON" in RETRY_PROMPT
+
+    def test_retry_prompt_includes_original_context(self) -> None:
+        original = "Analyze this decision about budget policy."
+        result = retry_prompt(original)
+        assert original in result
+        assert "JSON" in result
+        assert len(result) > len(original)

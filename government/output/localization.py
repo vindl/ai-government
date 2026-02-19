@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Any
 import claude_agent_sdk
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
 
+from government.agents.json_parsing import extract_json
+
 if TYPE_CHECKING:
     from government.orchestrator import SessionResult
 
@@ -54,14 +56,11 @@ async def _translate_fields(fields: dict[str, Any], model: str) -> dict[str, Any
                 if isinstance(block, TextBlock):
                     response_text += block.text
 
-    try:
-        start = response_text.index("{")
-        end = response_text.rindex("}") + 1
-        result: dict[str, Any] = json.loads(response_text[start:end])
-        return result
-    except (ValueError, json.JSONDecodeError):
-        _logger.warning("Translation response could not be parsed, using originals")
-        return fields
+    parsed = extract_json(response_text)
+    if parsed is not None:
+        return parsed
+    _logger.warning("Translation response could not be parsed, using originals")
+    return fields
 
 
 async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-5-20250929") -> SessionResult:

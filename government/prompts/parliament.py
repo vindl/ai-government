@@ -81,5 +81,7 @@ Attribute positions to institutions only: "the Ministry of Finance argues...", "
 You MAY reference real people by name when analyzing their accountability or public statements
 (e.g., "the Prime Minister's public commitment to X contradicts this decision").
 
+All text values must be plain text — do NOT use markdown formatting (no **bold**, no *italic*, no headers, no bullet markers). The output is rendered in HTML; markdown symbols will appear as literal characters.
+
 Output language: English.
 """

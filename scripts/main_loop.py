@@ -44,6 +44,8 @@ from government.orchestrator import Orchestrator, SessionResult
 from government.output.scorecard import render_scorecard
 from government.output.site_builder import load_results_from_dir, save_result_json
 from government.output.twitter import (
+    load_unposted_from_dir,
+    post_tweet_backlog,
     try_post_analysis,
 )
 from government.session import load_decisions
@@ -273,6 +275,7 @@ class ConductorAction(BaseModel):
     action: Literal[
         "fetch_news", "propose", "debate", "pick_and_execute",
         "director", "strategic_director", "research_scout",
+        "post_pending_tweets",
         "cooldown", "halt", "file_issue", "skip_cycle",
     ]
     reason: str
@@ -3689,6 +3692,20 @@ def _prefetch_conductor_context(
     can_research = should_run_research_scout()
     sections.append(f"- Research Scout can run: {can_research}\n")
 
+    # Tweet backlog
+    try:
+        unposted = load_unposted_from_dir(DATA_DIR)
+        unposted_ids = [r.decision.id for r in unposted[:5]]
+        sections.append(
+            f"## Tweet Backlog\n\n"
+            f"- Unposted analyses: {len(unposted)}\n"
+            + (f"- IDs: {', '.join(unposted_ids)}\n" if unposted_ids else "")
+            + ("- Action: include `post_pending_tweets` to drain backlog\n"
+               if unposted else "- No action needed\n")
+        )
+    except Exception:
+        log.debug("Failed to load tweet backlog for conductor context", exc_info=True)
+
     # Director timing
     sections.append(
         f"## Director Timing\n\n"
@@ -4188,6 +4205,15 @@ async def _dispatch_action(
                     telemetry.research_scout_issues_filed = len(filed)
                     phase.detail = f"filed {len(filed)} issues"
 
+            case "post_pending_tweets":
+                if dry_run:
+                    phase.detail = "skipped (dry run)"
+                else:
+                    posted = post_tweet_backlog(DATA_DIR)
+                    if posted > 0:
+                        telemetry.tweet_posted = True
+                    phase.detail = f"posted {posted} tweets"
+
             case "cooldown":
                 seconds = action.seconds or 30
                 print(f"  Conductor cooldown: sleeping {seconds}s...")
@@ -4519,6 +4545,16 @@ async def run_one_cycle(
     was_productive = telemetry.picked_issue_number is not None
     if was_productive:
         productive_cycles += 1
+
+    # --- Auto-drain tweet backlog (runs every cycle, non-fatal) ---
+    if not dry_run and "post_pending_tweets" not in telemetry.conductor_actions:
+        try:
+            posted = post_tweet_backlog(DATA_DIR, limit=3)
+            if posted > 0:
+                telemetry.tweet_posted = True
+                print(f"  Auto-posted {posted} tweet(s) from backlog")
+        except Exception:
+            log.exception("Auto tweet backlog drain failed (non-fatal)")
 
     # --- Collect and save transparency records ---
     if not dry_run and was_productive:

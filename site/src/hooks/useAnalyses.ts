@@ -5,7 +5,7 @@ export function useAnalyses() {
   return useQuery<AnalysisSummary[]>({
     queryKey: ["analyses-index"],
     queryFn: async () => {
-      const res = await fetch("/data/analyses-index.json");
+      const res = await fetch(`${import.meta.env.BASE_URL}data/analyses-index.json`);
       if (!res.ok) throw new Error("Failed to fetch analyses index");
       return res.json();
     },

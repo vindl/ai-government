@@ -5,7 +5,7 @@ export function useAnnouncements() {
   return useQuery<Announcement[]>({
     queryKey: ["announcements"],
     queryFn: async () => {
-      const res = await fetch("/data/announcements.json");
+      const res = await fetch(`${import.meta.env.BASE_URL}data/announcements.json`);
       if (!res.ok) throw new Error("Failed to fetch announcements");
       return res.json();
     },

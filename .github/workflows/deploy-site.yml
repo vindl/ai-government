@@ -50,6 +50,8 @@ jobs:
 
       - name: Build site
         run: uv run python scripts/build_site.py --output-dir _site
+        env:
+          VITE_BASE_URL: /${{ github.event.repository.name }}/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

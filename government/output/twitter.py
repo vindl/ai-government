@@ -111,6 +111,49 @@ def get_unposted_results(
     return [r for r in results if r.decision.id not in posted]
 
 
+def load_unposted_from_dir(data_dir: Path) -> list[SessionResult]:
+    """Load completed analyses from *data_dir* that haven't been tweeted yet.
+
+    Reads all ``SessionResult`` JSON files and filters against
+    ``twitter_state.json``.  Returns results sorted oldest-first so the
+    backlog drains in chronological order.
+    """
+    from government.output.site_builder import load_results_from_dir
+
+    if not data_dir.exists():
+        return []
+    results = load_results_from_dir(data_dir)
+    state = load_state()
+    unposted = get_unposted_results(results, state)
+    # Sort by decision date (oldest first) so backlog drains chronologically
+    unposted.sort(key=lambda r: r.decision.date)
+    return unposted
+
+
+def post_tweet_backlog(data_dir: Path, *, limit: int = 3) -> int:
+    """Post tweets for up to *limit* unposted analyses from the backlog.
+
+    Returns the number of tweets successfully posted.
+    """
+    unposted = load_unposted_from_dir(data_dir)
+    if not unposted:
+        log.info("Tweet backlog: no unposted analyses found")
+        return 0
+
+    log.info("Tweet backlog: %d unposted analyses, will attempt up to %d", len(unposted), limit)
+    posted = 0
+    for result in unposted[:limit]:
+        # Skip results without a real headline (same guard as try_post_analysis)
+        headline = result.critic_report.headline if result.critic_report else ""
+        if not headline or headline == "Analiza u toku":
+            log.info("Tweet backlog: skipping %s — no real headline", result.decision.id)
+            continue
+        if try_post_analysis(result):
+            posted += 1
+            log.info("Tweet backlog: posted tweet for %s", result.decision.id)
+    return posted
+
+
 def _truncate_at_word_boundary(text: str, max_len: int) -> str:
     """Truncate *text* to *max_len* characters at a word boundary.
 

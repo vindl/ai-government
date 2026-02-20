@@ -400,6 +400,24 @@ h3 { font-size: 1.1rem; margin-top: 1.25rem; }
 .feed-score-7, .feed-score-8 { background: var(--color-pos); }
 .feed-score-9, .feed-score-10 { background: var(--color-strong-pos); }
 
+/* Feed verdict badge */
+.feed-verdict {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 3px;
+  border: 1px solid currentColor;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+.feed-verdict.verdict-strong-pos { color: var(--color-strong-pos); }
+.feed-verdict.verdict-pos { color: var(--color-pos); }
+.feed-verdict.verdict-neutral { color: var(--color-neutral); }
+.feed-verdict.verdict-neg { color: var(--color-neg); }
+.feed-verdict.verdict-strong-neg { color: var(--color-strong-neg); }
+
 /* Counter-proposal badge on index page */
 .feed-counter-proposal {
   display: inline-block;

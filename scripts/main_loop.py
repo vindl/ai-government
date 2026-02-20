@@ -105,6 +105,8 @@ LABEL_GAP_CONTENT = "gap:content"
 LABEL_GAP_TECHNICAL = "gap:technical"
 LABEL_RESEARCH_SCOUT = "research-scout"
 
+MAX_FAILED_RETRIES = 2
+
 ALL_LABELS: dict[str, str] = {
     LABEL_PROPOSED: "808080",    # gray
     LABEL_BACKLOG: "0e8a16",     # green
@@ -1357,9 +1359,91 @@ def mark_issue_failed(issue_number: int, reason: str) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_IN_PROGRESS,
              "--add-label", LABEL_FAILED], check=False)
+    attempt = _get_failure_count(issue_number) + 1
     _gh_comment(issue_number,
-                f"Written by Executor agent: Execution failed: {reason}",
+                f"Written by Executor agent: Execution failed: {reason}\n\n"
+                f"Failure count: {attempt}/{MAX_FAILED_RETRIES}",
                 check=False)
+
+
+def _get_failure_count(issue_number: int) -> int:
+    """Parse existing comments to count how many times this issue has failed."""
+    result = _run_gh([
+        "gh", "issue", "view", str(issue_number),
+        "--json", "comments",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return 0
+    count = 0
+    for comment in data.get("comments", []):
+        body = comment.get("body", "")
+        m = re.search(r"Failure count: (\d+)/", body)
+        if m:
+            count = max(count, int(m.group(1)))
+    return count
+
+
+def retry_failed_issues() -> int:
+    """Re-queue failed issues that haven't exceeded the retry limit.
+
+    Returns the number of issues re-queued.
+    """
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_FAILED,
+        "--state", "open",
+        "--json", "number,title",
+        "--limit", "20",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    try:
+        issues: list[dict[str, Any]] = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return 0
+
+    retried = 0
+    for issue in issues:
+        issue_number: int = issue["number"]
+        failure_count = _get_failure_count(issue_number)
+        if failure_count >= MAX_FAILED_RETRIES:
+            # Max retries exceeded — close the issue
+            _gh_comment(
+                issue_number,
+                f"Written by Retry agent: Max retries ({MAX_FAILED_RETRIES}) "
+                f"exceeded. Closing issue.",
+                check=False,
+            )
+            _run_gh(["gh", "issue", "close", str(issue_number)], check=False)
+            log.info(
+                "Issue #%d exceeded max retries (%d), closed.",
+                issue_number, MAX_FAILED_RETRIES,
+            )
+            continue
+
+        # Swap label back to backlog for retry
+        _run_gh([
+            "gh", "issue", "edit", str(issue_number),
+            "--remove-label", LABEL_FAILED,
+            "--add-label", LABEL_BACKLOG,
+        ], check=False)
+        _gh_comment(
+            issue_number,
+            f"Written by Retry agent: Re-queuing for retry "
+            f"(attempt {failure_count + 1}/{MAX_FAILED_RETRIES}).",
+            check=False,
+        )
+        log.info(
+            "Re-queued issue #%d for retry (attempt %d/%d).",
+            issue_number, failure_count + 1, MAX_FAILED_RETRIES,
+        )
+        retried += 1
+
+    return retried
 
 
 def get_failed_issue_titles() -> list[str]:
@@ -4484,6 +4568,16 @@ async def run_one_cycle(
         log.exception("CI health check failed")
         telemetry.errors.append(f"CI health check: {exc}")
         _log_error("ci_health_check", exc)
+
+    # --- Retry failed issues ---
+    try:
+        retried = retry_failed_issues()
+        if retried > 0:
+            print(f"  Retried {retried} previously failed issue(s)")
+    except Exception as exc:
+        log.exception("Failed issue retry check failed")
+        telemetry.errors.append(f"Failed issue retry: {exc}")
+        _log_error("retry_failed_issues", exc)
 
     # --- Conductor decides ---
     plan = await _run_conductor(

@@ -5,7 +5,7 @@ export function usePageContent(page: "constitution" | "architecture" | "cabinet"
   return useQuery<PageContent>({
     queryKey: ["page-content", page],
     queryFn: async () => {
-      const res = await fetch(`/data/${page}.json`);
+      const res = await fetch(`${import.meta.env.BASE_URL}data/${page}.json`);
       if (!res.ok) throw new Error(`Failed to fetch ${page} content`);
       return res.json();
     },

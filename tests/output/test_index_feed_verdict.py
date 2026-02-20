@@ -1,7 +1,8 @@
-"""Tests for verdict badge and critic score on the index page feed."""
+"""Tests for verdict and score data in the analyses-index JSON export."""
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,7 @@ from government.models.assessment import (
 )
 from government.models.decision import GovernmentDecision
 from government.orchestrator import SessionResult
-from government.output.site_builder import SiteBuilder
+from government.output.json_export import export_json
 
 
 def _make_result(
@@ -72,85 +73,75 @@ def _make_result(
     )
 
 
-@pytest.fixture()
-def built_index(tmp_path: Path) -> str:
-    """Build site and return the index.html content."""
-    output_dir = tmp_path / "site"
-    builder = SiteBuilder(output_dir=output_dir)
-    builder.build([_make_result()])
-    return (output_dir / "index.html").read_text(encoding="utf-8")
+def _export_and_load_index(tmp_path: Path, results: list[SessionResult]) -> list[dict]:
+    """Export JSON and return the parsed analyses-index."""
+    export_json(results, None, tmp_path)
+    index_path = tmp_path / "analyses-index.json"
+    return json.loads(index_path.read_text(encoding="utf-8"))
 
 
 class TestIndexFeedVerdict:
-    """Verdict badge appears on the index page feed."""
+    """Verdict data appears in analyses-index JSON."""
 
-    def test_verdict_badge_present(self, built_index: str) -> None:
-        assert "feed-verdict" in built_index
+    def test_verdict_present(self, tmp_path: Path) -> None:
+        index = _export_and_load_index(tmp_path, [_make_result()])
+        assert index[0]["overall_verdict"] == "positive"
 
-    def test_verdict_css_class_applied(self, built_index: str) -> None:
-        assert "verdict-pos" in built_index
-
-    def test_verdict_label_mne(self, built_index: str) -> None:
-        assert "Pozitivno" in built_index
-
-    def test_verdict_label_en(self, built_index: str) -> None:
-        assert "Positive" in built_index
+    def test_verdict_value(self, tmp_path: Path) -> None:
+        index = _export_and_load_index(
+            tmp_path, [_make_result(verdict=Verdict.NEGATIVE)]
+        )
+        assert index[0]["overall_verdict"] == "negative"
 
 
 class TestIndexFeedScore:
-    """Critic decision score appears on the index page feed."""
+    """Critic decision score appears in analyses-index JSON."""
 
-    def test_score_badge_present(self, built_index: str) -> None:
-        assert "feed-score" in built_index
+    def test_score_present(self, tmp_path: Path) -> None:
+        index = _export_and_load_index(tmp_path, [_make_result()])
+        assert index[0]["decision_score"] == 7
 
-    def test_score_value_displayed(self, built_index: str) -> None:
-        assert "7/10" in built_index
-
-    def test_score_css_class(self, built_index: str) -> None:
-        assert "feed-score-7" in built_index
+    def test_score_value(self, tmp_path: Path) -> None:
+        index = _export_and_load_index(
+            tmp_path, [_make_result(decision_score=3)]
+        )
+        assert index[0]["decision_score"] == 3
 
 
 class TestIndexFeedWithoutDebateOrCritic:
-    """Feed items gracefully omit badges when data is missing."""
+    """Index entries gracefully omit verdict/score when data is missing."""
 
     def test_no_verdict_without_debate(self, tmp_path: Path) -> None:
-        output_dir = tmp_path / "site"
-        builder = SiteBuilder(output_dir=output_dir)
-        builder.build([_make_result(include_debate=False)])
-        html = (output_dir / "index.html").read_text(encoding="utf-8")
-        assert "feed-verdict" not in html
+        index = _export_and_load_index(
+            tmp_path, [_make_result(include_debate=False)]
+        )
+        assert index[0]["overall_verdict"] is None
 
     def test_no_score_without_critic(self, tmp_path: Path) -> None:
-        output_dir = tmp_path / "site"
-        builder = SiteBuilder(output_dir=output_dir)
-        builder.build([_make_result(include_critic=False)])
-        html = (output_dir / "index.html").read_text(encoding="utf-8")
-        assert "feed-score" not in html
+        index = _export_and_load_index(
+            tmp_path, [_make_result(include_critic=False)]
+        )
+        assert index[0]["decision_score"] is None
 
 
 class TestIndexFeedVerdictVariants:
-    """Different verdict values produce correct CSS classes and labels."""
+    """Different verdict values produce correct values in JSON."""
 
     @pytest.mark.parametrize(
-        ("verdict", "css_class", "label_mne"),
+        ("verdict", "expected_value"),
         [
-            (Verdict.STRONGLY_POSITIVE, "verdict-strong-pos", "Izrazito pozitivno"),
-            (Verdict.POSITIVE, "verdict-pos", "Pozitivno"),
-            (Verdict.NEUTRAL, "verdict-neutral", "Neutralno"),
-            (Verdict.NEGATIVE, "verdict-neg", "Negativno"),
-            (Verdict.STRONGLY_NEGATIVE, "verdict-strong-neg", "Izrazito negativno"),
+            (Verdict.STRONGLY_POSITIVE, "strongly_positive"),
+            (Verdict.POSITIVE, "positive"),
+            (Verdict.NEUTRAL, "neutral"),
+            (Verdict.NEGATIVE, "negative"),
+            (Verdict.STRONGLY_NEGATIVE, "strongly_negative"),
         ],
     )
     def test_verdict_variant(
         self,
         tmp_path: Path,
         verdict: Verdict,
-        css_class: str,
-        label_mne: str,
+        expected_value: str,
     ) -> None:
-        output_dir = tmp_path / "site"
-        builder = SiteBuilder(output_dir=output_dir)
-        builder.build([_make_result(verdict=verdict)])
-        html = (output_dir / "index.html").read_text(encoding="utf-8")
-        assert css_class in html
-        assert label_mne in html
+        index = _export_and_load_index(tmp_path, [_make_result(verdict=verdict)])
+        assert index[0]["overall_verdict"] == expected_value

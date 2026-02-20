@@ -19,11 +19,17 @@
 <ul class="decision-feed">
   {% for r in results %}
   <li>
+    {% if r.critic_report %}<span class="feed-score feed-score-{{ r.critic_report.decision_score }}">{{ r.critic_report.decision_score }}/10</span>{% endif %}
     <h3><a href="analyses/{{ r.decision.id }}.html">
       {% if r.decision.title_mne %}<span class="lang-mne">{{ r.decision.title_mne }}</span>{% endif %}
       <span class="{% if r.decision.title_mne %}lang-en{% endif %}">{{ r.decision.title }}</span>
     </a></h3>
-    <div class="feed-meta">{{ r.decision.date }} &middot; {{ r.decision.category }}</div>
+    <div class="feed-meta">
+      {{ r.decision.date }} &middot; {{ r.decision.category }}
+      {% if r.debate %}
+        &middot; <span class="feed-verdict {{ r.debate.overall_verdict.value | verdict_css_class }}"><span class="lang-mne">{{ r.debate.overall_verdict.value | verdict_label_mne }}</span><span class="lang-en">{{ r.debate.overall_verdict.value | verdict_label }}</span></span>
+      {% endif %}
+    </div>
     {% if r.decision.summary_mne %}<p class="feed-summary lang-mne">{{ r.decision.summary_mne }}</p>{% endif %}
     <p class="feed-summary {% if r.decision.summary_mne %}lang-en{% endif %}">{{ r.decision.summary }}</p>
   </li>

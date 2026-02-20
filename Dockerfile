@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS base
+FROM python:3.13-slim AS base
 
 # --- System dependencies ---
 
@@ -9,9 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# --- Node.js 20 LTS (needed by Claude Code CLI) ---
+# --- Node.js 22 LTS (needed by Claude Code CLI) ---
 
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 

@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import anyio
 import claude_agent_sdk
-from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, ThinkingConfig
 from government.agents.json_parsing import retry_prompt
 from government.config import SessionConfig
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
@@ -314,6 +314,7 @@ def _sdk_options(
     max_turns: int,
     allowed_tools: list[str],
     effort: EffortLevel | None = None,
+    thinking: ThinkingConfig | None = None,
 ) -> ClaudeAgentOptions:
     # Agents WITH tools: use SystemPromptPreset with "append" so they get
     # built-in tool instructions, safety guards, and CLAUDE.md project context.
@@ -330,6 +331,7 @@ def _sdk_options(
             env=SDK_ENV,
             setting_sources=["project"],
             effort=effort,
+            thinking=thinking,
         )
     return ClaudeAgentOptions(
         system_prompt=system_prompt,
@@ -340,6 +342,7 @@ def _sdk_options(
         cwd=PROJECT_ROOT,
         env=SDK_ENV,
         effort=effort,
+        thinking=thinking,
     )
 
 

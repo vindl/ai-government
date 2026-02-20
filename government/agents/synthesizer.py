@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any, Literal
 
 import claude_agent_sdk
-from claude_agent_sdk import ClaudeAgentOptions
+from claude_agent_sdk import ClaudeAgentOptions, ThinkingConfig
 
 from government.agents.base import (
     collect_structured_or_text,
@@ -28,8 +28,14 @@ class SynthesizerAgent:
 
     default_effort: Literal["low", "medium", "high", "max"] = "high"
 
-    def __init__(self, session_config: SessionConfig | None = None) -> None:
+    def __init__(
+        self,
+        session_config: SessionConfig | None = None,
+        *,
+        thinking: ThinkingConfig | None = None,
+    ) -> None:
         self.config = session_config or SessionConfig()
+        self.thinking = thinking
 
     async def synthesize(
         self,
@@ -68,6 +74,7 @@ class SynthesizerAgent:
             model=self.config.model,
             max_turns=2,
             effort=effort or self.default_effort,
+            thinking=self.thinking,
         )
         state: dict[str, Any] = {}
         async for message in claude_agent_sdk.query(prompt=prompt, options=opts):

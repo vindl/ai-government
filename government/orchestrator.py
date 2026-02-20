@@ -26,6 +26,8 @@ from government.models.assessment import Assessment, CounterProposal, CriticRepo
 from government.models.decision import GovernmentDecision
 
 if TYPE_CHECKING:
+    from claude_agent_sdk import ThinkingConfig
+
     from government.agents.base import GovernmentAgent
 
 log = logging.getLogger(__name__)
@@ -156,25 +158,40 @@ class SessionResult(BaseModel):
 class Orchestrator:
     """Coordinates all ministry agents for a full cabinet session."""
 
-    def __init__(self, config: SessionConfig | None = None) -> None:
+    # Default thinking configs per agent type.
+    # Ministry agents use adaptive (model decides when to think).
+    # Parliament/Critic/Synthesizer use enabled thinking for deeper reasoning.
+    MINISTRY_THINKING: ThinkingConfig = {"type": "adaptive"}
+    ADVANCED_THINKING: ThinkingConfig = {"type": "enabled", "budget_tokens": 10000}
+
+    def __init__(
+        self,
+        config: SessionConfig | None = None,
+        *,
+        ministry_thinking: ThinkingConfig | None = None,
+        advanced_thinking: ThinkingConfig | None = None,
+    ) -> None:
         self.config = config or SessionConfig()
+        self._ministry_thinking = ministry_thinking or self.MINISTRY_THINKING
+        self._advanced_thinking = advanced_thinking or self.ADVANCED_THINKING
         self.ministry_agents: list[GovernmentAgent] = self._create_ministry_agents()
-        self.parliament = ParliamentAgent(self.config)
-        self.critic = CriticAgent(self.config)
-        self.synthesizer = SynthesizerAgent(self.config)
+        self.parliament = ParliamentAgent(self.config, thinking=self._advanced_thinking)
+        self.critic = CriticAgent(self.config, thinking=self._advanced_thinking)
+        self.synthesizer = SynthesizerAgent(self.config, thinking=self._advanced_thinking)
 
     def _create_ministry_agents(self) -> list[GovernmentAgent]:
+        thinking = self._ministry_thinking
         return [
-            create_finance_agent(self.config),
-            create_justice_agent(self.config),
-            create_eu_agent(self.config),
-            create_health_agent(self.config),
-            create_interior_agent(self.config),
-            create_education_agent(self.config),
-            create_economy_agent(self.config),
-            create_tourism_agent(self.config),
-            create_environment_agent(self.config),
-            create_labour_agent(self.config),
+            create_finance_agent(self.config, thinking=thinking),
+            create_justice_agent(self.config, thinking=thinking),
+            create_eu_agent(self.config, thinking=thinking),
+            create_health_agent(self.config, thinking=thinking),
+            create_interior_agent(self.config, thinking=thinking),
+            create_education_agent(self.config, thinking=thinking),
+            create_economy_agent(self.config, thinking=thinking),
+            create_tourism_agent(self.config, thinking=thinking),
+            create_environment_agent(self.config, thinking=thinking),
+            create_labour_agent(self.config, thinking=thinking),
         ]
 
     async def run_session(

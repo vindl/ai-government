@@ -4206,10 +4206,13 @@ async def _dispatch_action(
                     phase.detail = f"filed {len(filed)} issues"
 
             case "post_pending_tweets":
-                posted = post_tweet_backlog(DATA_DIR)
-                if posted > 0 and telemetry is not None:
-                    telemetry.tweet_posted = True
-                phase.detail = f"posted {posted} tweets"
+                if dry_run:
+                    phase.detail = "skipped (dry run)"
+                else:
+                    posted = post_tweet_backlog(DATA_DIR)
+                    if posted > 0:
+                        telemetry.tweet_posted = True
+                    phase.detail = f"posted {posted} tweets"
 
             case "cooldown":
                 seconds = action.seconds or 30

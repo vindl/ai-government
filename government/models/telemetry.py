@@ -65,6 +65,7 @@ class CycleTelemetry(BaseModel):
     # Meta
     human_overrides: int = 0
     tweet_posted: bool = False
+    tweet_metrics_collected: int = 0  # number of tweets with metrics fetched
     phases: list[CyclePhaseResult] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
 

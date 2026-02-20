@@ -1,5 +1,7 @@
 """Ministry of Economy agent."""
 
+from claude_agent_sdk import ThinkingConfig
+
 from government.agents.base import GovernmentAgent, MinistryConfig
 from government.config import SessionConfig
 from government.prompts.ministry_economy import (
@@ -8,7 +10,11 @@ from government.prompts.ministry_economy import (
 )
 
 
-def create_economy_agent(session_config: SessionConfig | None = None) -> GovernmentAgent:
+def create_economy_agent(
+    session_config: SessionConfig | None = None,
+    *,
+    thinking: ThinkingConfig | None = None,
+) -> GovernmentAgent:
     """Create the Ministry of Economy agent."""
     config = MinistryConfig(
         name="Economy",
@@ -16,4 +22,4 @@ def create_economy_agent(session_config: SessionConfig | None = None) -> Governm
         focus_areas=ECONOMY_FOCUS_AREAS,
         system_prompt=ECONOMY_SYSTEM_PROMPT,
     )
-    return GovernmentAgent(config, session_config)
+    return GovernmentAgent(config, session_config, thinking=thinking)

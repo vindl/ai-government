@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import claude_agent_sdk
-from claude_agent_sdk import ClaudeAgentOptions, ResultMessage
+from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, ThinkingConfig
 
 from government.agents.json_parsing import extract_json, retry_prompt
 from government.config import SessionConfig
@@ -85,9 +85,12 @@ class GovernmentAgent:
         self,
         ministry_config: MinistryConfig,
         session_config: SessionConfig | None = None,
+        *,
+        thinking: ThinkingConfig | None = None,
     ) -> None:
         self.ministry = ministry_config
         self.config = session_config or SessionConfig()
+        self.thinking = thinking
 
     async def analyze(
         self,
@@ -102,6 +105,7 @@ class GovernmentAgent:
             model=self.config.model,
             max_turns=2,
             effort=effort or self.default_effort,
+            thinking=self.thinking,
         )
 
         state: dict[str, Any] = {}

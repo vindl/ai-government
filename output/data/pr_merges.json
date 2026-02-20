@@ -1,5 +1,12 @@
 [
   {
+    "timestamp": "2026-02-19T23:30:49Z",
+    "pr_number": 305,
+    "pr_title": "Add JSON retry with context to all main loop agents",
+    "actor": "vindl",
+    "issue_number": null
+  },
+  {
     "timestamp": "2026-02-19T01:33:18Z",
     "pr_number": 297,
     "pr_title": "Strip markdown formatting from agent output on site",

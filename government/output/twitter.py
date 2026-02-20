@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -21,6 +21,11 @@ SITE_BASE_URL = "https://vindl.github.io/ai-government"
 MAX_TWEET_LENGTH = 280
 MONTHLY_POST_LIMIT = 400  # X free tier allows 500/month; keep headroom
 STATE_FILE = Path("output/twitter_state.json")
+METRICS_FILE = Path("output/data/tweet_metrics.jsonl")
+
+# Age window for metrics collection: fetch metrics for tweets posted 24-48h ago
+METRICS_MIN_AGE = timedelta(hours=24)
+METRICS_MAX_AGE = timedelta(hours=48)
 
 
 class BilingualTweet(NamedTuple):
@@ -28,6 +33,30 @@ class BilingualTweet(NamedTuple):
 
     en: str  # English (primary tweet)
     me: str  # Montenegrin (thread reply)
+
+
+class PostedTweetRecord(BaseModel):
+    """Metadata for a posted tweet, stored in TwitterState for later metrics fetch."""
+
+    tweet_id: str
+    reply_tweet_id: str | None = None
+    decision_id: str
+    posted_at: datetime
+    category: str = ""
+
+
+class TweetMetrics(BaseModel):
+    """Public metrics fetched from the X API for a single tweet."""
+
+    tweet_id: str
+    decision_id: str
+    fetched_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    impression_count: int = 0
+    like_count: int = 0
+    retweet_count: int = 0
+    reply_count: int = 0
+    # Derived
+    engagement_rate: float = 0.0  # (likes + retweets + replies) / impressions
 
 
 def translate_headline(headline: str) -> str:
@@ -68,6 +97,7 @@ class TwitterState(BaseModel):
     posted_decision_ids: list[str] = Field(default_factory=list)
     monthly_post_count: int = 0
     monthly_post_month: str = ""  # "YYYY-MM" for the tracked month
+    posted_tweets: list[PostedTweetRecord] = Field(default_factory=list)
 
 
 def load_state(path: Path = STATE_FILE) -> TwitterState:
@@ -109,6 +139,49 @@ def get_unposted_results(
     """Filter out results whose decision IDs have already been posted."""
     posted = set(state.posted_decision_ids)
     return [r for r in results if r.decision.id not in posted]
+
+
+def load_unposted_from_dir(data_dir: Path) -> list[SessionResult]:
+    """Load completed analyses from *data_dir* that haven't been tweeted yet.
+
+    Reads all ``SessionResult`` JSON files and filters against
+    ``twitter_state.json``.  Returns results sorted oldest-first so the
+    backlog drains in chronological order.
+    """
+    from government.output.site_builder import load_results_from_dir
+
+    if not data_dir.exists():
+        return []
+    results = load_results_from_dir(data_dir)
+    state = load_state()
+    unposted = get_unposted_results(results, state)
+    # Sort by decision date (oldest first) so backlog drains chronologically
+    unposted.sort(key=lambda r: r.decision.date)
+    return unposted
+
+
+def post_tweet_backlog(data_dir: Path, *, limit: int = 3) -> int:
+    """Post tweets for up to *limit* unposted analyses from the backlog.
+
+    Returns the number of tweets successfully posted.
+    """
+    unposted = load_unposted_from_dir(data_dir)
+    if not unposted:
+        log.info("Tweet backlog: no unposted analyses found")
+        return 0
+
+    log.info("Tweet backlog: %d unposted analyses, will attempt up to %d", len(unposted), limit)
+    posted = 0
+    for result in unposted[:limit]:
+        # Skip results without a real headline (same guard as try_post_analysis)
+        headline = result.critic_report.headline if result.critic_report else ""
+        if not headline or headline == "Analiza u toku":
+            log.info("Tweet backlog: skipping %s — no real headline", result.decision.id)
+            continue
+        if try_post_analysis(result):
+            posted += 1
+            log.info("Tweet backlog: posted tweet for %s", result.decision.id)
+    return posted
 
 
 def _truncate_at_word_boundary(text: str, max_len: int) -> str:
@@ -230,13 +303,24 @@ def try_post_analysis(result: SessionResult) -> bool:
         return False
 
     # Post Montenegrin reply in thread
+    reply_id: str | None = None
     if tweets.me:
         reply_id = post_tweet(tweets.me, in_reply_to_tweet_id=tweet_id)
         if reply_id is None:
             log.warning("Failed to post Montenegrin reply — primary tweet still posted")
 
-    state.last_posted_at = datetime.now(UTC)
+    now = datetime.now(UTC)
+    state.last_posted_at = now
     state.posted_decision_ids.append(result.decision.id)
+    state.posted_tweets.append(
+        PostedTweetRecord(
+            tweet_id=tweet_id,
+            reply_tweet_id=reply_id,
+            decision_id=result.decision.id,
+            posted_at=now,
+            category=result.decision.category,
+        )
+    )
     record_post(state)
     save_state(state)
     return True
@@ -281,3 +365,142 @@ def post_tweet(text: str, *, in_reply_to_tweet_id: str | None = None) -> str | N
     except Exception:
         log.exception("Failed to post to X")
         return None
+
+
+# ---------------------------------------------------------------------------
+# Tweet analytics / metrics collection
+# ---------------------------------------------------------------------------
+
+
+def _get_tweets_needing_metrics(
+    state: TwitterState,
+    *,
+    now: datetime | None = None,
+) -> list[PostedTweetRecord]:
+    """Return posted tweets in the 24-48 hour age window for metrics collection."""
+    now = now or datetime.now(UTC)
+    results: list[PostedTweetRecord] = []
+    for record in state.posted_tweets:
+        age = now - record.posted_at
+        if METRICS_MIN_AGE <= age <= METRICS_MAX_AGE:
+            results.append(record)
+    return results
+
+
+def _fetch_tweet_public_metrics(tweet_ids: list[str]) -> dict[str, TweetMetrics]:
+    """Fetch public_metrics for a batch of tweet IDs from the X API v2.
+
+    Uses ``GET /2/tweets`` with ``tweet.fields=public_metrics``.
+    Returns a mapping of tweet_id → TweetMetrics (only for successfully fetched tweets).
+    """
+    if not tweet_ids:
+        return {}
+
+    consumer_key = os.environ.get("TWITTER_CONSUMER_KEY", "")
+    consumer_secret = os.environ.get("TWITTER_CONSUMER_SECRET", "")
+    access_token = os.environ.get("TWITTER_ACCESS_TOKEN", "")
+    access_token_secret = os.environ.get("TWITTER_ACCESS_TOKEN_SECRET", "")
+
+    if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
+        log.info("X API credentials not set — skipping metrics collection")
+        return {}
+
+    try:
+        import tweepy
+
+        client = tweepy.Client(
+            consumer_key=consumer_key,
+            consumer_secret=consumer_secret,
+            access_token=access_token,
+            access_token_secret=access_token_secret,
+        )
+        # X API v2: GET /2/tweets with tweet.fields=public_metrics
+        # tweepy batches up to 100 IDs per request
+        response = client.get_tweets(
+            ids=tweet_ids,
+            tweet_fields=["public_metrics"],
+        )
+        if not response.data:
+            log.info("No tweet data returned from X API")
+            return {}
+
+        metrics_map: dict[str, TweetMetrics] = {}
+        for tweet in response.data:
+            pm = tweet.public_metrics or {}
+            impressions = pm.get("impression_count", 0)
+            likes = pm.get("like_count", 0)
+            retweets = pm.get("retweet_count", 0)
+            replies = pm.get("reply_count", 0)
+            engagement = (likes + retweets + replies) / impressions if impressions > 0 else 0.0
+            metrics_map[str(tweet.id)] = TweetMetrics(
+                tweet_id=str(tweet.id),
+                decision_id="",  # filled by caller
+                impression_count=impressions,
+                like_count=likes,
+                retweet_count=retweets,
+                reply_count=replies,
+                engagement_rate=round(engagement, 6),
+            )
+        return metrics_map
+    except Exception:
+        log.exception("Failed to fetch tweet metrics from X API")
+        return {}
+
+
+def collect_tweet_metrics(
+    *,
+    metrics_path: Path = METRICS_FILE,
+    state_path: Path = STATE_FILE,
+) -> list[TweetMetrics]:
+    """Fetch public_metrics for tweets posted 24-48 hours ago and log to JSONL.
+
+    Returns the list of collected TweetMetrics entries.
+    """
+    state = load_state(state_path)
+    eligible = _get_tweets_needing_metrics(state)
+    if not eligible:
+        log.info("No tweets in the 24-48h window for metrics collection")
+        return []
+
+    # Collect all tweet IDs (primary + reply) for batch fetch
+    tweet_id_to_record: dict[str, PostedTweetRecord] = {}
+    for record in eligible:
+        tweet_id_to_record[record.tweet_id] = record
+        if record.reply_tweet_id:
+            tweet_id_to_record[record.reply_tweet_id] = record
+
+    all_ids = list(tweet_id_to_record.keys())
+    log.info("Collecting metrics for %d tweet(s) from %d analysis post(s)", len(all_ids), len(eligible))
+
+    raw_metrics = _fetch_tweet_public_metrics(all_ids)
+    if not raw_metrics:
+        return []
+
+    # Assign decision_id and write to JSONL
+    results: list[TweetMetrics] = []
+    for tweet_id, metrics in raw_metrics.items():
+        matched_record = tweet_id_to_record.get(tweet_id)
+        if matched_record is not None:
+            metrics.decision_id = matched_record.decision_id
+        results.append(metrics)
+
+    # Append to JSONL
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    with metrics_path.open("a", encoding="utf-8") as f:
+        for m in results:
+            f.write(m.model_dump_json() + "\n")
+
+    log.info("Collected metrics for %d tweet(s)", len(results))
+    return results
+
+
+def load_tweet_metrics(path: Path = METRICS_FILE) -> list[TweetMetrics]:
+    """Load all tweet metrics entries from the JSONL file."""
+    if not path.exists():
+        return []
+    entries: list[TweetMetrics] = []
+    for line in path.read_text(encoding="utf-8").strip().splitlines():
+        line = line.strip()
+        if line:
+            entries.append(TweetMetrics.model_validate_json(line))
+    return entries

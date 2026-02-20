@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import anyio
 import claude_agent_sdk
-from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock
+from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, ThinkingConfig
 from government.agents.json_parsing import retry_prompt
 from government.config import SessionConfig
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
@@ -44,6 +44,9 @@ from government.orchestrator import Orchestrator, SessionResult
 from government.output.scorecard import render_scorecard
 from government.output.site_builder import load_results_from_dir, save_result_json
 from government.output.twitter import (
+    collect_tweet_metrics,
+    load_unposted_from_dir,
+    post_tweet_backlog,
     try_post_analysis,
 )
 from government.session import load_decisions
@@ -102,6 +105,8 @@ LABEL_TASK_FIX = "task:fix"
 LABEL_GAP_CONTENT = "gap:content"
 LABEL_GAP_TECHNICAL = "gap:technical"
 LABEL_RESEARCH_SCOUT = "research-scout"
+
+MAX_FAILED_RETRIES = 2
 
 ALL_LABELS: dict[str, str] = {
     LABEL_PROPOSED: "808080",    # gray
@@ -273,6 +278,7 @@ class ConductorAction(BaseModel):
     action: Literal[
         "fetch_news", "propose", "debate", "pick_and_execute",
         "director", "strategic_director", "research_scout",
+        "post_pending_tweets", "collect_tweet_metrics",
         "cooldown", "halt", "file_issue", "skip_cycle",
     ]
     reason: str
@@ -309,6 +315,7 @@ def _sdk_options(
     max_turns: int,
     allowed_tools: list[str],
     effort: EffortLevel | None = None,
+    thinking: ThinkingConfig | None = None,
 ) -> ClaudeAgentOptions:
     # Agents WITH tools: use SystemPromptPreset with "append" so they get
     # built-in tool instructions, safety guards, and CLAUDE.md project context.
@@ -325,6 +332,7 @@ def _sdk_options(
             env=SDK_ENV,
             setting_sources=["project"],
             effort=effort,
+            thinking=thinking,
         )
     return ClaudeAgentOptions(
         system_prompt=system_prompt,
@@ -335,6 +343,7 @@ def _sdk_options(
         cwd=PROJECT_ROOT,
         env=SDK_ENV,
         effort=effort,
+        thinking=thinking,
     )
 
 
@@ -1354,9 +1363,91 @@ def mark_issue_failed(issue_number: int, reason: str) -> None:
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_IN_PROGRESS,
              "--add-label", LABEL_FAILED], check=False)
+    attempt = _get_failure_count(issue_number) + 1
     _gh_comment(issue_number,
-                f"Written by Executor agent: Execution failed: {reason}",
+                f"Written by Executor agent: Execution failed: {reason}\n\n"
+                f"Failure count: {attempt}/{MAX_FAILED_RETRIES}",
                 check=False)
+
+
+def _get_failure_count(issue_number: int) -> int:
+    """Parse existing comments to count how many times this issue has failed."""
+    result = _run_gh([
+        "gh", "issue", "view", str(issue_number),
+        "--json", "comments",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return 0
+    count = 0
+    for comment in data.get("comments", []):
+        body = comment.get("body", "")
+        m = re.search(r"Failure count: (\d+)/", body)
+        if m:
+            count = max(count, int(m.group(1)))
+    return count
+
+
+def retry_failed_issues() -> int:
+    """Re-queue failed issues that haven't exceeded the retry limit.
+
+    Returns the number of issues re-queued.
+    """
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_FAILED,
+        "--state", "open",
+        "--json", "number,title",
+        "--limit", "20",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    try:
+        issues: list[dict[str, Any]] = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return 0
+
+    retried = 0
+    for issue in issues:
+        issue_number: int = issue["number"]
+        failure_count = _get_failure_count(issue_number)
+        if failure_count >= MAX_FAILED_RETRIES:
+            # Max retries exceeded — close the issue
+            _gh_comment(
+                issue_number,
+                f"Written by Retry agent: Max retries ({MAX_FAILED_RETRIES}) "
+                f"exceeded. Closing issue.",
+                check=False,
+            )
+            _run_gh(["gh", "issue", "close", str(issue_number)], check=False)
+            log.info(
+                "Issue #%d exceeded max retries (%d), closed.",
+                issue_number, MAX_FAILED_RETRIES,
+            )
+            continue
+
+        # Swap label back to backlog for retry
+        _run_gh([
+            "gh", "issue", "edit", str(issue_number),
+            "--remove-label", LABEL_FAILED,
+            "--add-label", LABEL_BACKLOG,
+        ], check=False)
+        _gh_comment(
+            issue_number,
+            f"Written by Retry agent: Re-queuing for retry "
+            f"(attempt {failure_count + 1}/{MAX_FAILED_RETRIES}).",
+            check=False,
+        )
+        log.info(
+            "Re-queued issue #%d for retry (attempt %d/%d).",
+            issue_number, failure_count + 1, MAX_FAILED_RETRIES,
+        )
+        retried += 1
+
+    return retried
 
 
 def get_failed_issue_titles() -> list[str]:
@@ -1525,13 +1616,16 @@ def _backlog_has_executable_tasks() -> bool:
 
 
 def should_fetch_news() -> bool:
-    """Return True if news has not been fetched today and analysis queue is empty."""
-    # Tighter gate: wait until analysis queue is fully drained
+    """Return True if news has not been fetched today and analysis queue is low enough."""
+    # Allow fetching when pending analysis issues are at or below the threshold.
+    # Previously this required 0 pending, which created a starvation loop when
+    # old analysis issues sat in the backlog and blocked all news ingestion.
     pending = _count_pending_analysis_issues()
-    if pending > 0:
+    if pending > NEWS_GATE_MAX_PENDING:
         log.info(
-            "Skipping News Scout: %d analysis issue(s) still open (must be 0)",
+            "Skipping News Scout: %d analysis issue(s) still open (max %d)",
             pending,
+            NEWS_GATE_MAX_PENDING,
         )
         return False
 
@@ -1702,6 +1796,12 @@ def _build_category_distribution_context() -> str:
 CATEGORY_CAP_THRESHOLD = 40  # percent — if a category exceeds this share of
 # historical analyses, cap new decisions in that category to MAX_PER_FETCH.
 CATEGORY_CAP_MAX_PER_FETCH = 1  # max decisions per overrepresented category
+CATEGORY_CAP_MIN_KEPT = 1  # always keep at least this many decisions after cap
+
+# News gate: allow fetching when pending analysis issues are at or below this.
+# Setting this > 0 prevents the starvation loop where the queue never refills
+# because news fetching is blocked while old analyses sit unprocessed.
+NEWS_GATE_MAX_PENDING = 2
 
 
 def _get_historical_category_distribution() -> Counter[str]:
@@ -1745,6 +1845,7 @@ def _enforce_category_caps(
         return decisions
 
     kept: list[GovernmentDecision] = []
+    dropped: list[GovernmentDecision] = []
     seen: Counter[str] = Counter()
     for d in decisions:
         cat = d.category or "general"
@@ -1758,8 +1859,22 @@ def _enforce_category_caps(
                     cat,
                     CATEGORY_CAP_THRESHOLD,
                 )
+                dropped.append(d)
                 continue
         kept.append(d)
+
+    # Guarantee at least CATEGORY_CAP_MIN_KEPT decisions survive the cap.
+    # This prevents starvation when ALL fetched decisions belong to
+    # overrepresented categories — at least one still gets through.
+    while len(kept) < CATEGORY_CAP_MIN_KEPT and dropped:
+        rescued = dropped.pop(0)
+        log.info(
+            "Category cap: rescuing '%s' to meet minimum of %d kept decision(s)",
+            rescued.title,
+            CATEGORY_CAP_MIN_KEPT,
+        )
+        kept.append(rescued)
+
     return kept
 
 
@@ -1776,7 +1891,10 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
         today = _dt.date.today()
         prompt = system_prompt.replace("{today}", today.isoformat())
         prompt += _build_category_distribution_context()
-        prompt += f"\n\nFind today's ({today.isoformat()}) Montenegrin government decisions."
+        prompt += (
+            f"\n\nFind recent Montenegrin government decisions (today is "
+            f"{today.isoformat()}, look back up to 3 days)."
+        )
 
         opts = _sdk_options(
             system_prompt=prompt,
@@ -1786,9 +1904,11 @@ async def step_fetch_news(*, model: str) -> list[GovernmentDecision]:
             effort="low",
         )
 
+        lookback_start = (today - _dt.timedelta(days=2)).isoformat()
         user_prompt = (
-            f"Search for Montenegrin government decisions from {today.isoformat()}. "
-            "Return a JSON array of the top 3 most significant decisions."
+            f"Search for Montenegrin government decisions from {lookback_start} to "
+            f"{today.isoformat()}. Prefer today's decisions, but include recent ones "
+            "if today is quiet. Return a JSON array of the top 3 most significant decisions."
         )
 
         log.info("Running News Scout agent for %s...", today.isoformat())
@@ -3178,9 +3298,34 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
 
         # Tweet posting stats
         tweets_posted = sum(1 for e in entries if e.tweet_posted)
+        metrics_collected = sum(e.tweet_metrics_collected for e in entries)
         sections.append(
-            f"\n## Social Media Activity: {tweets_posted}/{len(entries)} cycles posted tweets\n"
+            f"\n## Social Media Activity: {tweets_posted}/{len(entries)} cycles posted tweets"
+            f" | {metrics_collected} tweet metrics collected\n"
         )
+
+        # Per-tweet engagement data (if available)
+        try:
+            from government.output.twitter import load_tweet_metrics
+            tweet_metrics = load_tweet_metrics()
+            if tweet_metrics:
+                # Show last 10 metrics entries
+                recent = tweet_metrics[-10:]
+                metrics_lines = []
+                for m in recent:
+                    metrics_lines.append(
+                        f"  - tweet {m.tweet_id} (decision {m.decision_id}): "
+                        f"{m.impression_count} impressions, "
+                        f"{m.like_count} likes, {m.retweet_count} RTs, "
+                        f"{m.reply_count} replies "
+                        f"(engagement: {m.engagement_rate:.2%})"
+                    )
+                sections.append(
+                    f"\n## Tweet Engagement Metrics (last {len(recent)})\n\n"
+                    + "\n".join(metrics_lines) + "\n"
+                )
+        except Exception:
+            log.debug("Failed to load tweet metrics for strategic context", exc_info=True)
     else:
         sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
 
@@ -3659,6 +3804,35 @@ def _prefetch_conductor_context(
     # Research Scout state
     can_research = should_run_research_scout()
     sections.append(f"- Research Scout can run: {can_research}\n")
+
+    # Tweet backlog
+    try:
+        unposted = load_unposted_from_dir(DATA_DIR)
+        unposted_ids = [r.decision.id for r in unposted[:5]]
+        sections.append(
+            f"## Tweet Backlog\n\n"
+            f"- Unposted analyses: {len(unposted)}\n"
+            + (f"- IDs: {', '.join(unposted_ids)}\n" if unposted_ids else "")
+            + ("- Action: include `post_pending_tweets` to drain backlog\n"
+               if unposted else "- No action needed\n")
+        )
+    except Exception:
+        log.debug("Failed to load tweet backlog for conductor context", exc_info=True)
+
+    # Tweet metrics (auto-collected each cycle, but conductor can trigger manually)
+    try:
+        from government.output import twitter as _tw
+        tw_state = _tw.load_state()
+        eligible = _tw._get_tweets_needing_metrics(tw_state)
+        sections.append(
+            f"## Tweet Metrics\n\n"
+            f"- Tracked tweets: {len(tw_state.posted_tweets)}\n"
+            f"- Eligible for metrics (24-48h old): {len(eligible)}\n"
+            + ("- Action: `collect_tweet_metrics` (also runs automatically each cycle)\n"
+               if eligible else "- No tweets in metrics window\n")
+        )
+    except Exception:
+        log.debug("Failed to load tweet metrics context", exc_info=True)
 
     # Director timing
     sections.append(
@@ -4159,6 +4333,23 @@ async def _dispatch_action(
                     telemetry.research_scout_issues_filed = len(filed)
                     phase.detail = f"filed {len(filed)} issues"
 
+            case "post_pending_tweets":
+                if dry_run:
+                    phase.detail = "skipped (dry run)"
+                else:
+                    posted = post_tweet_backlog(DATA_DIR)
+                    if posted > 0:
+                        telemetry.tweet_posted = True
+                    phase.detail = f"posted {posted} tweets"
+
+            case "collect_tweet_metrics":
+                if dry_run:
+                    phase.detail = "skipped (dry run)"
+                else:
+                    metrics = collect_tweet_metrics()
+                    telemetry.tweet_metrics_collected = len(metrics)
+                    phase.detail = f"collected metrics for {len(metrics)} tweets"
+
             case "cooldown":
                 seconds = action.seconds or 30
                 print(f"  Conductor cooldown: sleeping {seconds}s...")
@@ -4430,6 +4621,16 @@ async def run_one_cycle(
         telemetry.errors.append(f"CI health check: {exc}")
         _log_error("ci_health_check", exc)
 
+    # --- Retry failed issues ---
+    try:
+        retried = retry_failed_issues()
+        if retried > 0:
+            print(f"  Retried {retried} previously failed issue(s)")
+    except Exception as exc:
+        log.exception("Failed issue retry check failed")
+        telemetry.errors.append(f"Failed issue retry: {exc}")
+        _log_error("retry_failed_issues", exc)
+
     # --- Conductor decides ---
     plan = await _run_conductor(
         cycle=cycle,
@@ -4490,6 +4691,26 @@ async def run_one_cycle(
     was_productive = telemetry.picked_issue_number is not None
     if was_productive:
         productive_cycles += 1
+
+    # --- Auto-drain tweet backlog (runs every cycle, non-fatal) ---
+    if not dry_run and "post_pending_tweets" not in telemetry.conductor_actions:
+        try:
+            posted = post_tweet_backlog(DATA_DIR, limit=3)
+            if posted > 0:
+                telemetry.tweet_posted = True
+                print(f"  Auto-posted {posted} tweet(s) from backlog")
+        except Exception:
+            log.exception("Auto tweet backlog drain failed (non-fatal)")
+
+    # --- Auto-collect tweet metrics (runs every cycle, non-fatal) ---
+    if not dry_run and "collect_tweet_metrics" not in telemetry.conductor_actions:
+        try:
+            metrics = collect_tweet_metrics()
+            if metrics:
+                telemetry.tweet_metrics_collected = len(metrics)
+                print(f"  Collected metrics for {len(metrics)} tweet(s)")
+        except Exception:
+            log.exception("Auto tweet metrics collection failed (non-fatal)")
 
     # --- Collect and save transparency records ---
     if not dry_run and was_productive:

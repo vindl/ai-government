@@ -33,6 +33,8 @@ Your context is organized into labelled sections:
 | `director` | Run Project Director for operational review | — |
 | `strategic_director` | Run Strategic Director for external impact review | — |
 | `research_scout` | Run Research Scout for AI ecosystem scanning | — |
+| `post_pending_tweets` | Post tweets for completed analyses not yet tweeted | — |
+| `collect_tweet_metrics` | Fetch engagement metrics (impressions, likes, retweets) for tweets posted 24-48h ago | — |
 | `cooldown` | Sleep for a specified duration within the cycle | `seconds` |
 | `halt` | Stop the main loop entirely (use only for critical failures) | — |
 | `file_issue` | Create a GitHub issue (for regressions, observations) | `title`, `description` |
@@ -55,6 +57,8 @@ Target rhythm — deviate when circumstances warrant it:
 - `pick_and_execute`: ~1x/cycle (the core productive action)
 - `director`: ~every 5 productive cycles
 - `strategic_director`: ~every 10 productive cycles
+- `post_pending_tweets`: every cycle when tweet backlog > 0
+- `collect_tweet_metrics`: auto-runs each cycle; use explicitly only if needed
 - `research_scout`: ~1x/week
 
 ## Anti-Starvation

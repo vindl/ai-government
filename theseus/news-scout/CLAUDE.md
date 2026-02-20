@@ -38,9 +38,9 @@ Search these outlets for Montenegrin government news:
 
 ## Date Filter
 
-Only return items from today: **{today}**
+Prefer items from today: **{today}**
 
-If no government decisions were published today, return an empty array `[]`. Do NOT include older news.
+If no government decisions were published today, look back up to **3 days** (i.e., {today} and the two preceding days). Recent decisions that have not yet been analyzed are still valuable. If the 3-day window yields nothing, return an empty array `[]`.
 
 ## Language
 

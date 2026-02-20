@@ -1,7 +1,8 @@
-"""Tests for bilingual (MNE/EN) rendering on scorecard pages."""
+"""Tests for bilingual (MNE/EN) data in models and JSON export."""
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -21,8 +22,8 @@ from government.models.assessment import (
 from government.models.decision import GovernmentDecision
 from government.orchestrator import SessionResult
 from government.output.html import _ministry_name_mne, _verdict_label_mne
+from government.output.json_export import export_json
 from government.output.localization import has_montenegrin_content
-from government.output.site_builder import SiteBuilder
 
 
 def _make_bilingual_result() -> SessionResult:
@@ -33,6 +34,8 @@ def _make_bilingual_result() -> SessionResult:
         summary="Zakon o zaštiti životne sredine sa novim standardima.",
         date=date(2026, 2, 15),
         category="environment",
+        title_mne="Predlog zakona o zaštiti životne sredine",
+        summary_mne="Zakon o zaštiti životne sredine sa novim standardima.",
     )
     assessment = Assessment(
         ministry="Finance",
@@ -178,103 +181,59 @@ class TestHasMontenegrinContent:
         assert has_montenegrin_content(result) is False
 
 
-class TestBilingualScorecardRendering:
-    """Test that bilingual content renders correctly in scorecard HTML."""
+class TestJsonExportBilingual:
+    """Test that JSON export preserves bilingual content."""
 
     @pytest.fixture()
-    def bilingual_html(self, tmp_path: Path) -> str:
-        builder = SiteBuilder(tmp_path)
+    def exported_data(self, tmp_path: Path) -> dict:
         result = _make_bilingual_result()
-        builder._build_scorecards([result])
-        path = tmp_path / "analyses" / "bi-001.html"
-        return path.read_text()
+        output_dir = tmp_path / "data"
+        export_json([result], None, output_dir)
+        # Read the individual analysis JSON
+        analysis_path = output_dir / "analyses" / "bi-001.json"
+        return json.loads(analysis_path.read_text())
 
     @pytest.fixture()
-    def english_only_html(self, tmp_path: Path) -> str:
-        builder = SiteBuilder(tmp_path)
-        result = _make_english_only_result()
-        builder._build_scorecards([result])
-        path = tmp_path / "analyses" / "en-001.html"
-        return path.read_text()
+    def exported_index(self, tmp_path: Path) -> list:
+        result = _make_bilingual_result()
+        output_dir = tmp_path / "data"
+        export_json([result], None, output_dir)
+        index_path = output_dir / "analyses-index.json"
+        return json.loads(index_path.read_text())
 
-    def test_contains_language_toggle(self, bilingual_html: str) -> None:
-        assert 'class="lang-toggle"' in bilingual_html
-        assert 'data-lang="mne"' in bilingual_html
-        assert 'data-lang="en"' in bilingual_html
+    def test_analysis_contains_mne_headline(self, exported_data: dict) -> None:
+        assert exported_data["critic_report"]["headline_mne"] == (
+            "Zakon o životnoj sredini: korak naprijed uz rizike"
+        )
 
-    def test_contains_mne_headline(self, bilingual_html: str) -> None:
-        assert "korak naprijed uz rizike" in bilingual_html
+    def test_analysis_contains_en_headline(self, exported_data: dict) -> None:
+        assert exported_data["critic_report"]["headline"] == (
+            "Environment Law: Forward Step with Risks"
+        )
 
-    def test_contains_en_headline(self, bilingual_html: str) -> None:
-        assert "Forward Step with Risks" in bilingual_html
+    def test_analysis_contains_mne_summary(self, exported_data: dict) -> None:
+        assert "Pozitivan korak za zaštitu" in exported_data["assessments"][0]["summary_mne"]
 
-    def test_contains_mne_verdict_label(self, bilingual_html: str) -> None:
-        assert "Pozitivno" in bilingual_html
+    def test_analysis_contains_en_summary(self, exported_data: dict) -> None:
+        assert "positive step for environmental" in exported_data["assessments"][0]["summary"]
 
-    def test_contains_en_verdict_label(self, bilingual_html: str) -> None:
-        assert "Positive" in bilingual_html
+    def test_analysis_contains_mne_counter_proposal(self, exported_data: dict) -> None:
+        assert exported_data["counter_proposal"]["title_mne"] == (
+            "Progresivna reforma životne sredine"
+        )
 
-    def test_contains_mne_summary(self, bilingual_html: str) -> None:
-        assert "Pozitivan korak za za\u0161titu" in bilingual_html
+    def test_analysis_scores(self, exported_data: dict) -> None:
+        assert exported_data["critic_report"]["decision_score"] == 7
+        assert exported_data["critic_report"]["assessment_quality_score"] == 6
 
-    def test_contains_en_summary(self, bilingual_html: str) -> None:
-        assert "positive step for environmental" in bilingual_html
+    def test_index_contains_verdict_labels(self, exported_index: list) -> None:
+        entry = exported_index[0]
+        assert entry["verdict_label"] == "Positive"
+        assert entry["verdict_label_mne"] == "Pozitivno"
 
-    def test_contains_mne_section_headers(self, bilingual_html: str) -> None:
-        assert "Ocjene ministarstava" in bilingual_html
-        assert "Detaljne analize" in bilingual_html
-        assert "Nezavisna kritička analiza" in bilingual_html
-
-    def test_contains_en_section_headers(self, bilingual_html: str) -> None:
-        assert "Ministry Verdicts" in bilingual_html
-        assert "Detailed Analyses" in bilingual_html
-        assert "Independent Critical Analysis" in bilingual_html
-
-    def test_contains_mne_key_concerns(self, bilingual_html: str) -> None:
-        assert "Uticaj na budžet" in bilingual_html
-
-    def test_contains_en_key_concerns(self, bilingual_html: str) -> None:
-        assert "Budget impact" in bilingual_html
-
-    def test_contains_mne_counter_proposal(self, bilingual_html: str) -> None:
-        assert "Kontra-prijedlog AI Vlade" in bilingual_html
-        assert "Progresivna reforma" in bilingual_html
-
-    def test_contains_en_counter_proposal(self, bilingual_html: str) -> None:
-        assert "AI Government Counter-proposal" in bilingual_html
-        assert "Progressive Environmental Reform" in bilingual_html
-
-    def test_contains_mne_debate_section(self, bilingual_html: str) -> None:
-        assert "Parlamentarna debata" in bilingual_html
-        assert "mjera socijalno opravdana" in bilingual_html
-
-    def test_contains_en_debate_section(self, bilingual_html: str) -> None:
-        assert "Parliamentary Debate" in bilingual_html
-        assert "socially justified" in bilingual_html
-
-    def test_lang_classes_present(self, bilingual_html: str) -> None:
-        assert 'class="lang-mne"' in bilingual_html
-        assert 'class="lang-en"' in bilingual_html
-
-    def test_scores_remain_neutral(self, bilingual_html: str) -> None:
-        assert "7/10" in bilingual_html
-        assert "6/10" in bilingual_html
-
-    def test_english_only_still_renders(self, english_only_html: str) -> None:
-        assert "Budget Change: Business as Usual" in english_only_html
-        assert "lang-toggle" in english_only_html
-
-    def test_mne_score_labels(self, bilingual_html: str) -> None:
-        assert "Ocjena odluke" in bilingual_html
-        assert "Kvalitet analize" in bilingual_html
-
-    def test_mne_error_report(self, bilingual_html: str) -> None:
-        assert "Prijavite grešku" in bilingual_html
-        assert "Report an error" in bilingual_html
-
-    def test_ministry_counter_proposal_mne(self, bilingual_html: str) -> None:
-        assert "Fazna implementacija" in bilingual_html
-        assert "Postepeno uvođenje" in bilingual_html
+    def test_index_contains_decision_score(self, exported_index: list) -> None:
+        entry = exported_index[0]
+        assert entry["decision_score"] == 7
 
 
 class TestMinistryNameMne:
@@ -290,75 +249,6 @@ class TestMinistryNameMne:
 
     def test_unknown_ministry_returns_as_is(self) -> None:
         assert _ministry_name_mne("Defence") == "Defence"
-
-
-class TestBilingualMetaLabels:
-    """Test that meta labels toggle per-language instead of showing both."""
-
-    @pytest.fixture()
-    def bilingual_html(self, tmp_path: Path) -> str:
-        builder = SiteBuilder(tmp_path)
-        result = _make_bilingual_result()
-        builder._build_scorecards([result])
-        path = tmp_path / "analyses" / "bi-001.html"
-        return path.read_text()
-
-    def test_no_dual_datum_date_label(self, bilingual_html: str) -> None:
-        assert "Datum / Date" not in bilingual_html
-
-    def test_has_mne_datum_label(self, bilingual_html: str) -> None:
-        assert "Datum:" in bilingual_html
-
-    def test_has_en_date_label(self, bilingual_html: str) -> None:
-        assert "Date:" in bilingual_html
-
-
-class TestBilingualMinistryNames:
-    """Test that ministry names are translated in MNE mode."""
-
-    @pytest.fixture()
-    def bilingual_html(self, tmp_path: Path) -> str:
-        builder = SiteBuilder(tmp_path)
-        result = _make_bilingual_result()
-        builder._build_scorecards([result])
-        path = tmp_path / "analyses" / "bi-001.html"
-        return path.read_text()
-
-    def test_mne_ministry_name_in_cards(self, bilingual_html: str) -> None:
-        assert "Ministarstvo finansija" in bilingual_html
-
-    def test_mne_ministry_name_in_details(self, bilingual_html: str) -> None:
-        # Should appear twice: once in cards, once in details
-        assert bilingual_html.count("Ministarstvo finansija") == 2
-
-
-class TestBilingualCounterProposalFields:
-    """Test that per-ministry counter-proposal MNE fields render."""
-
-    @pytest.fixture()
-    def bilingual_html(self, tmp_path: Path) -> str:
-        builder = SiteBuilder(tmp_path)
-        result = _make_bilingual_result()
-        builder._build_scorecards([result])
-        path = tmp_path / "analyses" / "bi-001.html"
-        return path.read_text()
-
-    def test_key_changes_mne_rendered(self, bilingual_html: str) -> None:
-        assert "Faza 1: standardi" in bilingual_html
-
-    def test_expected_benefits_mne_rendered(self, bilingual_html: str) -> None:
-        assert "Manje poremećaja" in bilingual_html
-
-    def test_estimated_feasibility_mne_rendered(self, bilingual_html: str) -> None:
-        assert "Visoka" in bilingual_html
-
-    def test_ministry_contributions_mne_rendered(self, bilingual_html: str) -> None:
-        assert "analiza fiskalnog uticaja" in bilingual_html
-
-    def test_transcript_heading(self, bilingual_html: str) -> None:
-        """Transcript heading should not have '(na engleskom)' now that MNE is supported."""
-        assert "(na engleskom)" not in bilingual_html
-        assert "Transkript" in bilingual_html
 
 
 class TestBilingualModelFields:

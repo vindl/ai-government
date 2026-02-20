@@ -1,4 +1,4 @@
-"""Static site builder — assembles scorecards, index, constitution, and feed pages."""
+"""Static site builder — exports JSON data files and builds the React SPA."""
 
 from __future__ import annotations
 
@@ -6,55 +6,19 @@ import json
 import logging
 import re
 import shutil
+import subprocess
 from pathlib import Path
 from typing import Any
 
 import markdown as md
-from jinja2 import Environment, FileSystemLoader
-from markupsafe import Markup
 from pydantic import ValidationError
 
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
 from government.orchestrator import SessionResult
-from government.output.html import (
-    _ministry_name_mne,
-    _verdict_css_class,
-    _verdict_label,
-    _verdict_label_mne,
-)
 
 SITE_DIR = Path(__file__).resolve().parent.parent.parent / "site"
-TEMPLATES_DIR = SITE_DIR / "templates"
-STATIC_DIR = SITE_DIR / "static"
 CONTENT_DIR = SITE_DIR / "content"
 DOCS_DIR = Path(__file__).resolve().parent.parent.parent / "docs"
-
-
-def _strip_markdown(text: str) -> str:
-    """Remove markdown bold/italic markers from text.
-
-    Agent prompts instruct plain-text output, but LLMs sometimes slip in
-    ``**bold**`` or ``*italic*`` markers anyway.  This filter ensures they
-    don't appear as literal characters in the rendered HTML.
-    """
-    # **bold** → bold, *italic* → italic
-    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
-    text = re.sub(r"\*(.+?)\*", r"\1", text)
-    return text
-
-
-def _create_env() -> Environment:
-    env = Environment(
-        loader=FileSystemLoader(str(TEMPLATES_DIR)),
-        autoescape=True,
-    )
-    env.filters["verdict_label"] = _verdict_label
-    env.filters["verdict_label_mne"] = _verdict_label_mne
-    env.filters["verdict_css_class"] = _verdict_css_class
-    env.filters["ministry_name_mne"] = _ministry_name_mne
-    env.filters["sm"] = _strip_markdown
-    return env
-
 
 _logger = logging.getLogger(__name__)
 
@@ -136,231 +100,57 @@ def _parse_announcement(path: Path) -> dict[str, Any]:
             body_lines.append(line)
 
     html = md.markdown("\n".join(body_lines).strip())
-    return {"date": date_str, "title": title, "html": Markup(html)}
+    return {"date": date_str, "title": title, "html": html}
 
 
 class SiteBuilder:
-    """Builds the complete static site from session results and content."""
+    """Builds the complete static site by exporting JSON and building the React SPA."""
 
     def __init__(self, output_dir: Path) -> None:
         self.output_dir = output_dir
-        self.env = _create_env()
 
     def build(self, results: list[SessionResult], data_dir: Path | None = None) -> None:
-        """Build the full static site."""
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        """Build the full static site.
 
-        self._copy_static()
-        self._build_scorecards(results)
-        self._build_index(results)
-        self._build_constitution()
-        self._build_architecture()
-        self._build_challenges()
-        self._build_cabinet()
-        self._build_feed()
-
-        # Build transparency page if data_dir is provided
-        if data_dir is not None:
-            overrides = load_overrides_from_file(data_dir)
-            suggestions = load_suggestions_from_file(data_dir)
-            pr_merges = load_pr_merges_from_file(data_dir)
-            self._build_transparency(overrides, suggestions, pr_merges)
-
-    def _copy_static(self) -> None:
-        dest = self.output_dir / "static"
-        if dest.exists():
-            shutil.rmtree(dest)
-        shutil.copytree(str(STATIC_DIR), str(dest))
-
-    def _build_scorecards(self, results: list[SessionResult]) -> None:
-        analyses_dir = self.output_dir / "analyses"
-        analyses_dir.mkdir(parents=True, exist_ok=True)
-
-        template = self.env.get_template("scorecard.html")
-        for result in results:
-            html = template.render(
-                result=result,
-                css_path="../static/css/style.css",
-                base_path="../",
-            )
-            path = analyses_dir / f"{result.decision.id}.html"
-            path.write_text(html, encoding="utf-8")
-
-        # Analyses index page
-        sorted_results = sorted(results, key=lambda r: r.decision.date, reverse=True)
-        index_template = self.env.get_template("decisions_index.html")
-        html = index_template.render(
-            results=sorted_results,
-            css_path="../static/css/style.css",
-            base_path="../",
-        )
-        (analyses_dir / "index.html").write_text(html, encoding="utf-8")
-
-        # Redirect stubs at old /decisions/ paths
-        self._build_redirects(results)
-
-    @staticmethod
-    def _redirect_html(target: str) -> str:
-        return (
-            "<!DOCTYPE html>"
-            '<html><head><meta charset="UTF-8">'
-            f'<meta http-equiv="refresh" content="0;url={target}">'
-            f'<link rel="canonical" href="{target}">'
-            "</head><body>"
-            f'<p>Moved to <a href="{target}">{target}</a></p>'
-            "</body></html>"
-        )
-
-    def _build_redirects(self, results: list[SessionResult]) -> None:
-        """Write redirect stubs at old /decisions/ paths pointing to /analyses/."""
-        old_dir = self.output_dir / "decisions"
-        old_dir.mkdir(parents=True, exist_ok=True)
-
-        # Index redirect
-        (old_dir / "index.html").write_text(
-            self._redirect_html("../analyses/"), encoding="utf-8",
-        )
-
-        # Individual scorecard redirects
-        for result in results:
-            filename = f"{result.decision.id}.html"
-            (old_dir / filename).write_text(
-                self._redirect_html(f"../analyses/{filename}"), encoding="utf-8",
-            )
-
-    def _build_index(self, results: list[SessionResult]) -> None:
-        # Sort by date descending
-        sorted_results = sorted(results, key=lambda r: r.decision.date, reverse=True)
-        template = self.env.get_template("index.html")
-        html = template.render(
-            results=sorted_results,
-            css_path="static/css/style.css",
-            base_path="",
-        )
-        (self.output_dir / "index.html").write_text(html, encoding="utf-8")
-
-    def _build_constitution(self) -> None:
-        constitution_dir = self.output_dir / "constitution"
-        constitution_dir.mkdir(parents=True, exist_ok=True)
-
-        constitution_en = (DOCS_DIR / "CONSTITUTION.md").read_text(encoding="utf-8")
-        constitution_mne = (DOCS_DIR / "CONSTITUTION_MNE.md").read_text(encoding="utf-8")
-
-        template = self.env.get_template("constitution.html")
-        html = template.render(
-            constitution_html_en=Markup(md.markdown(constitution_en)),
-            constitution_html_mne=Markup(md.markdown(constitution_mne)),
-            css_path="../static/css/style.css",
-            base_path="../",
-        )
-        (constitution_dir / "index.html").write_text(html, encoding="utf-8")
-
-    def _build_architecture(self) -> None:
-        arch_dir = self.output_dir / "architecture"
-        arch_dir.mkdir(parents=True, exist_ok=True)
-
-        decisions_en = (DOCS_DIR / "DECISIONS.md").read_text(encoding="utf-8")
-        decisions_mne = (DOCS_DIR / "DECISIONS_MNE.md").read_text(encoding="utf-8")
-
-        template = self.env.get_template("architecture.html")
-        html = template.render(
-            architecture_html_en=Markup(md.markdown(decisions_en)),
-            architecture_html_mne=Markup(md.markdown(decisions_mne)),
-            css_path="../static/css/style.css",
-            base_path="../",
-        )
-        (arch_dir / "index.html").write_text(html, encoding="utf-8")
-
-    def _build_challenges(self) -> None:
-        challenges_dir = self.output_dir / "challenges"
-        challenges_dir.mkdir(parents=True, exist_ok=True)
-
-        challenges_en = (DOCS_DIR / "CHALLENGES.md").read_text(encoding="utf-8")
-        challenges_mne = (DOCS_DIR / "CHALLENGES_MNE.md").read_text(encoding="utf-8")
-
-        template = self.env.get_template("challenges.html")
-        html = template.render(
-            challenges_html_en=Markup(md.markdown(challenges_en)),
-            challenges_html_mne=Markup(md.markdown(challenges_mne)),
-            css_path="../static/css/style.css",
-            base_path="../",
-        )
-        (challenges_dir / "index.html").write_text(html, encoding="utf-8")
-
-    def _build_cabinet(self) -> None:
-        cabinet_dir = self.output_dir / "cabinet"
-        cabinet_dir.mkdir(parents=True, exist_ok=True)
-
-        cabinet_en = (DOCS_DIR / "CABINET.md").read_text(encoding="utf-8")
-        cabinet_mne = (DOCS_DIR / "CABINET_MNE.md").read_text(encoding="utf-8")
-
-        template = self.env.get_template("cabinet.html")
-        html = template.render(
-            cabinet_html_en=Markup(md.markdown(cabinet_en, extensions=["tables"])),
-            cabinet_html_mne=Markup(md.markdown(cabinet_mne, extensions=["tables"])),
-            css_path="../static/css/style.css",
-            base_path="../",
-        )
-        (cabinet_dir / "index.html").write_text(html, encoding="utf-8")
-
-    def _build_feed(self) -> None:
-        announcements_dir = CONTENT_DIR / "announcements"
-        announcements: list[dict[str, Any]] = []
-        if announcements_dir.exists():
-            for path in sorted(announcements_dir.glob("*.md"), reverse=True):
-                # Skip Montenegrin companion files — they're loaded alongside their EN counterpart
-                if path.stem.endswith("_mne"):
-                    continue
-                ann = _parse_announcement(path)
-                # Look for companion Montenegrin file (e.g. 2026-02-14_launch_mne.md)
-                mne_path = path.with_name(f"{path.stem}_mne.md")
-                if mne_path.exists():
-                    mne = _parse_announcement(mne_path)
-                    ann["title_mne"] = mne["title"]
-                    ann["html_mne"] = mne["html"]
-                else:
-                    ann["title_mne"] = ann["title"]
-                    ann["html_mne"] = ann["html"]
-                announcements.append(ann)
-
-        feed_dir = self.output_dir / "news"
-        feed_dir.mkdir(parents=True, exist_ok=True)
-        template = self.env.get_template("feed.html")
-        html = template.render(
-            announcements=announcements,
-            css_path="../static/css/style.css",
-            base_path="../",
-        )
-        (feed_dir / "index.html").write_text(html, encoding="utf-8")
-
-    def _build_transparency(
-        self,
-        overrides: list[HumanOverride],
-        suggestions: list[HumanSuggestion],
-        pr_merges: list[PRMerge] | None = None,
-    ) -> None:
-        """Build the human overrides transparency report page.
-
-        PR merges are excluded — the AI merges its own PRs using the
-        repo owner's token, so they are not genuine human interventions.
+        1. Export JSON data files to site/public/data/
+        2. Run npm build in site/
+        3. Copy dist/ to output directory
+        4. Create 404.html for SPA routing on GitHub Pages
         """
-        transparency_dir = self.output_dir / "transparency"
-        transparency_dir.mkdir(parents=True, exist_ok=True)
+        json_output_dir = SITE_DIR / "public" / "data"
 
-        interventions: list[dict[str, Any]] = []
-        for o in overrides:
-            interventions.append({"type": "override", "item": o, "timestamp": o.timestamp})
-        for s in suggestions:
-            interventions.append({"type": "suggestion", "item": s, "timestamp": s.timestamp})
-        for m in pr_merges or []:
-            interventions.append({"type": "pr_merge", "item": m, "timestamp": m.timestamp})
-        interventions.sort(key=lambda x: x["timestamp"], reverse=True)
+        # Step 1: Export JSON data (lazy import to avoid circular dependency)
+        from government.output.json_export import export_json
 
-        template = self.env.get_template("transparency.html")
-        html = template.render(
-            interventions=interventions,
-            css_path="../static/css/style.css",
-            base_path="../",
+        _logger.info("Exporting JSON data to %s", json_output_dir)
+        export_json(results, data_dir, json_output_dir)
+
+        # Step 2: Run npm build
+        _logger.info("Running npm build in %s", SITE_DIR)
+        result = subprocess.run(
+            ["npm", "run", "build"],
+            cwd=str(SITE_DIR),
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
-        (transparency_dir / "index.html").write_text(html, encoding="utf-8")
+        if result.returncode != 0:
+            _logger.error("npm build failed:\n%s\n%s", result.stdout, result.stderr)
+            msg = f"npm build failed with exit code {result.returncode}"
+            raise RuntimeError(msg)
+        _logger.info("npm build succeeded")
 
+        # Step 3: Copy dist/ to output directory
+        dist_dir = SITE_DIR / "dist"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        if self.output_dir.exists():
+            shutil.rmtree(self.output_dir)
+        shutil.copytree(str(dist_dir), str(self.output_dir))
+        _logger.info("Copied dist/ to %s", self.output_dir)
+
+        # Step 4: Create 404.html for SPA routing
+        index_html = self.output_dir / "index.html"
+        four_oh_four = self.output_dir / "404.html"
+        if index_html.exists():
+            shutil.copy2(str(index_html), str(four_oh_four))
+            _logger.info("Created 404.html for SPA routing")

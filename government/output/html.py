@@ -1,12 +1,6 @@
-"""HTML helper functions for Jinja2 templates."""
+"""HTML helper functions — verdict labels, CSS classes, ministry name translations."""
 
 from __future__ import annotations
-
-from pathlib import Path
-
-from jinja2 import Environment, FileSystemLoader
-
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "site" / "templates"
 
 
 def _verdict_label(verdict_value: str) -> str:
@@ -58,15 +52,3 @@ _MINISTRY_NAME_MNE: dict[str, str] = {
 def _ministry_name_mne(ministry_name: str) -> str:
     """Return the Montenegrin genitive form of a ministry name."""
     return _MINISTRY_NAME_MNE.get(ministry_name, ministry_name)
-
-
-def _create_env(templates_dir: Path | None = None) -> Environment:
-    env = Environment(
-        loader=FileSystemLoader(str(templates_dir or TEMPLATES_DIR)),
-        autoescape=True,
-    )
-    env.filters["verdict_label"] = _verdict_label
-    env.filters["verdict_label_mne"] = _verdict_label_mne
-    env.filters["verdict_css_class"] = _verdict_css_class
-    env.filters["ministry_name_mne"] = _ministry_name_mne
-    return env

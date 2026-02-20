@@ -37,6 +37,11 @@ output/*
 # Site build output
 _site/
 
+# Site dependencies and build
+site/node_modules/
+site/dist/
+site/public/data/
+
 # OS
 .DS_Store
 Thumbs.db

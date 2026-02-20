@@ -1,14 +1,18 @@
-"""Tests for transparency page in site builder."""
+"""Tests for transparency data loading and JSON export."""
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from pathlib import Path
 from government.models.override import HumanOverride, HumanSuggestion, PRMerge
+from government.output.json_export import _build_transparency
 from government.output.site_builder import (
-    SiteBuilder,
     load_overrides_from_file,
     load_pr_merges_from_file,
     load_suggestions_from_file,
@@ -86,12 +90,9 @@ def sample_pr_merges() -> list[PRMerge]:
 
 def test_save_and_load_overrides(tmp_path: Path, sample_overrides: list[HumanOverride]) -> None:
     """Test saving and loading override records."""
-    # Save
-    save_path = Path(str(tmp_path))
-    _save_test_overrides(sample_overrides, save_path)
+    _save_test_overrides(sample_overrides, tmp_path)
 
-    # Load
-    loaded = load_overrides_from_file(save_path)
+    loaded = load_overrides_from_file(tmp_path)
 
     assert len(loaded) == 2
     assert loaded[0].issue_number == 123
@@ -107,56 +108,13 @@ def test_load_overrides_from_nonexistent_file(tmp_path: Path) -> None:
     assert loaded == []
 
 
-def test_build_transparency_page(tmp_path: Path, sample_overrides: list[HumanOverride]) -> None:
-    """Test building transparency page."""
-    output_dir = tmp_path / "site"
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-
-    # Save overrides
-    _save_test_overrides(sample_overrides, data_dir)
-
-    # Build site with transparency page
-    builder = SiteBuilder(output_dir)
-    builder._build_transparency(sample_overrides, [])
-
-    # Check output exists
-    transparency_page = output_dir / "transparency" / "index.html"
-    assert transparency_page.exists()
-
-    # Check content
-    content = transparency_page.read_text()
-    assert "Human Influence Transparency Report" in content
-    assert "#123: Implement transparency report" in content
-    assert "#100: Fix critical bug" in content
-    assert "vindl" in content
-    assert "admin" in content
-    assert "Important for constitutional compliance" in content
-
-
-def test_build_transparency_page_empty(tmp_path: Path) -> None:
-    """Test building transparency page with no overrides or suggestions."""
-    output_dir = tmp_path / "site"
-    builder = SiteBuilder(output_dir)
-    builder._build_transparency([], [])
-
-    transparency_page = output_dir / "transparency" / "index.html"
-    assert transparency_page.exists()
-
-    content = transparency_page.read_text()
-    assert "No human interventions have been recorded yet" in content
-
-
 def test_save_and_load_suggestions(
     tmp_path: Path, sample_suggestions: list[HumanSuggestion]
 ) -> None:
     """Test saving and loading suggestion records."""
-    # Save
-    save_path = Path(str(tmp_path))
-    _save_test_suggestions(sample_suggestions, save_path)
+    _save_test_suggestions(sample_suggestions, tmp_path)
 
-    # Load
-    loaded = load_suggestions_from_file(save_path)
+    loaded = load_suggestions_from_file(tmp_path)
 
     assert len(loaded) == 2
     assert loaded[0].issue_number == 200
@@ -172,54 +130,11 @@ def test_load_suggestions_from_nonexistent_file(tmp_path: Path) -> None:
     assert loaded == []
 
 
-def test_build_transparency_page_with_suggestions(
-    tmp_path: Path,
-    sample_overrides: list[HumanOverride],
-    sample_suggestions: list[HumanSuggestion],
-) -> None:
-    """Test building transparency page with both overrides and suggestions in unified list."""
-    output_dir = tmp_path / "site"
-    builder = SiteBuilder(output_dir)
-    builder._build_transparency(sample_overrides, sample_suggestions)
-
-    transparency_page = output_dir / "transparency" / "index.html"
-    assert transparency_page.exists()
-
-    content = transparency_page.read_text()
-
-    # All entries in a single unified list
-    assert "#123: Implement transparency report" in content
-    assert "#200: Add new analytics feature" in content
-    assert "#199: Improve error handling" in content
-
-    # Both types are rendered with override-record class
-    assert content.count("override-record") == 4  # 2 overrides + 2 suggestions
-
-
-def test_build_transparency_page_suggestions_only(
-    tmp_path: Path, sample_suggestions: list[HumanSuggestion]
-) -> None:
-    """Test building transparency page with only suggestions, no overrides."""
-    output_dir = tmp_path / "site"
-    builder = SiteBuilder(output_dir)
-    builder._build_transparency([], sample_suggestions)
-
-    transparency_page = output_dir / "transparency" / "index.html"
-    assert transparency_page.exists()
-
-    content = transparency_page.read_text()
-
-    # Should show suggestions in the unified list
-    assert "#200: Add new analytics feature" in content
-    assert "Human-directed task" in content
-
-
 def test_save_and_load_pr_merges(tmp_path: Path, sample_pr_merges: list[PRMerge]) -> None:
     """Test saving and loading PR merge records."""
-    save_path = Path(str(tmp_path))
-    _save_test_pr_merges(sample_pr_merges, save_path)
+    _save_test_pr_merges(sample_pr_merges, tmp_path)
 
-    loaded = load_pr_merges_from_file(save_path)
+    loaded = load_pr_merges_from_file(tmp_path)
 
     assert len(loaded) == 2
     assert loaded[0].pr_number == 50
@@ -235,65 +150,56 @@ def test_load_pr_merges_from_nonexistent_file(tmp_path: Path) -> None:
     assert loaded == []
 
 
-def test_build_transparency_page_with_pr_merges(
-    tmp_path: Path,
+def test_build_transparency_json(
     sample_overrides: list[HumanOverride],
     sample_suggestions: list[HumanSuggestion],
     sample_pr_merges: list[PRMerge],
 ) -> None:
-    """Test building transparency page with overrides, suggestions, and PR merges."""
-    output_dir = tmp_path / "site"
-    builder = SiteBuilder(output_dir)
-    builder._build_transparency(sample_overrides, sample_suggestions, sample_pr_merges)
+    """Test building transparency JSON payload with all types."""
+    data = _build_transparency(sample_overrides, sample_suggestions, sample_pr_merges)
 
-    transparency_page = output_dir / "transparency" / "index.html"
-    assert transparency_page.exists()
+    assert data["total"] == 6
+    assert len(data["interventions"]) == 6
 
-    content = transparency_page.read_text()
+    # Should be sorted by timestamp descending
+    timestamps = [i["timestamp"] for i in data["interventions"]]
+    assert timestamps == sorted(timestamps, reverse=True)
 
-    # All entries in a single unified list
-    assert "#123: Implement transparency report" in content
-    assert "#200: Add new analytics feature" in content
-    assert "PR #50: Add transparency report" in content
-    assert "PR #48: Fix scoring bug" in content
-
-    # PR merge type labels
-    assert "PR kreiran od strane covjeka" in content
-    assert "Human-initiated PR" in content
-
-    # Author labels
-    assert "Autor:" in content
-    assert "Author:" in content
-
-    # Linked issue
-    assert "issues/42" in content
-
-    # All entries use override-record class (2 overrides + 2 suggestions + 2 PR merges)
-    assert content.count("override-record") == 6
+    # Check types are present
+    types = {i["type"] for i in data["interventions"]}
+    assert types == {"override", "suggestion", "pr_merge"}
 
 
-def test_build_transparency_page_pr_merges_only(
-    tmp_path: Path, sample_pr_merges: list[PRMerge]
+def test_build_transparency_json_empty() -> None:
+    """Test building transparency JSON with no data."""
+    data = _build_transparency([], [], [])
+    assert data["total"] == 0
+    assert data["interventions"] == []
+
+
+def test_build_transparency_json_overrides_only(
+    sample_overrides: list[HumanOverride],
 ) -> None:
-    """Test building transparency page with only PR merges."""
-    output_dir = tmp_path / "site"
-    builder = SiteBuilder(output_dir)
-    builder._build_transparency([], [], sample_pr_merges)
+    """Test building transparency JSON with only overrides."""
+    data = _build_transparency(sample_overrides, [], [])
+    assert data["total"] == 2
+    assert all(i["type"] == "override" for i in data["interventions"])
+    assert data["interventions"][0]["issue_title"] == "Implement transparency report"
+    assert data["interventions"][0]["actor"] == "vindl"
 
-    transparency_page = output_dir / "transparency" / "index.html"
-    assert transparency_page.exists()
 
-    content = transparency_page.read_text()
-
-    assert "PR #50: Add transparency report" in content
-    assert "Human-initiated PR" in content
-    assert content.count("override-record") == 2
+def test_build_transparency_json_pr_merges_only(
+    sample_pr_merges: list[PRMerge],
+) -> None:
+    """Test building transparency JSON with only PR merges."""
+    data = _build_transparency([], [], sample_pr_merges)
+    assert data["total"] == 2
+    assert all(i["type"] == "pr_merge" for i in data["interventions"])
+    assert data["interventions"][0]["pr_title"] == "Add transparency report"
 
 
 def _save_test_pr_merges(merges: list[PRMerge], output_dir: Path) -> None:
     """Helper to save PR merge records for tests."""
-    import json
-
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "pr_merges.json"
     data = [m.model_dump(mode="json") for m in merges]
@@ -302,8 +208,6 @@ def _save_test_pr_merges(merges: list[PRMerge], output_dir: Path) -> None:
 
 def _save_test_overrides(overrides: list[HumanOverride], output_dir: Path) -> None:
     """Helper to save override records for tests."""
-    import json
-
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "overrides.json"
     data = [o.model_dump(mode="json") for o in overrides]
@@ -312,8 +216,6 @@ def _save_test_overrides(overrides: list[HumanOverride], output_dir: Path) -> No
 
 def _save_test_suggestions(suggestions: list[HumanSuggestion], output_dir: Path) -> None:
     """Helper to save suggestion records for tests."""
-    import json
-
     output_dir.mkdir(parents=True, exist_ok=True)
     path = output_dir / "suggestions.json"
     data = [s.model_dump(mode="json") for s in suggestions]

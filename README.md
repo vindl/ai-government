@@ -38,4 +38,4 @@ All state lives in GitHub Issues. Labels control the pipeline state machine: `se
 
 ## License
 
-MIT
+[AGPL-3.0](LICENSE)

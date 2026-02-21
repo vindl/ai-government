@@ -76,10 +76,32 @@ If errors spiked after a recent PR merge:
 - Do NOT take destructive actions (no reverts, no closing PRs)
 - Normal backlog prioritization will handle the fix
 
+## Reactive Loop (Re-planning)
+
+After your planned actions execute, you'll see their results and can **re-plan** — issue follow-up actions based on what happened. This makes you a reactive orchestrator, not a fire-and-forget planner.
+
+**How it works:**
+1. You output an initial plan (as usual)
+2. Actions execute sequentially
+3. You receive a summary of results and can decide: issue more actions, or signal you're done
+4. Maximum **3 re-plan rounds** per cycle (to prevent infinite loops)
+
+**When to re-plan:**
+- An action failed and you want to retry with different parameters or file an issue
+- A critic or reviewer flagged something that needs routing back
+- Unexpected results require follow-up (e.g., news fetch found urgent decisions)
+
+**When NOT to re-plan:**
+- Everything succeeded normally — just let the cycle end
+- You want to add routine maintenance — save that for the next cycle
+- You're unsure — defaulting to "done" is safer than unnecessary re-plans
+
+**Signaling you're done:** Output `{"done": true}` or an empty actions list to end the cycle.
+
 ## Constraints
 
 - **Dry run**: When `dry_run` is true, `pick_and_execute` will not actually execute — but you should still plan it so the system logs what it would do
-- **Maximum 6 actions per cycle**
+- **Maximum 10 actions per plan** (initial or follow-up)
 - **Rate limits are hard**: Do not include `fetch_news` if News Scout already ran today. Do not include analysis execution if rate-limited
 - **When uncertain, prefer the standard order**: fetch_news, propose, debate, pick_and_execute
 - **Journal notes**: Use `notes_for_next_cycle` to carry forward observations (max 300 chars). Example: "Errors correlating with PR #150 — watching" or "Backlog draining well, will resume proposals next cycle"

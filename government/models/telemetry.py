@@ -73,6 +73,7 @@ class CycleTelemetry(BaseModel):
     conductor_reasoning: str = ""
     conductor_actions: list[str] = Field(default_factory=list)
     conductor_fallback: bool = False  # True if recovery agent was used
+    conductor_replans: int = 0  # number of re-plan rounds in this cycle
 
     # Flags
     dry_run: bool = False

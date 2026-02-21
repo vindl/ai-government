@@ -149,7 +149,7 @@ class TestProposeGracefulDegradation:
             )
 
         # Phase should succeed (not crash the dispatch)
-        assert result is None
+        assert result.success is True
         assert len(pending) == 0
         assert telemetry.proposals_made == 0
         # No errors recorded in telemetry for transient failures

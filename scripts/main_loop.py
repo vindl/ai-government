@@ -78,6 +78,7 @@ CIRCUIT_BREAKER_THRESHOLD = 3
 MAX_BACKOFF_SECONDS = 1800  # 30 minutes
 SDK_RETRY_ATTEMPTS = 3  # retries *after* the first attempt (4 total tries)
 SDK_RETRY_BASE_DELAY = 5  # seconds between retries (exponential: 5, 10, 20)
+MAX_CONDUCTOR_REPLANS = 3  # max re-plan rounds per cycle
 
 # Signatures that indicate a transient SDK/API outage (not a code bug).
 # These should NOT trigger the circuit breaker.
@@ -292,9 +293,17 @@ class ConductorPlan(BaseModel):
     """Structured output from the Conductor agent."""
 
     reasoning: str
-    actions: list[ConductorAction] = Field(max_length=6)
+    actions: list[ConductorAction] = Field(max_length=10)
     suggested_cooldown_seconds: int = Field(default=60, ge=10, le=3600)
     notes_for_next_cycle: str = ""  # Brief observations to carry forward
+
+
+class ActionResult(BaseModel):
+    """Result of a dispatched Conductor action."""
+
+    action: str
+    success: bool
+    summary: str
 
 
 _repo_nwo: str | None = None
@@ -3618,15 +3627,19 @@ def _append_conductor_journal(
     reasoning: str,
     notes: str,
     actions: list[str],
+    *,
+    replan_rounds: int = 0,
 ) -> None:
     """Append a Conductor journal entry."""
     CONDUCTOR_JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    entry = {
+    entry: dict[str, Any] = {
         "timestamp": datetime.now(UTC).isoformat(),
         "reasoning": reasoning[:500],
         "notes_for_next_cycle": notes[:300],
         "actions": actions,
     }
+    if replan_rounds > 0:
+        entry["replan_rounds"] = replan_rounds
     with CONDUCTOR_JOURNAL_PATH.open("a") as f:
         f.write(json.dumps(entry) + "\n")
 
@@ -3991,16 +4004,16 @@ Remember:
 - pick_and_execute requires issue_number (specify which backlog issue)
 - file_issue requires title and description
 - cooldown requires seconds
-- Maximum 6 actions per cycle
+- Maximum 10 actions per cycle
 - When uncertain, prefer the standard order: fetch_news → propose → debate → pick_and_execute
 """
 
     opts = _sdk_options(
         system_prompt=system_prompt,
         model=model,
-        max_turns=1,
-        allowed_tools=[],
-        effort="low",
+        max_turns=50,
+        allowed_tools=["WebSearch", "WebFetch", "Bash", "Read", "Grep", "Glob"],
+        effort="high",
     )
 
     sdk_failures = 0
@@ -4044,6 +4057,116 @@ Remember:
         dry_run=dry_run,
         sdk_down=sdk_failures >= 2,
     )
+
+
+async def _run_conductor_followup(
+    *,
+    original_plan: ConductorPlan,
+    action_results: list[ActionResult],
+    replan_round: int,
+    max_replans: int,
+    cycle: int,
+    productive_cycles: int,
+    dry_run: bool,
+    model: str,
+) -> ConductorPlan | None:
+    """Ask the Conductor whether to continue, adjust, or stop after seeing action results.
+
+    Returns a new ConductorPlan with additional actions, or None if the Conductor
+    is satisfied and the cycle should end.
+    """
+    results_summary = "\n".join(
+        f"- {r.action}: {'OK' if r.success else 'FAILED'} — {r.summary}"
+        for r in action_results
+    )
+
+    system_prompt = _load_role_prompt("conductor")
+    prompt = f"""You previously planned actions for cycle {cycle}. They have now executed.
+
+## Original Plan
+Reasoning: {original_plan.reasoning}
+Actions: {', '.join(a.action for a in original_plan.actions)}
+
+## Action Results
+{results_summary}
+
+## Re-plan Status
+Re-plan round: {replan_round + 1} of {max_replans}
+Productive cycles so far: {productive_cycles}
+Dry run: {dry_run}
+
+## Instructions
+Review the results above. You may:
+1. **Issue a follow-up plan** with additional actions
+   (e.g., route critic feedback, retry differently, file a regression issue).
+   Output a ConductorPlan JSON as usual.
+2. **Signal you're done** by outputting: {{"done": true}}
+
+Guidelines:
+- Re-plan when results need immediate attention
+  (failures, unexpected outcomes, critic flags)
+- Do NOT re-plan just for routine maintenance — save for next cycle
+- An empty actions list or skip_cycle also signals you're done
+- Maximum 10 actions per follow-up plan
+
+Output a single JSON object (no markdown fences).
+"""
+
+    opts = _sdk_options(
+        system_prompt=system_prompt,
+        model=model,
+        max_turns=50,
+        allowed_tools=["WebSearch", "WebFetch", "Bash", "Read", "Grep", "Glob"],
+        effort="high",
+    )
+
+    try:
+        log.info("Running Conductor follow-up (replan round %d)...", replan_round + 1)
+        output = await _run_sdk_with_retry(prompt, opts)
+
+        # Check for "done" signal
+        text = output.strip()
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict) and data.get("done"):
+                log.info("Conductor follow-up: done (no more actions)")
+                return None
+        except (json.JSONDecodeError, Exception):
+            pass
+
+        # Check for done signal embedded in larger output
+        start = text.find("{")
+        if start != -1:
+            depth = 0
+            for i in range(start, len(text)):
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            data = json.loads(text[start : i + 1])
+                            if isinstance(data, dict) and data.get("done"):
+                                log.info("Conductor follow-up: done (no more actions)")
+                                return None
+                        except (json.JSONDecodeError, Exception):
+                            pass
+                        break
+
+        plan = _parse_conductor_plan(output)
+        if plan is not None:
+            if not plan.actions:
+                log.info("Conductor follow-up returned empty actions — done")
+                return None
+            if len(plan.actions) == 1 and plan.actions[0].action == "skip_cycle":
+                log.info("Conductor follow-up returned skip_cycle — done")
+                return None
+            return plan
+        log.warning("Conductor follow-up returned no valid plan — treating as done")
+        return None
+    except Exception:
+        log.exception("Conductor follow-up failed — treating as done")
+        return None
 
 
 def _is_sdk_transient_error(exc: BaseException) -> bool:
@@ -4148,8 +4271,8 @@ async def _dispatch_action(
     dry_run: bool,
     productive_cycles: int,
     pending_proposals: list[dict[str, Any]],
-) -> str | None:
-    """Execute a single Conductor action. Returns 'halt' to stop the loop."""
+) -> ActionResult:
+    """Execute a single Conductor action. Returns ActionResult with outcome."""
     t0 = time.monotonic()
     phase = CyclePhaseResult(phase=action.action)
 
@@ -4301,7 +4424,10 @@ async def _dispatch_action(
                                     phase.detail = f"infrastructure error: {exc}"
                                     phase.duration_seconds = time.monotonic() - t0
                                     telemetry.phases.append(phase)
-                                    return "halt"
+                                    return ActionResult(
+                                        action="halt", success=False,
+                                        summary=f"infrastructure error: {exc}",
+                                    )
                                 raise
                             telemetry.execution_success = success
                             phase.success = success
@@ -4363,7 +4489,7 @@ async def _dispatch_action(
                 phase.detail = "halting"
                 phase.duration_seconds = time.monotonic() - t0
                 telemetry.phases.append(phase)
-                return "halt"
+                return ActionResult(action="halt", success=True, summary="halting")
 
             case "file_issue":
                 if action.title and action.description:
@@ -4386,7 +4512,7 @@ async def _dispatch_action(
 
     phase.duration_seconds = time.monotonic() - t0
     telemetry.phases.append(phase)
-    return None
+    return ActionResult(action=action.action, success=phase.success, summary=phase.detail)
 
 
 # ---------------------------------------------------------------------------
@@ -4659,36 +4785,79 @@ async def run_one_cycle(
         print(f"Notes for next cycle: {plan.notes_for_next_cycle}")
     print(f"Suggested cooldown: {plan.suggested_cooldown_seconds}s\n")
 
-    # --- Execute plan ---
+    # --- Execute plan (reactive loop with re-planning) ---
     # Cycle-scoped buffer for proposals from step_propose() so the debate
     # phase can consume them even though propose and debate are separate
     # Conductor actions.
+    all_results: list[ActionResult] = []
+    replan_round = 0
     pending_proposals: list[dict[str, Any]] = []
-    for action in plan.actions:
-        result = await _dispatch_action(
-            action,
-            telemetry=telemetry,
-            model=model,
-            max_pr_rounds=max_pr_rounds,
-            dry_run=dry_run,
-            productive_cycles=productive_cycles,
-            pending_proposals=pending_proposals,
-        )
-        if result == "halt":
-            # Finalize telemetry before halting
-            telemetry.finished_at = datetime.now(UTC)
-            telemetry.duration_seconds = (
-                telemetry.finished_at - telemetry.started_at
-            ).total_seconds()
-            append_telemetry(TELEMETRY_PATH, telemetry)
-            banner = (
-                "\n" + "!" * 60 + "\n"
-                "CONDUCTOR HALTED THE LOOP\n"
-                f"Reason: {action.reason}\n"
-                + "!" * 60
+
+    while True:
+        # Execute current plan's actions
+        for action in plan.actions:
+            result = await _dispatch_action(
+                action,
+                telemetry=telemetry,
+                model=model,
+                max_pr_rounds=max_pr_rounds,
+                dry_run=dry_run,
+                productive_cycles=productive_cycles,
+                pending_proposals=pending_proposals,
             )
-            print(banner)
-            sys.exit(2)
+            all_results.append(result)
+            if result.action == "halt":
+                # Finalize telemetry before halting
+                telemetry.conductor_replans = replan_round
+                telemetry.finished_at = datetime.now(UTC)
+                telemetry.duration_seconds = (
+                    telemetry.finished_at - telemetry.started_at
+                ).total_seconds()
+                append_telemetry(TELEMETRY_PATH, telemetry)
+                banner = (
+                    "\n" + "!" * 60 + "\n"
+                    "CONDUCTOR HALTED THE LOOP\n"
+                    f"Reason: {action.reason}\n"
+                    + "!" * 60
+                )
+                print(banner)
+                sys.exit(2)
+
+        # Check if re-planning is allowed
+        if replan_round >= MAX_CONDUCTOR_REPLANS:
+            if replan_round > 0:
+                log.info("Max re-plan rounds (%d) reached", MAX_CONDUCTOR_REPLANS)
+            break
+
+        # Ask Conductor if it wants to adjust based on results
+        followup_plan = await _run_conductor_followup(
+            original_plan=plan,
+            action_results=all_results,
+            replan_round=replan_round,
+            max_replans=MAX_CONDUCTOR_REPLANS,
+            cycle=cycle,
+            productive_cycles=productive_cycles,
+            dry_run=dry_run,
+            model=model,
+        )
+        if followup_plan is None:
+            break  # Conductor is satisfied, cycle done
+
+        # Log the follow-up plan
+        print(f"\nConductor re-plan (round {replan_round + 1}):")
+        print(f"  Reasoning: {followup_plan.reasoning}")
+        for i, act in enumerate(followup_plan.actions, 1):
+            detail = f" (issue #{act.issue_number})" if act.issue_number else ""
+            print(f"  {i}. {act.action}{detail}: {act.reason}")
+
+        # Record follow-up actions in telemetry
+        telemetry.conductor_actions.extend(a.action for a in followup_plan.actions)
+
+        plan = followup_plan
+        replan_round += 1
+        all_results = []  # reset for new round
+
+    telemetry.conductor_replans = replan_round
 
     # Update productive_cycles: count if any pick_and_execute ran
     was_productive = telemetry.picked_issue_number is not None
@@ -4757,7 +4926,8 @@ async def run_one_cycle(
     _append_conductor_journal(
         reasoning=plan.reasoning,
         notes=plan.notes_for_next_cycle,
-        actions=[a.action for a in plan.actions],
+        actions=telemetry.conductor_actions,
+        replan_rounds=telemetry.conductor_replans,
     )
 
     return productive_cycles, plan.suggested_cooldown_seconds

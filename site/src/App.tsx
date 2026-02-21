@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import Layout from "./components/Layout";
 import Index from "./pages/Index";
@@ -17,6 +17,12 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+/** Redirect /analyses/foo.html → /analyses/foo */
+function AnalysisHtmlRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/analyses/${id?.replace(/\.html$/, "")}`} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <LanguageProvider>
@@ -27,6 +33,7 @@ const App = () => (
           <Layout>
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/analyses/:id.html" element={<AnalysisHtmlRedirect />} />
               <Route path="/analyses/:id" element={<AnalysisDetail />} />
               <Route path="/constitution" element={<Constitution />} />
               <Route path="/cabinet" element={<Cabinet />} />

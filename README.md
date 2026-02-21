@@ -1,63 +1,40 @@
-# AI Government 🏛️
+# AI Government
 
 AI mirror of the Montenegrin government. Analyzes real government decisions through specialized ministry AI agents, simulates parliamentary debate, and produces bilingual scorecards and reports of public interest.
 
 All agents are bound by the [Constitution](docs/CONSTITUTION.md).
 
+**[Live site](https://vindl.github.io/ai-government/)** | [Transparency report](https://vindl.github.io/ai-government/transparency) | [Source code](https://github.com/vindl/ai-government)
+
 ## How It Works
 
-1. **Input**: Real Montenegrin government decisions, sourced by the News Scout agent via web search
-2. **Analysis**: Each AI ministry agent evaluates the decision from its domain perspective
-3. **Debate**: A parliament agent synthesizes all ministry assessments into a debate
-4. **Scoring**: An independent critic agent scores the decision and all assessments
-5. **Output**: Bilingual (EN/MNE) static site with HTML scorecards + optional X/Twitter posts
+1. **News intake**: A News Scout agent searches Montenegrin government sources daily for new decisions
+2. **Analysis**: Ten AI ministry agents (Finance, Justice, EU Integration, Health, Interior, Economy, Education, Environment, Tourism, Labour) each evaluate the decision from their domain perspective
+3. **Debate**: A parliament agent synthesizes all ministry assessments into a structured debate
+4. **Scoring**: An independent critic agent scores the government's decision and the quality of the AI analysis
+5. **Counter-proposal**: The AI cabinet produces an alternative proposal with key differences and trade-offs
+6. **Output**: Bilingual (EN/MNE) website with scorecards, linked back to the GitHub issue that produced each analysis
 
 ## Architecture
 
-Two agent fleets:
+Two agent fleets operate autonomously:
 
-- **Government Mirror** (Fleet 1): Python agents via Claude Code SDK — Finance, Justice, EU Integration, Health, Interior, Economy, Education, Environment, Tourism ministries + Parliament + Critic + Synthesizer
-- **Theseus** (Fleet 2): Specialized Claude Code instances with role-specific prompts in `theseus/` — Coder, Reviewer, PM, Director, Editorial Director, News Scout, Research Scout, Strategic Director
+- **Government Mirror** (Fleet 1): Python agents via Claude Code SDK — ten ministry agents + Parliament + Critic + Synthesizer. Orchestrated by `government/orchestrator.py`, run through the main loop in `scripts/main_loop.py`.
+- **Theseus** (Fleet 2): Specialized Claude Code instances with role-specific prompts in `theseus/` — Coder, Reviewer, PM, Director, Editorial Director, News Scout, Research Scout, Strategic Director. Handles self-improvement, code changes, and editorial oversight.
 
-## Quick Start
+The website is a React + TypeScript + Tailwind CSS SPA built with Vite. The Python build pipeline exports analysis data as static JSON, then builds the React app. Deployed to GitHub Pages.
 
-```bash
-# Install dependencies
-uv sync
+All state lives in GitHub Issues. Labels control the pipeline state machine: `self-improve:proposed` → `backlog` → `in-progress` → `done` / `failed`. Every analysis links to its source issue for full transparency.
 
-# Set up environment
-cp .env.example .env
-# Edit .env with your ANTHROPIC_API_KEY, GH_TOKEN, and optional TWITTER_* credentials
+## Documentation
 
-# Run a session with sample data
-uv run python scripts/run_session.py --decision-file data/seed/sample_decisions.json
-
-# Run the main loop (news intake + analysis + self-improvement)
-uv run python scripts/main_loop.py --max-cycles 1
-
-# Build the static site
-uv run python scripts/build_site.py
-
-# Launch a Theseus fleet member
-./scripts/launch_dev_member.sh coder
-```
-
-### Docker
-
-```bash
-export GH_TOKEN="ghp_..."
-docker compose build
-docker compose up          # run indefinitely
-LOOP_MAX_CYCLES=3 docker compose up  # 3 cycles then stop
-```
-
-## Development
-
-```bash
-uv run ruff check government/ tests/   # Lint
-uv run mypy government/                 # Type check
-uv run pytest                           # Test
-```
+- [Constitution](docs/CONSTITUTION.md) — binding ethical and operational principles
+- [Context](docs/CONTEXT.md) — project background and goals
+- [Architecture decisions](docs/DECISIONS.md) — ADRs for key design choices
+- [Status](docs/STATUS.md) — current implementation state
+- [Roadmap](docs/ROADMAP.md) — what's next
+- [Contributing](CONTRIBUTING.md) — how to contribute
+- [Code of Conduct](CODE_OF_CONDUCT.md) — community guidelines
 
 ## License
 

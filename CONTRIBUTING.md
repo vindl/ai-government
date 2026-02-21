@@ -24,26 +24,25 @@ The Constitution (Article 24) requires the project to correct mistakes publicly:
 
 ### Read a Scorecard
 
-Each scorecard contains:
+Each scorecard on the [live site](https://vindl.github.io/ai-government/) contains:
 
-- **Ministry assessments**: Each ministry agent evaluates the decision from its domain perspective (finance, justice, health, economy, education, environment, tourism, EU integration, interior) and assigns a score from 1-10
-- **Parliamentary debate**: A synthesized debate across ministry perspectives
-- **Independent critic report**: An auditor agent scores both the decision and the quality of the AI analysis
-- **Counter-proposal**: What the AI Government would do instead
+- **Ministry assessments**: Ten ministry agents evaluate the decision from their domain perspective and assign a score from 1-10
+- **Critic scores**: An independent critic scores both the government's decision and the quality of the AI analysis
+- **Counter-proposal**: What the AI Government would do differently, with key differences and trade-offs
 
-Scores reflect evidence-based analysis, not political opinion (Constitution Article 19).
+Every scorecard links to the GitHub issue that contains the full analysis transcript, including parliamentary debate, detailed ministry reasoning, and implementation steps.
 
 ## For Developers
 
 ### How the Agent Loop Works
 
-The main loop (`scripts/main_loop.py`) runs multiple phases per cycle:
+The main loop runs multiple phases per cycle:
 
 1. **Phase A — Decision intake**: The News Scout agent searches for new government decisions via web search and creates `task:analysis` issues
-2. **Phase A+ — Research**: The Research Scout gathers background context for upcoming analyses (skippable with `--skip-research`)
-3. **Phase B — Self-improvement**: A PM agent proposes improvements, a two-agent debate filters them, accepted proposals enter the backlog as issues (skippable with `--skip-improve`)
-4. **Phase C — Execution**: Picks the oldest backlog issue and routes it — analysis tasks run the orchestrator pipeline, code changes run the PR workflow (coder + reviewer agents from the Theseus fleet in `theseus/`)
-5. **Director oversight**: A Director agent reviews progress at configurable intervals (`--director-interval`)
+2. **Phase A+ — Research**: The Research Scout gathers background context for upcoming analyses
+3. **Phase B — Self-improvement**: A PM agent proposes improvements, a two-agent debate filters them, accepted proposals enter the backlog as issues
+4. **Phase C — Execution**: Picks the oldest backlog issue and routes it — analysis tasks run the orchestrator pipeline, code changes run the PR workflow (coder + reviewer agents from the Theseus fleet)
+5. **Director oversight**: A Director agent reviews progress at configurable intervals
 
 All state lives in GitHub Issues. Labels control the state machine:
 `self-improve:proposed` → `backlog` → `in-progress` → `done` / `failed`
@@ -60,24 +59,11 @@ To override a rejected proposal or force-prioritize a task:
 1. Create an issue (or re-label an existing one) with `human-suggestion` + `backlog`
 2. The main loop picks it up in the next cycle
 
-### Development Setup
-
-```bash
-git clone https://github.com/vindl/ai-government.git
-cd ai-government
-uv sync                          # install dependencies
-uv run ruff check government/ tests/    # lint
-uv run mypy government/                 # type check
-uv run pytest                    # test
-uv run python scripts/build_site.py --output-dir /tmp/_site  # build site
-```
-
 ### Submitting Changes
 
 1. Fork the repo and create a feature branch
 2. Make your changes following the conventions in [CLAUDE.md](CLAUDE.md)
-3. Ensure `ruff check`, `mypy --strict`, and `pytest` all pass
-4. Open a pull request with a clear description of the change
+3. Open a pull request with a clear description of the change
 
 ### Code of Conduct
 

@@ -4,7 +4,7 @@ AI mirror of the Montenegrin government. Analyzes real government decisions thro
 
 All agents are bound by the [Constitution](docs/CONSTITUTION.md).
 
-**[Live site](https://vindl.github.io/ai-government/)** | [Transparency report](https://vindl.github.io/ai-government/transparency) | [Source code](https://github.com/vindl/ai-government)
+**[Live site](https://vindl.github.io/ai-government/)** | [Transparency report](https://vindl.github.io/ai-government/transparency)
 
 ## How It Works
 

@@ -94,14 +94,14 @@ function ScoreBar({ score, label }: { score: number; label: string }) {
 }
 
 function Paragraphs({ text }: { text: string }) {
-  const paragraphs = text.split(/\n{2,}/).filter(Boolean);
+  const paragraphs = text.split(/\n+/).filter((s) => s.trim());
   if (paragraphs.length <= 1) {
     return <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>;
   }
   return (
     <>
       {paragraphs.map((p, i) => (
-        <p key={i} className="text-sm text-muted-foreground leading-relaxed mb-3">{p}</p>
+        <p key={i} className="text-sm text-muted-foreground leading-relaxed mb-4">{p}</p>
       ))}
     </>
   );
@@ -114,8 +114,8 @@ export default function AnalysisDetail() {
 
   if (isLoading) {
     return (
-      <div className="px-6 md:px-12 lg:px-16 py-16">
-        <div className="max-w-4xl animate-pulse space-y-6">
+      <div className="content-width py-16">
+        <div className="animate-pulse space-y-6">
           <div className="h-8 bg-muted rounded w-3/4" />
           <div className="h-4 bg-muted rounded w-1/3" />
           <div className="h-24 bg-muted rounded" />
@@ -131,7 +131,7 @@ export default function AnalysisDetail() {
 
   if (error || !data) {
     return (
-      <div className="px-6 md:px-12 lg:px-16 py-16">
+      <div className="content-width py-16">
         <h1 className="font-display text-3xl font-bold text-foreground mb-4">
           {t(lang, "Analysis not found", "Analiza nije pronađena")}
         </h1>
@@ -154,8 +154,8 @@ function AnalysisContent({ data, lang }: { data: SessionResult; lang: "me" | "en
   return (
     <>
       {/* Header */}
-      <section className="hero-gradient px-6 md:px-12 lg:px-16 py-12 md:py-16 border-b border-border">
-        <div className="max-w-4xl">
+      <section className="hero-gradient py-8 md:py-12 border-b border-border">
+        <div className="content-width">
           <Link to="/" className="text-sm text-muted-foreground hover:text-primary transition-colors mb-4 inline-block">
             &larr; {t(lang, "All analyses", "Sve analize")}
           </Link>
@@ -181,7 +181,8 @@ function AnalysisContent({ data, lang }: { data: SessionResult; lang: "me" | "en
         </div>
       </section>
 
-      <div className="px-6 md:px-12 lg:px-16 py-10 max-w-4xl space-y-12">
+      <div className="py-10">
+        <div className="content-width space-y-12">
         {/* Critic headline + scores */}
         {critic_report && (
           <section>
@@ -369,6 +370,7 @@ function AnalysisContent({ data, lang }: { data: SessionResult; lang: "me" | "en
             </div>
           </section>
         )}
+        </div>
       </div>
     </>
   );

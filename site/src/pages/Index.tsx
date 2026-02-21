@@ -47,8 +47,8 @@ export default function Index() {
 
   return (
     <>
-      <section className="hero-gradient px-6 md:px-12 lg:px-16 py-16 md:py-24 border-b border-border">
-        <div className="max-w-3xl">
+      <section className="hero-gradient py-8 md:py-12 border-b border-border">
+        <div className="content-width">
           <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6">
             AI Vlada <span className="text-primary">Crne Gore</span>
           </h1>
@@ -71,41 +71,43 @@ export default function Index() {
         </div>
       </section>
 
-      <section className="px-6 md:px-12 lg:px-16 py-12">
-        <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground mb-8 gold-underline pb-3 inline-block">
-          {t(lang, "Latest Analyses", "Posljednje analize")}
-        </h2>
+      <section className="py-12">
+        <div className="content-width">
+          <h2 className="font-display text-2xl md:text-3xl font-bold text-foreground mb-8 gold-underline pb-3 inline-block">
+            {t(lang, "Latest Analyses", "Posljednje analize")}
+          </h2>
 
-        {isLoading && (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-card border border-border rounded-lg p-6 animate-pulse">
-                <div className="flex gap-6">
-                  <div className="w-14 h-14 rounded-full bg-muted" />
-                  <div className="flex-1 space-y-3">
-                    <div className="h-5 bg-muted rounded w-3/4" />
-                    <div className="h-3 bg-muted rounded w-1/3" />
-                    <div className="h-4 bg-muted rounded w-full" />
+          {isLoading && (
+            <div className="flex flex-col gap-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-card border border-border rounded-lg p-6 animate-pulse">
+                  <div className="flex gap-6">
+                    <div className="w-14 h-14 rounded-full bg-muted" />
+                    <div className="flex-1 space-y-3">
+                      <div className="h-5 bg-muted rounded w-3/4" />
+                      <div className="h-3 bg-muted rounded w-1/3" />
+                      <div className="h-4 bg-muted rounded w-full" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
 
-        {analyses && analyses.length === 0 && (
-          <p className="text-muted-foreground">
-            {t(lang, "No analyses available yet.", "Još nema dostupnih analiza.")}
-          </p>
-        )}
+          {analyses && analyses.length === 0 && (
+            <p className="text-muted-foreground">
+              {t(lang, "No analyses available yet.", "Još nema dostupnih analiza.")}
+            </p>
+          )}
 
-        {analyses && analyses.length > 0 && (
-          <div className="space-y-4">
-            {analyses.map((item) => (
-              <AnalysisCard key={item.id} item={item} lang={lang} />
-            ))}
-          </div>
-        )}
+          {analyses && analyses.length > 0 && (
+            <div className="flex flex-col gap-6">
+              {analyses.map((item) => (
+                <AnalysisCard key={item.id} item={item} lang={lang} />
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </>
   );
@@ -121,7 +123,7 @@ function AnalysisCard({ item, lang }: { item: AnalysisSummary; lang: "me" | "en"
   );
 
   return (
-    <Link to={`/analyses/${item.id}`}>
+    <Link to={`/analyses/${item.id}`} className="block">
       <article className="group bg-card border border-border rounded-lg p-5 md:p-6 hover:border-primary/30 transition-all duration-300 cursor-pointer">
         <div className="flex gap-4 md:gap-6">
           <div className="flex-shrink-0">
@@ -133,7 +135,7 @@ function AnalysisCard({ item, lang }: { item: AnalysisSummary; lang: "me" | "en"
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="font-display text-base md:text-lg font-semibold text-card-foreground leading-snug mb-2 group-hover:text-primary transition-colors">
+            <h3 className="font-body text-base md:text-lg font-semibold text-card-foreground leading-snug mb-2 group-hover:text-primary transition-colors">
               {title}
             </h3>
             <div className="flex flex-wrap items-center gap-2 mb-3">

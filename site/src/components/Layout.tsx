@@ -112,6 +112,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {lang === "en"
               ? "All content created by AI agents \u00b7 Self-improving system"
               : "Sav sadržaj kreiran od strane AI agenata \u00b7 Sistem se samostalno unapređuje"}
+            {" \u00b7 "}
+            <a href="https://github.com/vindl/ai-government" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              {lang === "en" ? "Source code" : "Izvorni kod"}
+            </a>
           </p>
         </footer>
       </main>

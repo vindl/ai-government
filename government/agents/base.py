@@ -13,7 +13,23 @@ from government.agents.json_parsing import extract_json, retry_prompt
 from government.config import SessionConfig
 from government.models.assessment import Assessment
 
+# Reusable helper ----------------------------------------------------------
+
+
+def output_format_for(model_class: type[BaseModel]) -> dict[str, Any]:
+    """Build an ``output_format`` dict accepted by :class:`ClaudeAgentOptions`.
+
+    Uses the Pydantic v2 JSON-schema export so the SDK enforces structured
+    output natively, reducing the need for text-based JSON extraction.
+    """
+    return {
+        "type": "json_schema",
+        "schema": model_class.model_json_schema(),
+    }
+
 if TYPE_CHECKING:
+    from pydantic import BaseModel
+
     from government.models.decision import GovernmentDecision
 
 log = logging.getLogger(__name__)
@@ -108,6 +124,7 @@ class GovernmentAgent:
             permission_mode="bypassPermissions",
             effort=effort or self.default_effort,
             thinking=self.thinking,
+            output_format=output_format_for(Assessment),
         )
 
         state: dict[str, Any] = {}

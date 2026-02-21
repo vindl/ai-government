@@ -10,6 +10,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ThinkingConfig
 
 from government.agents.base import (
     collect_structured_or_text,
+    output_format_for,
     parse_structured_or_text,
 )
 from government.agents.json_parsing import retry_prompt
@@ -77,6 +78,7 @@ class SynthesizerAgent:
             permission_mode="bypassPermissions",
             effort=effort or self.default_effort,
             thinking=self.thinking,
+            output_format=output_format_for(CounterProposal),
         )
         state: dict[str, Any] = {}
         async for message in claude_agent_sdk.query(prompt=prompt, options=opts):

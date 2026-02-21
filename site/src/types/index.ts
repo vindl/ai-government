@@ -22,6 +22,7 @@ export interface AnalysisSummary {
   overall_verdict: Verdict | null;
   verdict_label: string;
   verdict_label_mne: string;
+  issue_number: number | null;
 }
 
 /** Mirrors Python GovernmentDecision */
@@ -122,6 +123,7 @@ export interface SessionResult {
   debate: ParliamentDebate | null;
   critic_report: CriticReport | null;
   counter_proposal: CounterProposal | null;
+  issue_number: number | null;
 }
 
 /** Bilingual page content (constitution, architecture, etc.) */

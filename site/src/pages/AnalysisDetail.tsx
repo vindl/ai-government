@@ -304,7 +304,9 @@ function AnalysisContent({ data, lang }: { data: SessionResult; lang: "me" | "en
                 "Ova analiza uključuje parlamentarnu debatu, detaljno obrazloženje ministarstava, korake implementacije i pojedinačne kontraprijedloge.",
               )}{" "}
               <a
-                href={`${repoUrl}/issues?q=is%3Aissue+label%3Atask%3Aanalysis+%22${encodeURIComponent(decision.title)}%22`}
+                href={data.issue_number
+                  ? `${repoUrl}/issues/${data.issue_number}`
+                  : `${repoUrl}/issues?q=is%3Aissue+label%3Atask%3Aanalysis+%22${encodeURIComponent(decision.title)}%22`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary hover:underline"

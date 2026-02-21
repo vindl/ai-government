@@ -61,6 +61,7 @@ def _build_analysis_summary(result: SessionResult) -> dict[str, Any]:
         "overall_verdict": overall_verdict,
         "verdict_label": _verdict_label(overall_verdict) if overall_verdict else "",
         "verdict_label_mne": _verdict_label_mne(overall_verdict) if overall_verdict else "",
+        "issue_number": result.issue_number,
     }
 
 

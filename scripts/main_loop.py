@@ -2125,6 +2125,9 @@ async def step_execute_analysis(
         except Exception:
             log.exception("Localization failed (non-fatal, publishing English-only)")
 
+        # Attach the originating issue number so the site can link back
+        results[0].issue_number = issue_number
+
         # Post scorecard as issue comment
         scorecard = render_scorecard(results[0])
         _gh_comment(issue_number, f"## AI Cabinet Scorecard\n\n{scorecard}")

@@ -98,6 +98,7 @@ class SessionResult(BaseModel):
     debate: ParliamentDebate | None = None
     critic_report: CriticReport | None = None
     counter_proposal: CounterProposal | None = None
+    issue_number: int | None = None
 
     def check_health(self) -> PipelineHealthCheck:
         """Validate that the pipeline produced substantive output.

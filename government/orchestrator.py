@@ -162,8 +162,8 @@ class Orchestrator:
     # Default thinking configs per agent type.
     # Ministry agents use adaptive (model decides when to think).
     # Parliament/Critic/Synthesizer use enabled thinking for deeper reasoning.
-    MINISTRY_THINKING: ThinkingConfig = {"type": "adaptive"}
-    ADVANCED_THINKING: ThinkingConfig = {"type": "enabled", "budget_tokens": 10000}
+    MINISTRY_THINKING: ThinkingConfig = {"type": "enabled", "budget_tokens": 10000}
+    ADVANCED_THINKING: ThinkingConfig = {"type": "enabled", "budget_tokens": 20000}
 
     def __init__(
         self,

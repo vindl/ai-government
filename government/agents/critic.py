@@ -70,9 +70,11 @@ class CriticAgent:
         does not contain valid JSON.
         """
         opts = ClaudeAgentOptions(
-            system_prompt=CRITIC_SYSTEM_PROMPT,
+            system_prompt={"type": "preset", "preset": "claude_code", "append": CRITIC_SYSTEM_PROMPT},
             model=self.config.model,
-            max_turns=2,
+            max_turns=100,
+            allowed_tools=["WebSearch", "WebFetch"],
+            permission_mode="bypassPermissions",
             effort=effort or self.default_effort,
             thinking=self.thinking,
         )

@@ -101,9 +101,11 @@ class GovernmentAgent:
         """Analyze a government decision and return an assessment."""
         prompt = self._build_prompt(decision)
         opts = ClaudeAgentOptions(
-            system_prompt=self.ministry.system_prompt,
+            system_prompt={"type": "preset", "preset": "claude_code", "append": self.ministry.system_prompt},
             model=self.config.model,
-            max_turns=2,
+            max_turns=100,
+            allowed_tools=["WebSearch", "WebFetch"],
+            permission_mode="bypassPermissions",
             effort=effort or self.default_effort,
             thinking=self.thinking,
         )

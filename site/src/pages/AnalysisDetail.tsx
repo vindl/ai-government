@@ -78,21 +78,6 @@ function getScoreClass(score: number) {
   return "score-gradient-low";
 }
 
-function ScoreBar({ score, label }: { score: number; label: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-sm text-muted-foreground w-40 shrink-0">{label}</span>
-      <div className="flex-1 h-3 bg-secondary rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${getScoreClass(score)}`}
-          style={{ width: `${score * 10}%` }}
-        />
-      </div>
-      <span className="text-sm font-bold text-foreground w-10 text-right">{score}/10</span>
-    </div>
-  );
-}
-
 function Paragraphs({ text }: { text: string }) {
   const paragraphs = text.split(/\n+/).filter((s) => s.trim());
   if (paragraphs.length <= 1) {
@@ -104,6 +89,20 @@ function Paragraphs({ text }: { text: string }) {
         <p key={i} className="text-sm text-muted-foreground leading-relaxed mb-4">{p}</p>
       ))}
     </>
+  );
+}
+
+function ScoreCircle({ score, label }: { score: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div
+        className={`w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold ${getScoreClass(score)}`}
+        style={{ color: "hsl(222, 30%, 8%)" }}
+      >
+        {score}/10
+      </div>
+      <span className="text-xs text-muted-foreground text-center">{label}</span>
+    </div>
   );
 }
 
@@ -150,6 +149,7 @@ function AnalysisContent({ data, lang }: { data: SessionResult; lang: "me" | "en
 
   const title = t(lang, decision.title, decision.title_mne || decision.title);
   const summary = t(lang, decision.summary, decision.summary_mne || decision.summary);
+  const repoUrl = "https://github.com/vindl/ai-government";
 
   return (
     <>
@@ -183,200 +183,145 @@ function AnalysisContent({ data, lang }: { data: SessionResult; lang: "me" | "en
 
       <div className="py-10">
         <div className="content-width space-y-12">
-        {/* Critic headline + scores */}
-        {critic_report && (
-          <section>
-            <h2 className="font-display text-lg font-bold text-foreground mb-2">
-              {t(lang, critic_report.headline, critic_report.headline_mne || critic_report.headline)}
-            </h2>
-            <div className="space-y-3 mt-4">
-              <ScoreBar
-                score={critic_report.decision_score}
-                label={t(lang, "Decision Quality", "Kvalitet odluke")}
-              />
-              <ScoreBar
-                score={critic_report.assessment_quality_score}
-                label={t(lang, "Assessment Quality", "Kvalitet procjene")}
-              />
-            </div>
-          </section>
-        )}
 
-        {/* Ministry verdict cards */}
-        {assessments.length > 0 && (
-          <section>
-            <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-6 gold-underline pb-2 inline-block">
-              {t(lang, "Ministry Assessments", "Ministarske procjene")}
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {assessments.map((a) => (
-                <VerdictCard key={a.ministry} assessment={a} lang={lang} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Critic analysis */}
-        {critic_report && (
-          <section>
-            <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-4 gold-underline pb-2 inline-block">
-              {t(lang, "Independent Critical Analysis", "Nezavisna kritička analiza")}
-            </h2>
-            <Paragraphs text={t(lang, critic_report.overall_analysis, critic_report.overall_analysis_mne || critic_report.overall_analysis)} />
-
-            {critic_report.blind_spots.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold text-foreground mb-2">
-                  {t(lang, "Blind Spots", "Slijepe tačke")}
-                </h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  {tList(lang, critic_report.blind_spots, critic_report.blind_spots_mne).map((bs, i) => (
-                    <li key={i} className="text-sm text-muted-foreground">{bs}</li>
-                  ))}
-                </ul>
+          {/* Scores */}
+          {critic_report && (
+            <section>
+              <h2 className="font-display text-lg font-bold text-foreground mb-6">
+                {t(lang, critic_report.headline, critic_report.headline_mne || critic_report.headline)}
+              </h2>
+              <div className="flex items-center justify-center gap-12 md:gap-20 py-4">
+                <ScoreCircle
+                  score={critic_report.decision_score}
+                  label={t(lang, "Government Decision", "Odluka vlade")}
+                />
+                <div className="text-2xl text-muted-foreground/30 font-light">vs</div>
+                <ScoreCircle
+                  score={critic_report.assessment_quality_score}
+                  label={t(lang, "AI Analysis", "AI analiza")}
+                />
               </div>
-            )}
+            </section>
+          )}
 
-            {critic_report.eu_chapter_relevance.length > 0 && (
-              <div className="mt-4">
-                <h3 className="text-sm font-semibold text-foreground mb-2">
-                  {t(lang, "EU Chapter Relevance", "Relevantnost poglavlja EU")}
-                </h3>
-                <ul className="list-disc pl-5 space-y-1">
-                  {critic_report.eu_chapter_relevance.map((ch, i) => (
-                    <li key={i} className="text-sm text-muted-foreground">{ch}</li>
-                  ))}
-                </ul>
+          {/* Ministry Assessments — expandable cards (merged summary + detail) */}
+          {assessments.length > 0 && (
+            <section>
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-6 gold-underline pb-2 inline-block">
+                {t(lang, "Ministry Assessments", "Ministarske procjene")}
+              </h2>
+              <div className="space-y-3">
+                {assessments.map((a) => (
+                  <MinistryCard key={a.ministry} assessment={a} lang={lang} />
+                ))}
               </div>
-            )}
-          </section>
-        )}
+            </section>
+          )}
 
-        {/* Unified counter-proposal */}
-        {counter_proposal && (
-          <section>
-            <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-4 gold-underline pb-2 inline-block">
-              {t(lang, "Unified Counter-Proposal", "Jedinstveni kontraprijedlog")}
-            </h2>
-            <div className="p-5 bg-card border border-border rounded-lg space-y-4">
-              <h3 className="font-display text-lg font-bold text-foreground">
-                {t(lang, counter_proposal.title, counter_proposal.title_mne || counter_proposal.title)}
-              </h3>
-              <Paragraphs text={t(lang, counter_proposal.executive_summary, counter_proposal.executive_summary_mne || counter_proposal.executive_summary)} />
+          {/* Critical Analysis */}
+          {critic_report && (
+            <section>
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-4 gold-underline pb-2 inline-block">
+                {t(lang, "Critical Analysis", "Kritička analiza")}
+              </h2>
+              <Paragraphs text={t(lang, critic_report.overall_analysis, critic_report.overall_analysis_mne || critic_report.overall_analysis)} />
 
-              <Paragraphs text={t(lang, counter_proposal.detailed_proposal, counter_proposal.detailed_proposal_mne || counter_proposal.detailed_proposal)} />
-
-              {counter_proposal.key_differences.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2">
-                    {t(lang, "Key Differences", "Ključne razlike")}
-                  </h4>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {tList(lang, counter_proposal.key_differences, counter_proposal.key_differences_mne).map((d, i) => (
-                      <li key={i} className="text-sm text-muted-foreground">{d}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {counter_proposal.implementation_steps.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2">
-                    {t(lang, "Implementation Steps", "Koraci implementacije")}
-                  </h4>
-                  <ol className="list-decimal pl-5 space-y-1">
-                    {tList(lang, counter_proposal.implementation_steps, counter_proposal.implementation_steps_mne).map((s, i) => (
-                      <li key={i} className="text-sm text-muted-foreground">{s}</li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-
-              {counter_proposal.risks_and_tradeoffs.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2">
-                    {t(lang, "Risks & Trade-offs", "Rizici i kompromisi")}
-                  </h4>
-                  <ul className="list-disc pl-5 space-y-1">
-                    {tList(lang, counter_proposal.risks_and_tradeoffs, counter_proposal.risks_and_tradeoffs_mne).map((r, i) => (
-                      <li key={i} className="text-sm text-muted-foreground">{r}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* Detailed ministry analyses */}
-        {assessments.length > 0 && (
-          <section>
-            <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-6 gold-underline pb-2 inline-block">
-              {t(lang, "Detailed Ministry Analyses", "Detaljne analize ministarstava")}
-            </h2>
-            <div className="space-y-4">
-              {assessments.map((a) => (
-                <MinistryDetail key={a.ministry} assessment={a} lang={lang} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Parliamentary debate */}
-        {debate && (
-          <section>
-            <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-4 gold-underline pb-2 inline-block">
-              {t(lang, "Parliamentary Debate", "Parlamentarna debata")}
-            </h2>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">
-                  {t(lang, "Overall verdict:", "Ukupni verdikt:")}
-                </span>
-                <span className={`text-sm font-semibold ${getVerdictColor(debate.overall_verdict)}`}>
-                  {verdictLabel(debate.overall_verdict, lang)}
-                </span>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">
-                  {t(lang, "Consensus", "Konsenzus")}
-                </h3>
-                <Paragraphs text={t(lang, debate.consensus_summary, debate.consensus_summary_mne || debate.consensus_summary)} />
-              </div>
-
-              {debate.disagreements.length > 0 && (
-                <div>
+              {critic_report.blind_spots.length > 0 && (
+                <div className="mt-4">
                   <h3 className="text-sm font-semibold text-foreground mb-2">
-                    {t(lang, "Points of Disagreement", "Tačke neslaganja")}
+                    {t(lang, "Blind Spots", "Slijepe tačke")}
                   </h3>
                   <ul className="list-disc pl-5 space-y-1">
-                    {tList(lang, debate.disagreements, debate.disagreements_mne).map((d, i) => (
-                      <li key={i} className="text-sm text-muted-foreground">{d}</li>
+                    {tList(lang, critic_report.blind_spots, critic_report.blind_spots_mne).map((bs, i) => (
+                      <li key={i} className="text-sm text-muted-foreground">{bs}</li>
                     ))}
                   </ul>
                 </div>
               )}
 
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-2">
-                  {t(lang, "Debate Transcript", "Transkript debate")}
-                </h3>
-                <div className="p-4 bg-card border border-border rounded-lg max-h-96 overflow-y-auto">
-                  <Paragraphs text={t(lang, debate.debate_transcript, debate.debate_transcript_mne || debate.debate_transcript)} />
+              {critic_report.eu_chapter_relevance.length > 0 && (
+                <div className="mt-4">
+                  <h3 className="text-sm font-semibold text-foreground mb-2">
+                    {t(lang, "EU Chapter Relevance", "Relevantnost poglavlja EU")}
+                  </h3>
+                  <ul className="list-disc pl-5 space-y-1">
+                    {critic_report.eu_chapter_relevance.map((ch, i) => (
+                      <li key={i} className="text-sm text-muted-foreground">{ch}</li>
+                    ))}
+                  </ul>
                 </div>
+              )}
+            </section>
+          )}
+
+          {/* Counter-Proposal */}
+          {counter_proposal && (
+            <section>
+              <h2 className="font-display text-xl md:text-2xl font-bold text-foreground mb-4 gold-underline pb-2 inline-block">
+                {t(lang, "AI Counter-Proposal", "AI kontraprijedlog")}
+              </h2>
+              <div className="p-5 bg-card border border-border rounded-lg space-y-4">
+                <h3 className="font-display text-lg font-bold text-foreground">
+                  {t(lang, counter_proposal.title, counter_proposal.title_mne || counter_proposal.title)}
+                </h3>
+                <Paragraphs text={t(lang, counter_proposal.executive_summary, counter_proposal.executive_summary_mne || counter_proposal.executive_summary)} />
+
+                {counter_proposal.key_differences.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">
+                      {t(lang, "Key Differences from Government", "Ključne razlike od vladine odluke")}
+                    </h4>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {tList(lang, counter_proposal.key_differences, counter_proposal.key_differences_mne).map((d, i) => (
+                        <li key={i} className="text-sm text-muted-foreground">{d}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {counter_proposal.risks_and_tradeoffs.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2">
+                      {t(lang, "Risks & Trade-offs", "Rizici i kompromisi")}
+                    </h4>
+                    <ul className="list-disc pl-5 space-y-1">
+                      {tList(lang, counter_proposal.risks_and_tradeoffs, counter_proposal.risks_and_tradeoffs_mne).map((r, i) => (
+                        <li key={i} className="text-sm text-muted-foreground">{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-            </div>
+            </section>
+          )}
+
+          {/* Full transcript link */}
+          <section className="border-t border-border pt-8">
+            <p className="text-sm text-muted-foreground">
+              {t(
+                lang,
+                "This analysis includes parliamentary debate, detailed ministry reasoning, implementation steps, and individual counter-proposals.",
+                "Ova analiza uključuje parlamentarnu debatu, detaljno obrazloženje ministarstava, korake implementacije i pojedinačne kontraprijedloge.",
+              )}{" "}
+              <a
+                href={`${repoUrl}/issues?q=is%3Aissue+label%3Atask%3Aanalysis+%22${encodeURIComponent(decision.title)}%22`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                {t(lang, "View full transcript", "Pogledaj kompletan transkript")} &rarr;
+              </a>
+            </p>
           </section>
-        )}
+
         </div>
       </div>
     </>
   );
 }
 
-function VerdictCard({ assessment, lang }: { assessment: Assessment; lang: "me" | "en" }) {
+function MinistryCard({ assessment, lang }: { assessment: Assessment; lang: "me" | "en" }) {
+  const [expanded, setExpanded] = useState(false);
   const summaryText = t(
     lang,
     assessment.executive_summary || assessment.summary,
@@ -384,44 +329,19 @@ function VerdictCard({ assessment, lang }: { assessment: Assessment; lang: "me" 
   );
 
   return (
-    <div className={`p-4 rounded-lg border ${getVerdictBg(assessment.verdict)}`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="font-display font-bold text-foreground text-sm">
-          {ministryName(assessment.ministry, lang)}
-        </span>
-        <div
-          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold ${getScoreClass(assessment.score)}`}
-          style={{ color: "hsl(222, 30%, 8%)" }}
-        >
-          {assessment.score}
-        </div>
-      </div>
-      <span className={`text-xs font-medium ${getVerdictColor(assessment.verdict)}`}>
-        {verdictLabel(assessment.verdict, lang)}
-      </span>
-      <p className="text-xs text-muted-foreground mt-2 line-clamp-3">{summaryText}</p>
-    </div>
-  );
-}
-
-function MinistryDetail({ assessment, lang }: { assessment: Assessment; lang: "me" | "en" }) {
-  const [expanded, setExpanded] = useState(false);
-  const summaryText = t(lang, assessment.summary, assessment.summary_mne || assessment.summary);
-
-  return (
-    <div className="border border-border rounded-lg overflow-hidden">
+    <div className={`rounded-lg border overflow-hidden ${getVerdictBg(assessment.verdict)}`}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full p-4 flex items-center justify-between hover:bg-secondary/30 transition-colors text-left"
+        className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors text-left"
       >
         <div className="flex items-center gap-3">
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${getScoreClass(assessment.score)}`}
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getScoreClass(assessment.score)}`}
             style={{ color: "hsl(222, 30%, 8%)" }}
           >
             {assessment.score}
           </div>
-          <span className="font-display font-bold text-foreground text-sm">
+          <span className="font-bold text-foreground text-sm">
             {ministryName(assessment.ministry, lang)}
           </span>
           <span className={`text-xs font-medium ${getVerdictColor(assessment.verdict)}`}>
@@ -429,7 +349,7 @@ function MinistryDetail({ assessment, lang }: { assessment: Assessment; lang: "m
           </span>
         </div>
         <svg
-          className={`w-4 h-4 text-muted-foreground transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${expanded ? "rotate-180" : ""}`}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -440,7 +360,7 @@ function MinistryDetail({ assessment, lang }: { assessment: Assessment; lang: "m
       </button>
 
       {expanded && (
-        <div className="p-4 border-t border-border space-y-4">
+        <div className="px-4 pb-4 space-y-4">
           <Paragraphs text={summaryText} />
 
           {assessment.key_concerns.length > 0 && (
@@ -466,24 +386,6 @@ function MinistryDetail({ assessment, lang }: { assessment: Assessment; lang: "m
                   <li key={i} className="text-sm text-muted-foreground">{r}</li>
                 ))}
               </ul>
-            </div>
-          )}
-
-          {assessment.counter_proposal && (
-            <div className="p-3 bg-secondary/40 rounded-lg">
-              <h4 className="text-sm font-semibold text-foreground mb-2">
-                {t(lang, "Counter-Proposal", "Kontraprijedlog")}: {t(lang, assessment.counter_proposal.title, assessment.counter_proposal.title_mne || assessment.counter_proposal.title)}
-              </h4>
-              <p className="text-sm text-muted-foreground mb-2">
-                {t(lang, assessment.counter_proposal.summary, assessment.counter_proposal.summary_mne || assessment.counter_proposal.summary)}
-              </p>
-              {assessment.counter_proposal.key_changes.length > 0 && (
-                <ul className="list-disc pl-5 space-y-1">
-                  {tList(lang, assessment.counter_proposal.key_changes, assessment.counter_proposal.key_changes_mne).map((c, i) => (
-                    <li key={i} className="text-xs text-muted-foreground">{c}</li>
-                  ))}
-                </ul>
-              )}
             </div>
           )}
         </div>

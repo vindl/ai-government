@@ -237,7 +237,7 @@ def compose_analysis_tweet(
     headline_en = result.critic_report.headline if result.critic_report else ""
     if not headline_me:
         headline_me = headline_en
-    link = f"{SITE_BASE_URL}/analyses/{result.decision.id}.html"
+    link = f"{SITE_BASE_URL}/analyses/{result.decision.id}"
 
     # --- English primary tweet ---
     en_suffix = f"\n\nScore: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"

@@ -371,8 +371,8 @@ class TestComposeAnalysisTweet:
             critic_score=7, headline="Strong fiscal policy",
         )
         tweets = compose_analysis_tweet(result)
-        assert "/analyses/d1.html" in tweets.me
-        assert "/analyses/d1.html" in tweets.en
+        assert "/analyses/d1" in tweets.me
+        assert "/analyses/d1" in tweets.en
 
     def test_both_tweets_fit_280_chars(self) -> None:
         """Both tweets must independently fit within 280 characters."""
@@ -413,8 +413,8 @@ class TestComposeAnalysisTweet:
         tweets = compose_analysis_tweet(result)
         assert "Ocjena: 7/10" in tweets.me
         assert "Score: 7/10" in tweets.en
-        assert "/analyses/d1.html" in tweets.me
-        assert "/analyses/d1.html" in tweets.en
+        assert "/analyses/d1" in tweets.me
+        assert "/analyses/d1" in tweets.en
         assert len(tweets.me) <= MAX_TWEET_LENGTH
         assert len(tweets.en) <= MAX_TWEET_LENGTH
 

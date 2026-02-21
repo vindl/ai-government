@@ -1,6 +1,6 @@
 # The Cabinet
 
-The AI Government of Montenegro operates through nine ministry-specific agents, each responsible for analyzing government decisions within its domain.
+The AI Government of Montenegro operates through ten ministry-specific agents, each responsible for analyzing government decisions within its domain.
 
 | # | Ministry | Scope |
 |---|----------|-------|
@@ -13,10 +13,11 @@ The AI Government of Montenegro operates through nine ministry-specific agents, 
 | 7 | **Economy** | Economic development strategy, foreign direct investment (FDI), labour market policy, industrial policy, and SME support. |
 | 8 | **Tourism** | Tourism regulation and development, seasonal employment, coastal and national park management, and cruise ship policy. |
 | 9 | **Environment** | Environmental protection, waste management, climate policy, EU Chapter 27 alignment, and spatial planning. |
+| 10 | **Labour and Social Welfare** | Workers' rights and labour law, social protection and welfare programs, pension and disability policy, employment policy, occupational health and safety, and social dialogue. |
 
 ## Selection Criteria
 
-The nine ministries are selected proportionally to their impact on Montenegrin public life. The selection is not arbitrary; it reflects a weighted assessment across five dimensions:
+The ten ministries are selected proportionally to their impact on Montenegrin public life. The selection is not arbitrary; it reflects a weighted assessment across five dimensions:
 
 - **GDP share** — How much of the national economy does the sector directly influence?
 - **Budget allocation** — What proportion of public spending flows through the domain?
@@ -64,6 +65,10 @@ Tourism contributes approximately 40% of GDP when indirect effects are included,
 
 EU Chapter 27 (Environment and Climate Change) is the most demanding accession chapter by volume of legislation and cost of compliance. The Pljevlja thermal power plant remains a significant pollution source. Montenegro faces a waste management crisis with inadequate landfill capacity and recycling infrastructure. Spatial planning decisions — particularly along the coast — have irreversible consequences for biodiversity and landscape integrity.
 
+### Labour and Social Welfare
+
+Montenegro's labour market faces structural challenges: high youth unemployment, a growing informal economy, and emigration of working-age population. The social protection system — Centres for Social Work, pension and disability insurance, unemployment benefits — directly affects the most vulnerable citizens. EU accession Chapter 19 (Social Policy and Employment) requires alignment of labour law, anti-discrimination measures, occupational health and safety standards, and social dialogue frameworks. Workers' rights enforcement, minimum wage policy, and wage arrears remain persistent issues. A dedicated agent ensures these concerns are not diluted across Economy and Justice.
+
 ## What's Intentionally Excluded
 
 Not every government function warrants a dedicated ministry agent. The following areas are deliberately excluded, with analysis absorbed by existing ministries where relevant:
@@ -76,20 +81,3 @@ Not every government function warrants a dedicated ministry agent. The following
 
 - **Culture and Media** — Media freedom issues, which are the most consequential decisions in this domain, are captured by Justice through its rule-of-law analysis. The Critic agent's blind-spot detection mechanism provides an additional safeguard against systematic omission of press freedom concerns.
 
-- **Labour** — Employment policy and labour market regulation fall under Economy. Workers' rights, trade union protections, and labour law enforcement are analyzed under Justice. Splitting these into a standalone agent would create redundancy without improving coverage.
-
-## The One-In-One-Out Principle
-
-The cabinet roster is capped at nine ministries. This is a deliberate constraint, not a temporary limitation.
-
-Adding a ministry increases API costs, orchestration complexity, and the cognitive load on downstream consumers of the analysis (readers, social media audiences, other agents). Each additional agent must justify its existence not only by covering an important domain but by covering one that is not already adequately served by the existing nine.
-
-If a compelling case emerges for a new ministry — for example, a Digitalization ministry as e-government policy accelerates — it must be accompanied by a proposal to fold an existing ministry's scope into another. The total count does not increase.
-
-## The Swing Seat
-
-**EU Integration** is designated as the swing seat.
-
-EU accession is the defining policy context for Montenegro today, but it is not permanent. As accession either concludes successfully or stalls indefinitely, the marginal value of a dedicated EU Integration agent will decline. At that point, EU compliance monitoring can be absorbed into each ministry's individual scope, and the freed seat can be allocated to an emerging domain — Digitalization, Energy, or another area that has grown in decision frequency and public impact.
-
-The swing seat designation does not diminish EU Integration's current importance. It is a forward-looking architectural decision that acknowledges policy contexts change and the cabinet must be able to adapt without exceeding its size constraint.

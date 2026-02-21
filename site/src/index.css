@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -22,7 +22,7 @@
     --secondary-foreground: 210 20% 85%;
 
     --muted: 222 18% 16%;
-    --muted-foreground: 215 15% 55%;
+    --muted-foreground: 215 15% 65%;
 
     --accent: 42 85% 55%;
     --accent-foreground: 222 30% 8%;
@@ -70,13 +70,13 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Inter', system-ui, sans-serif;
   }
 }
 
 @layer utilities {
   .font-display {
-    font-family: 'Playfair Display', Georgia, serif;
+    font-family: 'Inter', system-ui, sans-serif;
   }
 
   .font-body {
@@ -104,5 +104,21 @@
     background-size: 100% 2px;
     background-position: bottom;
     background-repeat: no-repeat;
+  }
+
+  .content-width {
+    width: 100%;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  @media (min-width: 1024px) {
+    .content-width {
+      max-width: 70%;
+      padding-left: 0;
+      padding-right: 0;
+    }
   }
 }

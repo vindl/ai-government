@@ -40,6 +40,17 @@ function getRef(item: Intervention): string {
   return "";
 }
 
+function getGitHubUrl(item: Intervention): string | null {
+  const base = "https://github.com/vindl/ai-government";
+  if (item.pr_number) return `${base}/pull/${item.pr_number}`;
+  if (item.issue_number) return `${base}/issues/${item.issue_number}`;
+  return null;
+}
+
+function getAuthor(item: Intervention): string | null {
+  return item.actor || item.creator || null;
+}
+
 export default function Transparency() {
   const { data, isLoading } = useTransparency();
   const { lang } = useLanguage();
@@ -117,11 +128,24 @@ export default function Transparency() {
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${getTypeClasses(item.type)}`}>
                     {getTypeLabel(item.type, lang)}
                   </span>
-                  {getRef(item) && (
-                    <span className="text-xs text-muted-foreground">{getRef(item)}</span>
+                  {getAuthor(item) && (
+                    <>
+                      <span className="text-muted-foreground/40">&middot;</span>
+                      <span className="text-xs text-muted-foreground">
+                        {t(lang, "by", "od")} <strong className="text-foreground">{getAuthor(item)}</strong>
+                      </span>
+                    </>
                   )}
                 </div>
-                <p className="text-sm text-foreground font-medium">{getTitle(item)}</p>
+                <p className="text-sm text-foreground font-medium">
+                  {getGitHubUrl(item) ? (
+                    <a href={getGitHubUrl(item)!} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">
+                      {getTitle(item)} <span className="text-muted-foreground">{getRef(item)}</span>
+                    </a>
+                  ) : (
+                    getTitle(item)
+                  )}
+                </p>
               </div>
             ))}
           </div>

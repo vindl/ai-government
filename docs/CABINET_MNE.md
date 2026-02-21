@@ -1,6 +1,6 @@
 # Kabinet
 
-AI Vlada Crne Gore funkcionise kroz devet ministarskih agenata, od kojih je svaki zadužen za analizu vladnih odluka u svom domenu.
+AI Vlada Crne Gore funkcioniše kroz deset ministarskih agenata, od kojih je svaki zadužen za analizu vladnih odluka u svom domenu.
 
 | # | Ministarstvo | Djelokrug |
 |---|--------------|-----------|
@@ -13,10 +13,11 @@ AI Vlada Crne Gore funkcionise kroz devet ministarskih agenata, od kojih je svak
 | 7 | **Ekonomija** | Strategija ekonomskog razvoja, strana direktna ulaganja (SDI), politika tržišta rada, industrijska politika i podrška malim i srednjim preduzećima. |
 | 8 | **Turizam** | Regulacija i razvoj turizma, sezonsko zapošljavanje, upravljanje obalnim područjem i nacionalnim parkovima, te politika kruzing brodova. |
 | 9 | **Životna sredina** | Zaštita životne sredine, upravljanje otpadom, klimatska politika, usklađivanje s poglavljem 27 EU i prostorno planiranje. |
+| 10 | **Rad i socijalna zaštita** | Prava radnika i radno zakonodavstvo, socijalna zaštita i programi socijalne pomoći, penzijska i invalidska politika, politika zapošljavanja, zaštita na radu i socijalni dijalog. |
 
 ## Kriterijumi odabira
 
-Devet ministarstava je odabrano proporcionalno njihovom uticaju na crnogorski javni život. Odabir nije proizvoljan — zasniva se na ponderisanoj procjeni kroz pet dimenzija:
+Deset ministarstava je odabrano proporcionalno njihovom uticaju na crnogorski javni život. Odabir nije proizvoljan — zasniva se na ponderisanoj procjeni kroz pet dimenzija:
 
 - **Udio u BDP-u** — Koliki dio nacionalne ekonomije sektor direktno obuhvata?
 - **Budžetska alokacija** — Koji dio javne potrošnje prolazi kroz dati domen?
@@ -64,6 +65,10 @@ Turizam doprinosi približno 40% BDP-a kada se uračunaju indirektni efekti, št
 
 Poglavlje EU 27 (Životna sredina i klimatske promjene) je najzahtjevnije pregovaračko poglavlje po obimu zakonodavstva i troškovima usklađivanja. Termoelektrana Pljevlja ostaje značajan izvor zagađenja. Crna Gora se suočava s krizom upravljanja otpadom uz neadekvatne kapacitete deponija i infrastrukturu za reciklažu. Odluke o prostornom planiranju — naročito duž obale — imaju nepovratne posljedice po biodiverzitet i integritet pejzaža.
 
+### Rad i socijalna zaštita
+
+Crnogorsko tržište rada suočava se sa strukturnim izazovima: visoka nezaposlenost mladih, rastuća neformalna ekonomija i emigracija radno sposobnog stanovništva. Sistem socijalne zaštite — Centri za socijalni rad, penzijsko i invalidsko osiguranje, naknade za nezaposlene — direktno utiče na najranjivije građane. Poglavlje EU 19 (Socijalna politika i zapošljavanje) zahtijeva usklađivanje radnog zakonodavstva, antidiskriminacijskih mjera, standarda zaštite na radu i okvira socijalnog dijaloga. Sprovođenje prava radnika, politika minimalne zarade i zaostale plate ostaju uporni problemi. Poseban agent osigurava da ova pitanja ne budu razblažena između Ekonomije i Pravde.
+
 ## Što je namjerno isključeno
 
 Ne zahtijeva svaka vladina funkcija posebnog ministarskog agenta. Sljedeće oblasti su namjerno isključene, a njihova analiza je apsorbovana u postojeća ministarstva đe je to relevantno:
@@ -76,20 +81,3 @@ Ne zahtijeva svaka vladina funkcija posebnog ministarskog agenta. Sljedeće obla
 
 - **Kultura i mediji** — Pitanja medijskih sloboda, koja predstavljaju najznačajnije odluke u ovom domenu, obuhvaćena su kroz Pravdu u okviru analize vladavine prava. Mehanizam detekcije slijepih tačaka agenta Kritičara pruža dodatnu zaštitu od sistematskog propuštanja pitanja slobode štampe.
 
-- **Rad** — Politika zapošljavanja i regulacija tržišta rada spadaju pod Ekonomiju. Prava radnika, sindikalna zaštita i sprovođenje zakona o radu analiziraju se u okviru Pravde. Izdvajanje u samostalnog agenta stvorilo bi redundansu bez poboljšanja pokrivenosti.
-
-## Princip jedan-za-jedan
-
-Sastav kabineta je ograničen na devet ministarstava. Ovo je namjerno ograničenje, a ne privremeno.
-
-Dodavanje ministarstva povećava troškove API-ja, složenost orkestracije i kognitivno opterećenje krajnjih korisnika analize (čitaoci, publika na društvenim mrežama, drugi agenti). Svaki dodatni agent mora opravdati svoje postojanje ne samo pokrivanjem važnog domena, već pokrivanjem onog koji već nije adekvatno obuhvaćen postojećih devet.
-
-Ako se pojavi uvjerljiv razlog za novo ministarstvo — na primjer, ministarstvo za digitalizaciju kako se politika e-uprave ubrzava — mora biti praćen prijedlogom za uklapanje djelokruga postojećeg ministarstva u drugo. Ukupan broj se ne povećava.
-
-## Zamjenjivo mjesto
-
-**Evropske integracije** su označene kao zamjenjivo mjesto.
-
-Pristupanje EU je određujući politički kontekst za Crnu Goru danas, ali nije trajan. Kako se pristupanje uspješno završi ili neodređeno zaustavi, marginalna vrijednost posebnog agenta za Evropske integracije će opadati. U tom trenutku, monitoring usklađenosti s EU može biti apsorbovan u djelokrug svakog ministarstva pojedinačno, a oslobođeno mjesto može biti dodijeljeno rastućem domenu — digitalizaciji, energetici ili drugoj oblasti koja je porasla u učestalosti odluka i javnom uticaju.
-
-Označavanje zamjenjivog mjesta ne umanjuje trenutni značaj Evropskih integracija. To je arhitektonska odluka usmjerena ka budućnosti koja prepoznaje da se politički konteksti mijenjaju i da se kabinet mora moći prilagoditi bez prekoračenja svog ograničenja veličine.

@@ -110,13 +110,13 @@ def test_synthesizer_agent_thinking_set() -> None:
 
 
 def test_orchestrator_default_thinking_configs() -> None:
-    """Orchestrator uses adaptive for ministries, enabled for advanced agents."""
+    """Orchestrator uses enabled thinking for all agents."""
     orch = Orchestrator()
     for agent in orch.ministry_agents:
-        assert agent.thinking == {"type": "adaptive"}
-    assert orch.parliament.thinking == {"type": "enabled", "budget_tokens": 10000}
-    assert orch.critic.thinking == {"type": "enabled", "budget_tokens": 10000}
-    assert orch.synthesizer.thinking == {"type": "enabled", "budget_tokens": 10000}
+        assert agent.thinking == {"type": "enabled", "budget_tokens": 10000}
+    assert orch.parliament.thinking == {"type": "enabled", "budget_tokens": 20000}
+    assert orch.critic.thinking == {"type": "enabled", "budget_tokens": 20000}
+    assert orch.synthesizer.thinking == {"type": "enabled", "budget_tokens": 20000}
 
 
 def test_orchestrator_custom_thinking_configs() -> None:

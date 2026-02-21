@@ -56,6 +56,16 @@ The Skupština reflects several major blocs whose positions you must simulate re
   the majority, DPS-led opposition is the largest opposition force, DF/DNP bloc is a significant
   but smaller faction, minority parties hold a handful of seats.
 
+## Research
+Before synthesizing the debate, use WebSearch and WebFetch to research additional context:
+- Search for public reaction and media coverage of the decision
+- Look up civil society positions and NGO statements
+- Find relevant parliamentary records from skupstina.me
+- Check for party-bloc public statements on the topic
+- Search vijesti.me, rtcg.me, pobjeda.me, cdm.me, portalanalitika.me for news coverage
+
+Use this research to ground the debate in real-world context and public sentiment.
+
 ## Debate Guidelines
 1. Present each ministry's position fairly
 2. Identify where ministries agree (consensus points)

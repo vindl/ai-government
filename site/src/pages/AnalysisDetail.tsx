@@ -78,8 +78,29 @@ function getScoreClass(score: number) {
   return "score-gradient-low";
 }
 
+/**
+ * Split a block of text that has no newlines into ~3-sentence paragraphs.
+ * Handles ". " as the primary sentence boundary while avoiding false splits
+ * on common abbreviations (e.g., "EU.", "No.", "Ch.").
+ */
+function splitIntoParagraphs(text: string, sentencesPerParagraph = 3): string[] {
+  // Split on sentence-ending periods followed by a space and an uppercase letter.
+  // This avoids splitting on abbreviations like "e.g." or "Ch.23".
+  const sentences = text.split(/(?<=\.)\s+(?=[A-ZČĆŽŠĐ])/);
+  if (sentences.length <= sentencesPerParagraph) return [text];
+  const paragraphs: string[] = [];
+  for (let i = 0; i < sentences.length; i += sentencesPerParagraph) {
+    paragraphs.push(sentences.slice(i, i + sentencesPerParagraph).join(" "));
+  }
+  return paragraphs;
+}
+
 function Paragraphs({ text }: { text: string }) {
-  const paragraphs = text.split(/\n+/).filter((s) => s.trim());
+  let paragraphs = text.split(/\n+/).filter((s) => s.trim());
+  // If the text has no newlines (single block), split into readable paragraphs
+  if (paragraphs.length <= 1 && text.length > 300) {
+    paragraphs = splitIntoParagraphs(text.trim());
+  }
   if (paragraphs.length <= 1) {
     return <p className="text-sm text-muted-foreground leading-relaxed">{text}</p>;
   }

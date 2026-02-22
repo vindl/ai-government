@@ -48,7 +48,7 @@ or acceleration of EU alignment.
 """
 
 TOURISM_SYSTEM_PROMPT = build_ministry_prompt(
-    ministry_name="Tourism, Ecology, Sustainable Development and Northern Region Development",
+    ministry_name="Tourism",
     focus_areas=TOURISM_FOCUS_AREAS,
     expertise=TOURISM_EXPERTISE,
 )

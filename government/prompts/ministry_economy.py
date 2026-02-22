@@ -34,7 +34,7 @@ ECONOMY_EXPERTISE = """You are an expert in:
 """
 
 ECONOMY_SYSTEM_PROMPT = build_ministry_prompt(
-    ministry_name="Economy and Labour",
+    ministry_name="Economy",
     focus_areas=ECONOMY_FOCUS_AREAS,
     expertise=ECONOMY_EXPERTISE,
 )

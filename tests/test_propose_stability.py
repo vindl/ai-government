@@ -190,7 +190,10 @@ class TestProposeGracefulDegradation:
 
     @pytest.mark.anyio
     async def test_human_suggestions_proceed_after_transient_failure(self) -> None:
-        """Human suggestions should still be ingested even when step_propose fails transiently."""
+        """Human suggestions should still be ingested even when step_propose fails transiently.
+
+        Human suggestions bypass the approval gate and go directly to backlog.
+        """
         pending: list[dict[str, Any]] = []
         action = ConductorAction(action="propose", reason="time to propose")
         telemetry = CycleTelemetry(cycle=1)
@@ -205,11 +208,11 @@ class TestProposeGracefulDegradation:
 
         with (
             patch("main_loop.list_backlog_issues", return_value=[]),
+            patch("main_loop._count_needs_approval", return_value=0),
             patch("main_loop.step_propose", new_callable=AsyncMock, side_effect=transient_exc),
             patch("main_loop.list_human_suggestions", return_value=[human_issue]),
             patch("main_loop._is_privileged_user", return_value=True),
-            patch("main_loop._run_gh", return_value=_gh_result("")),
-            patch("main_loop.accept_issue") as mock_accept,
+            patch("main_loop._run_gh", return_value=_gh_result("")) as mock_gh,
         ):
             await _dispatch_action(
                 action,
@@ -221,6 +224,11 @@ class TestProposeGracefulDegradation:
                 pending_proposals=pending,
             )
 
-        # Human suggestion should have been accepted despite propose failure
-        mock_accept.assert_called_once_with(42)
+        # Human suggestion should have been accepted directly to backlog
+        # (bypassing the approval gate)
+        backlog_calls = [
+            c for c in mock_gh.call_args_list
+            if "--add-label" in c.args[0] and "self-improve:backlog" in c.args[0]
+        ]
+        assert len(backlog_calls) == 1
         assert telemetry.human_suggestions_ingested == 1

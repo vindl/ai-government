@@ -89,6 +89,7 @@ SDK_TRANSIENT_SIGNATURES = frozenset({
 })
 
 LABEL_PROPOSED = "self-improve:proposed"
+LABEL_NEEDS_APPROVAL = "self-improve:needs-approval"
 LABEL_BACKLOG = "self-improve:backlog"
 LABEL_REJECTED = "self-improve:rejected"
 LABEL_IN_PROGRESS = "self-improve:in-progress"
@@ -107,10 +108,13 @@ LABEL_GAP_CONTENT = "gap:content"
 LABEL_GAP_TECHNICAL = "gap:technical"
 LABEL_RESEARCH_SCOUT = "research-scout"
 
+NEEDS_APPROVAL_CAP = 10
+
 MAX_FAILED_RETRIES = 2
 
 ALL_LABELS: dict[str, str] = {
     LABEL_PROPOSED: "808080",    # gray
+    LABEL_NEEDS_APPROVAL: "fbca04",  # yellow (awaiting human approval)
     LABEL_BACKLOG: "0e8a16",     # green
     LABEL_REJECTED: "e67e22",    # orange
     LABEL_IN_PROGRESS: "fbca04",  # yellow
@@ -634,7 +638,7 @@ def create_director_issue(title: str, body: str) -> int:
     ai_body = f"Written by Project Director agent:\n\n{body}"
     result = _gh_create_issue(
         title=title, body=ai_body,
-        labels=f"{LABEL_DIRECTOR},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+        labels=f"{LABEL_DIRECTOR},{LABEL_NEEDS_APPROVAL},{LABEL_TASK_CODE}",
     )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
@@ -646,7 +650,7 @@ def create_strategic_director_issue(title: str, body: str) -> int:
     ai_body = f"Written by Strategic Director agent:\n\n{body}"
     result = _gh_create_issue(
         title=title, body=ai_body,
-        labels=f"{LABEL_STRATEGY},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+        labels=f"{LABEL_STRATEGY},{LABEL_NEEDS_APPROVAL},{LABEL_TASK_CODE}",
     )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
@@ -658,7 +662,7 @@ def create_research_scout_issue(title: str, body: str) -> int:
     ai_body = f"Written by Research Scout agent:\n\n{body}"
     result = _gh_create_issue(
         title=title, body=ai_body,
-        labels=f"{LABEL_RESEARCH_SCOUT},{LABEL_BACKLOG},{LABEL_TASK_CODE}",
+        labels=f"{LABEL_RESEARCH_SCOUT},{LABEL_NEEDS_APPROVAL},{LABEL_TASK_CODE}",
     )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])
@@ -838,10 +842,10 @@ def post_debate_comment(
 
 
 def accept_issue(issue_number: int) -> None:
-    """Move issue from proposed to backlog."""
+    """Move issue from proposed to needs-approval (awaiting human review)."""
     _run_gh(["gh", "issue", "edit", str(issue_number),
              "--remove-label", LABEL_PROPOSED,
-             "--add-label", LABEL_BACKLOG])
+             "--add-label", LABEL_NEEDS_APPROVAL])
 
 
 def reject_issue(issue_number: int) -> None:
@@ -851,6 +855,23 @@ def reject_issue(issue_number: int) -> None:
              "--add-label", LABEL_REJECTED])
     _run_gh(["gh", "issue", "close", str(issue_number),
              "--comment", "Written by Triage agent: Rejected by triage debate. See debate above."])
+
+
+def _count_needs_approval() -> int:
+    """Count open issues with the needs-approval label."""
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_NEEDS_APPROVAL,
+        "--state", "open",
+        "--json", "number",
+        "--limit", "100",
+    ], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return 0
+    try:
+        return len(json.loads(result.stdout))
+    except json.JSONDecodeError:
+        return 0
 
 
 def _issue_has_debate_comment(issue_number: int) -> bool:
@@ -2310,7 +2331,7 @@ Decision ID: {decision_id}
 
     result = _gh_create_issue(
         title=title, body=body,
-        labels=f"{LABEL_EDITORIAL},{LABEL_BACKLOG}",
+        labels=f"{LABEL_EDITORIAL},{LABEL_NEEDS_APPROVAL}",
     )
 
     # Parse issue number from output
@@ -3224,6 +3245,9 @@ Format:
 
     created: list[int] = []
     for item in raw[:2]:  # Hard cap at 2
+        if _count_needs_approval() >= NEEDS_APPROVAL_CAP:
+            log.info("Needs-approval cap reached, skipping remaining Director issues")
+            break
         try:
             validated = DirectorOutput.model_validate(item)
         except Exception:
@@ -3493,6 +3517,9 @@ Format:
 
     created: list[int] = []
     for item in raw[:2]:  # Hard cap at 2
+        if _count_needs_approval() >= NEEDS_APPROVAL_CAP:
+            log.info("Needs-approval cap reached, skipping remaining Strategic Director issues")
+            break
         try:
             validated = StrategicDirectorOutput.model_validate(item)
         except Exception:
@@ -3573,6 +3600,9 @@ async def step_research_scout(*, model: str) -> list[int]:
 
     created: list[int] = []
     for item in raw[:RESEARCH_SCOUT_MAX_ISSUES]:
+        if _count_needs_approval() >= NEEDS_APPROVAL_CAP:
+            log.info("Needs-approval cap reached, skipping remaining Research Scout issues")
+            break
         try:
             validated = ResearchScoutOutput.model_validate(item)
         except Exception:
@@ -3716,6 +3746,27 @@ def _prefetch_conductor_context(
             sections.append("## Backlog Issues\n\nBacklog is empty.\n")
     else:
         sections.append("## Backlog Issues\n\nBacklog is empty.\n")
+
+    # Needs-approval issues (awaiting human review)
+    result = _run_gh([
+        "gh", "issue", "list",
+        "--label", LABEL_NEEDS_APPROVAL,
+        "--state", "open",
+        "--json", "number,title,labels,createdAt",
+        "--limit", "20",
+    ], check=False)
+    if result.returncode == 0 and result.stdout.strip():
+        na_issues = json.loads(result.stdout)
+        if na_issues:
+            lines = []
+            for iss in na_issues:
+                labels = [lbl["name"] for lbl in iss.get("labels", [])]
+                age_str = iss.get("createdAt", "")[:10]
+                lines.append(f"- #{iss['number']}: {iss['title']} [{', '.join(labels)}] (created {age_str})")
+            sections.append(
+                f"## Needs Approval ({len(na_issues)} awaiting human review, cap {NEEDS_APPROVAL_CAP})\n\n"
+                + "\n".join(lines)
+            )
 
     # Recently completed issues (last 10)
     result = _run_gh([
@@ -4287,9 +4338,15 @@ async def _dispatch_action(
             case "propose":
                 backlog = list_backlog_issues()
                 non_analysis = [i for i in backlog if not _issue_has_label(i, LABEL_TASK_ANALYSIS)]
-                if non_analysis:
-                    log.info("Skipping proposals: %d improvement issues in backlog", len(non_analysis))
-                    phase.detail = f"skipped ({len(non_analysis)} issues in backlog)"
+                needs_approval_count = _count_needs_approval()
+                pending_improvement = len(non_analysis) + needs_approval_count
+                if pending_improvement > 0:
+                    log.info(
+                        "Skipping proposals: %d improvement issues pending "
+                        "(%d backlog, %d needs-approval)",
+                        pending_improvement, len(non_analysis), needs_approval_count,
+                    )
+                    phase.detail = f"skipped ({pending_improvement} issues pending)"
                 else:
                     # Graceful degradation: if the SDK crashes after all retries,
                     # treat as 0 proposals instead of failing the entire phase.
@@ -4334,13 +4391,16 @@ async def _dispatch_action(
                         label_names = result.stdout.strip()
                         already_processed = (
                             LABEL_BACKLOG in label_names
+                            or LABEL_NEEDS_APPROVAL in label_names
                             or LABEL_IN_PROGRESS in label_names
                             or LABEL_DONE in label_names
                             or LABEL_FAILED in label_names
                         )
                         if already_processed:
                             continue
-                        accept_issue(issue_num)
+                        # Human suggestions bypass the approval gate
+                        _run_gh(["gh", "issue", "edit", str(issue_num),
+                                 "--add-label", LABEL_BACKLOG])
                         human_accepted += 1
                     telemetry.human_suggestions_ingested = human_accepted
                     phase.detail = f"{len(proposals)} proposals, {human_accepted} human suggestions"

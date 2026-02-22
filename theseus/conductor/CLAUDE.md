@@ -98,6 +98,10 @@ After your planned actions execute, you'll see their results and can **re-plan**
 
 **Signaling you're done:** Output `{"done": true}` or an empty actions list to end the cycle.
 
+## Approval Gate
+
+Self-improvement issues (from debate acceptance, directors, research scout) land on `self-improve:needs-approval` — **not** directly on `self-improve:backlog`. A human must approve them by relabeling to `self-improve:backlog` in the GitHub UI before they can be executed. Analysis tasks (`task:analysis`) and human suggestions bypass this gate and go straight to backlog. There is a cap of 10 `needs-approval` issues; when full, new self-improvement issue creation is paused.
+
 ## Constraints
 
 - **Dry run**: When `dry_run` is true, `pick_and_execute` will not actually execute — but you should still plan it so the system logs what it would do

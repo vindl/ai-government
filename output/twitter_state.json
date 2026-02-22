@@ -1,7 +1,17 @@
 {
-  "last_posted_at": null,
-  "posted_decision_ids": [],
-  "monthly_post_count": 0,
-  "monthly_post_month": "",
-  "posted_tweets": []
+  "last_posted_at": "2026-02-22T20:19:45.600593Z",
+  "posted_decision_ids": [
+    "item-2026-02-20-fec6ac2d"
+  ],
+  "monthly_post_count": 1,
+  "monthly_post_month": "2026-02",
+  "posted_tweets": [
+    {
+      "tweet_id": "2025666842019107024",
+      "reply_tweet_id": "2025666844141445607",
+      "decision_id": "item-2026-02-20-fec6ac2d",
+      "posted_at": "2026-02-22T20:19:45.600593Z",
+      "category": "economy"
+    }
+  ]
 }

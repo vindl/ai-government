@@ -237,25 +237,26 @@ def compose_analysis_tweet(
     headline_en = result.critic_report.headline if result.critic_report else ""
     if not headline_me:
         headline_me = headline_en
-    link = f"{SITE_BASE_URL}/analyses/{result.decision.id}"
+    link_en = f"{SITE_BASE_URL}/analyses/{result.decision.id}?lang=en"
+    link_me = f"{SITE_BASE_URL}/analyses/{result.decision.id}?lang=me"
 
     # --- English primary tweet ---
-    en_suffix = f"\n\nScore: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"
+    en_suffix = f"\n\nScore: {score}/10\n\n{link_en}\n\n#AIGovernment #Montenegro"
     if headline_en:
         max_hl = MAX_TWEET_LENGTH - len(en_suffix)
         en_text = _truncate_at_word_boundary(headline_en, max_hl) + en_suffix
     else:
-        en_text = f"Score: {score}/10\n\n{link}\n\n#AIGovernment #Montenegro"
+        en_text = f"Score: {score}/10\n\n{link_en}\n\n#AIGovernment #Montenegro"
     en_text = en_text[:MAX_TWEET_LENGTH]
 
     # --- Montenegrin thread reply ---
-    me_suffix = f"\n\nOcjena: {score}/10\n\n{link}\n\n#AIVlada #CrnaGora"
+    me_suffix = f"\n\nOcjena: {score}/10\n\n{link_me}\n\n#AIVlada #CrnaGora"
     me_prefix = "\U0001f1f2\U0001f1ea "  # 🇲🇪
     if headline_me:
         max_hl = MAX_TWEET_LENGTH - len(me_suffix) - len(me_prefix)
         me_text = me_prefix + _truncate_at_word_boundary(headline_me, max_hl) + me_suffix
     else:
-        me_text = f"\U0001f1f2\U0001f1ea Ocjena: {score}/10\n\n{link}\n\n#AIVlada #CrnaGora"
+        me_text = f"\U0001f1f2\U0001f1ea Ocjena: {score}/10\n\n{link_me}\n\n#AIVlada #CrnaGora"
     me_text = me_text[:MAX_TWEET_LENGTH]
 
     return BilingualTweet(en=en_text, me=me_text)

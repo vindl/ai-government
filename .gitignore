@@ -42,6 +42,7 @@ _site/
 site/node_modules/
 site/dist/
 site/public/data/
+site/.vite/
 
 # OS
 .DS_Store

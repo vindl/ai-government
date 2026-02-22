@@ -4667,23 +4667,30 @@ def _check_circuit_breaker() -> None:
 
 
 def _commit_output_data() -> None:
-    """Commit and push all output/data/ files (telemetry, results, overrides). Non-fatal."""
+    """Commit and push output/data/ and twitter_state.json. Non-fatal."""
     data_dir = PROJECT_ROOT / "output" / "data"
+    twitter_state = PROJECT_ROOT / "output" / "twitter_state.json"
+    tracked_paths = [str(data_dir), str(twitter_state)]
     try:
         if not data_dir.exists():
             return
-        # Check for any changed or untracked files in output/data/
-        diff = _run_gh(
-            ["git", "diff", "--name-only", str(data_dir)], check=False,
-        )
-        untracked = _run_gh(
-            ["git", "ls-files", "--others", "--exclude-standard", str(data_dir)],
-            check=False,
-        )
-        has_changes = bool(diff.stdout.strip()) or bool(untracked.stdout.strip())
+        # Check for any changed or untracked files in output/data/ or twitter_state
+        has_changes = False
+        for path in tracked_paths:
+            diff = _run_gh(
+                ["git", "diff", "--name-only", path], check=False,
+            )
+            untracked = _run_gh(
+                ["git", "ls-files", "--others", "--exclude-standard", path],
+                check=False,
+            )
+            if diff.stdout.strip() or untracked.stdout.strip():
+                has_changes = True
+                break
         if not has_changes:
             return
-        _run_gh(["git", "add", str(data_dir)], check=False)
+        for path in tracked_paths:
+            _run_gh(["git", "add", path], check=False)
         _run_gh(
             ["git", "commit", "-m", "chore: update output data"],
             check=False,

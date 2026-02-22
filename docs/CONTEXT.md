@@ -38,9 +38,12 @@ Montenegro is a small country with an active government making consequential dec
 | Finance | Economic impact, budget, fiscal policy | Cost, revenue, debt, economic growth |
 | Justice | Legal compliance, rule of law | Constitutionality, rights, legal precedent |
 | EU Integration | EU alignment, accession progress | EU acquis, benchmarks, reform alignment |
-| Health | Public health impact | Healthcare access, safety, epidemiology |
+| Health | Public health, social protection | Healthcare access, safety, welfare programs, pensions, disability rights |
 | Interior | Security, administration | Public safety, administrative capacity, enforcement |
-| Labour and Social Welfare | Workers' rights, social protection, pensions | Labour law, welfare programs, EU Chapter 19 |
+| Education | Education quality, research, VET | Brain drain, PISA scores, human capital |
+| Economy and Labour | Economic development, labour market | FDI, SMEs, workers' rights, labour law, EU Chapter 19 |
+| Tourism | Tourism, coastal management | Seasonal employment, national parks, UNESCO sites |
+| Environment | Environmental protection, climate | EU Chapter 27, waste management, spatial planning |
 
 ## Meta-Agents
 | Agent | Role |

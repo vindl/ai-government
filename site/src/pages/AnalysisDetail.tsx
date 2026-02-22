@@ -28,10 +28,9 @@ const MINISTRY_NAMES_MNE: Record<string, string> = {
   Health: "Zdravlje",
   Interior: "Unutrašnji poslovi",
   Education: "Prosvjeta",
-  Economy: "Ekonomija",
+  "Economy and Labour": "Ekonomija i rad",
   Tourism: "Turizam",
   Environment: "Životna sredina",
-  Labour: "Rad",
 };
 
 function verdictLabel(verdict: Verdict | string, lang: "me" | "en"): string {

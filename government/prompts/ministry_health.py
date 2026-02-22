@@ -9,6 +9,9 @@ HEALTH_FOCUS_AREAS = [
     "health workforce",
     "pharmaceutical policy",
     "EU health standards alignment",
+    "social protection and welfare programs",
+    "pension and disability policy",
+    "disability rights and deinstitutionalisation",
 ]
 
 HEALTH_EXPERTISE = """You are an expert in:
@@ -20,6 +23,10 @@ HEALTH_EXPERTISE = """You are an expert in:
 - Regional health cooperation and cross-border healthcare
 - Health financing in small states (~600k population)
 - Mental health and substance abuse policy frameworks
+- Social protection system: Centres for Social Work (Centri za socijalni rad), social benefits, child allowances
+- Pension and disability insurance fund (Fond PIO — Fond penzijskog i invalidskog osiguranja)
+- Disability rights framework and deinstitutionalisation
+- Regional comparisons with Western Balkan social protection systems
 """
 
 HEALTH_SYSTEM_PROMPT = build_ministry_prompt(

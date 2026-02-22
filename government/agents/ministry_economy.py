@@ -15,9 +15,9 @@ def create_economy_agent(
     *,
     thinking: ThinkingConfig | None = None,
 ) -> GovernmentAgent:
-    """Create the Ministry of Economy agent."""
+    """Create the Ministry of Economy and Labour agent."""
     config = MinistryConfig(
-        name="Economy",
+        name="Economy and Labour",
         slug="economy",
         focus_areas=ECONOMY_FOCUS_AREAS,
         system_prompt=ECONOMY_SYSTEM_PROMPT,

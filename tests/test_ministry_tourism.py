@@ -77,13 +77,9 @@ class TestTourismAgent:
         agent = create_tourism_agent()
         assert agent.ministry.slug == "tourism"
 
-    def test_agent_name_includes_ecology(self) -> None:
+    def test_agent_name_is_tourism(self) -> None:
         agent = create_tourism_agent()
-        assert "Ecology" in agent.ministry.name
-
-    def test_agent_name_includes_sustainable_development(self) -> None:
-        agent = create_tourism_agent()
-        assert "Sustainable Development" in agent.ministry.name
+        assert agent.ministry.name == "Tourism"
 
     def test_agent_focus_areas_match_prompt(self) -> None:
         agent = create_tourism_agent()

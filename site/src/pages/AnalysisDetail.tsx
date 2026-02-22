@@ -28,7 +28,7 @@ const MINISTRY_NAMES_MNE: Record<string, string> = {
   Health: "Zdravlje",
   Interior: "Unutrašnji poslovi",
   Education: "Prosvjeta",
-  "Economy and Labour": "Ekonomija i rad",
+  Economy: "Ekonomija",
   Tourism: "Turizam",
   Environment: "Životna sredina",
 };

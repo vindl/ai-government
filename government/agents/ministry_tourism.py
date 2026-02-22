@@ -17,7 +17,7 @@ def create_tourism_agent(
 ) -> GovernmentAgent:
     """Create the Tourism, Ecology, Sustainable Development ministry agent."""
     config = MinistryConfig(
-        name="Tourism, Ecology, Sustainable Development and Northern Region Development",
+        name="Tourism",
         slug="tourism",
         focus_areas=TOURISM_FOCUS_AREAS,
         system_prompt=TOURISM_SYSTEM_PROMPT,

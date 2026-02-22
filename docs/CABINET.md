@@ -1,23 +1,22 @@
 # The Cabinet
 
-The AI Government of Montenegro operates through ten ministry-specific agents, each responsible for analyzing government decisions within its domain.
+The AI Government of Montenegro operates through nine ministry-specific agents, each responsible for analyzing government decisions within its domain.
 
 | # | Ministry | Scope |
 |---|----------|-------|
 | 1 | **Finance** | Fiscal policy, budget oversight, public debt management, tax policy, and EU economic convergence criteria. |
 | 2 | **Justice** | Rule of law, judiciary independence, anti-corruption enforcement, and EU Chapters 23/24 compliance. |
 | 3 | **EU Integration** | Accession negotiation tracking, acquis alignment assessment, and benchmark monitoring. |
-| 4 | **Health** | Public health policy, healthcare system governance, and pharmaceutical regulation and procurement. |
+| 4 | **Health** | Public health policy, healthcare system governance, pharmaceutical regulation and procurement, social protection and welfare programs, pension and disability policy, and disability rights. |
 | 5 | **Interior** | Public safety, police reform, border management, and migration policy. |
 | 6 | **Education** | Education quality and reform, scientific research, vocational education and training (VET), and brain drain mitigation. |
-| 7 | **Economy** | Economic development strategy, foreign direct investment (FDI), labour market policy, industrial policy, and SME support. |
+| 7 | **Economy and Labour** | Economic development strategy, foreign direct investment (FDI), labour market policy, industrial policy, SME support, workers' rights and labour law, occupational health and safety, and social dialogue. |
 | 8 | **Tourism** | Tourism regulation and development, seasonal employment, coastal and national park management, and cruise ship policy. |
 | 9 | **Environment** | Environmental protection, waste management, climate policy, EU Chapter 27 alignment, and spatial planning. |
-| 10 | **Labour and Social Welfare** | Workers' rights and labour law, social protection and welfare programs, pension and disability policy, employment policy, occupational health and safety, and social dialogue. |
 
 ## Selection Criteria
 
-The ten ministries are selected proportionally to their impact on Montenegrin public life. The selection is not arbitrary; it reflects a weighted assessment across five dimensions:
+The nine ministries are selected proportionally to their impact on Montenegrin public life. The selection is not arbitrary; it reflects a weighted assessment across five dimensions:
 
 - **GDP share** — How much of the national economy does the sector directly influence?
 - **Budget allocation** — What proportion of public spending flows through the domain?
@@ -43,7 +42,7 @@ EU accession is Montenegro's defining policy trajectory. It shapes legislation, 
 
 ### Health
 
-Montenegro's small health system serves a population of roughly 620,000 and operates under chronic strain — limited specialist capacity, facility maintenance backlogs, and pharmaceutical procurement that has historically lacked transparency. Health decisions directly affect citizens' wellbeing and frequently involve significant public expenditure with limited competitive tendering.
+Montenegro's small health system serves a population of roughly 620,000 and operates under chronic strain — limited specialist capacity, facility maintenance backlogs, and pharmaceutical procurement that has historically lacked transparency. Health decisions directly affect citizens' wellbeing and frequently involve significant public expenditure with limited competitive tendering. The ministry also covers social protection and welfare — Centres for Social Work, pension and disability insurance (Fond PIO), disability rights, and deinstitutionalisation — which directly affect the most vulnerable citizens and are closely linked to public health outcomes.
 
 ### Interior
 
@@ -53,9 +52,9 @@ Police reform and internal affairs oversight are prerequisites for EU accession 
 
 Brain drain is an existential risk for a country of 620,000 people. Montenegro's PISA scores consistently fall below the EU average, and the gap between educational output and labour market demand drives emigration among young graduates. Education reform, research investment, and vocational training policy determine whether the country retains the human capital needed to function as an EU member state.
 
-### Economy
+### Economy and Labour
 
-Industrial policy, FDI regulation, and the SME ecosystem shape Montenegro's economic diversification beyond tourism dependence. Energy transition decisions — including the future of coal production and renewable investment — carry multi-decade consequences. Labour market regulation and regional development policy determine whether economic growth is broadly shared or concentrated in the coastal strip.
+Industrial policy, FDI regulation, and the SME ecosystem shape Montenegro's economic diversification beyond tourism dependence. Energy transition decisions — including the future of coal production and renewable investment — carry multi-decade consequences. Labour market regulation and regional development policy determine whether economic growth is broadly shared or concentrated in the coastal strip. Montenegro's labour market faces structural challenges: high youth unemployment, a growing informal economy, and emigration of working-age population. EU accession Chapter 19 (Social Policy and Employment) requires alignment of labour law, anti-discrimination measures, occupational health and safety standards, and social dialogue frameworks. Workers' rights enforcement, minimum wage policy, and wage arrears remain persistent issues — consolidating these under Economy ensures labour concerns are analyzed alongside the economic forces that drive them.
 
 ### Tourism
 
@@ -64,10 +63,6 @@ Tourism contributes approximately 40% of GDP when indirect effects are included,
 ### Environment
 
 EU Chapter 27 (Environment and Climate Change) is the most demanding accession chapter by volume of legislation and cost of compliance. The Pljevlja thermal power plant remains a significant pollution source. Montenegro faces a waste management crisis with inadequate landfill capacity and recycling infrastructure. Spatial planning decisions — particularly along the coast — have irreversible consequences for biodiversity and landscape integrity.
-
-### Labour and Social Welfare
-
-Montenegro's labour market faces structural challenges: high youth unemployment, a growing informal economy, and emigration of working-age population. The social protection system — Centres for Social Work, pension and disability insurance, unemployment benefits — directly affects the most vulnerable citizens. EU accession Chapter 19 (Social Policy and Employment) requires alignment of labour law, anti-discrimination measures, occupational health and safety standards, and social dialogue frameworks. Workers' rights enforcement, minimum wage policy, and wage arrears remain persistent issues. A dedicated agent ensures these concerns are not diluted across Economy and Justice.
 
 ## What's Intentionally Excluded
 

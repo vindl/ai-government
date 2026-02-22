@@ -9,7 +9,7 @@ All agents are bound by the [Constitution](docs/CONSTITUTION.md).
 ## How It Works
 
 1. **News intake**: A News Scout agent searches Montenegrin government sources daily for new decisions
-2. **Analysis**: Ten AI ministry agents (Finance, Justice, EU Integration, Health, Interior, Economy, Education, Environment, Tourism, Labour) each evaluate the decision from their domain perspective
+2. **Analysis**: Nine AI ministry agents (Finance, Justice, EU Integration, Health, Interior, Economy and Labour, Education, Environment, Tourism) each evaluate the decision from their domain perspective
 3. **Debate**: A parliament agent synthesizes all ministry assessments into a structured debate
 4. **Scoring**: An independent critic agent scores the government's decision and the quality of the AI analysis
 5. **Counter-proposal**: The AI cabinet produces an alternative proposal with key differences and trade-offs
@@ -19,7 +19,7 @@ All agents are bound by the [Constitution](docs/CONSTITUTION.md).
 
 Two agent fleets operate autonomously:
 
-- **Government Mirror** (Fleet 1): Python agents via Claude Code SDK — ten ministry agents + Parliament + Critic + Synthesizer. Orchestrated by `government/orchestrator.py`, run through the main loop in `scripts/main_loop.py`.
+- **Government Mirror** (Fleet 1): Python agents via Claude Code SDK — nine ministry agents + Parliament + Critic + Synthesizer. Orchestrated by `government/orchestrator.py`, run through the main loop in `scripts/main_loop.py`.
 - **Theseus** (Fleet 2): Specialized Claude Code instances with role-specific prompts in `theseus/` — Coder, Reviewer, PM, Director, Editorial Director, News Scout, Research Scout, Strategic Director. Handles self-improvement, code changes, and editorial oversight.
 
 The website is a React + TypeScript + Tailwind CSS SPA built with Vite. The Python build pipeline exports analysis data as static JSON, then builds the React app. Deployed to GitHub Pages.

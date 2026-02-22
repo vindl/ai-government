@@ -99,7 +99,7 @@ class TestMinistryTypeEnum:
     def test_all_ministries_present(self) -> None:
         expected = {
             "finance", "justice", "eu", "health", "interior",
-            "education", "economy", "tourism", "environment", "labour",
+            "education", "economy", "tourism", "environment",
         }
         actual = {m.value for m in MinistryType}
         assert actual == expected

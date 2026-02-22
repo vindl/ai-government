@@ -17,7 +17,6 @@ from government.agents.ministry_finance import create_finance_agent
 from government.agents.ministry_health import create_health_agent
 from government.agents.ministry_interior import create_interior_agent
 from government.agents.ministry_justice import create_justice_agent
-from government.agents.ministry_labour import create_labour_agent
 from government.agents.ministry_tourism import create_tourism_agent
 from government.agents.parliament import ParliamentAgent
 from government.agents.synthesizer import SynthesizerAgent
@@ -192,7 +191,6 @@ class Orchestrator:
             create_economy_agent(self.config, thinking=thinking),
             create_tourism_agent(self.config, thinking=thinking),
             create_environment_agent(self.config, thinking=thinking),
-            create_labour_agent(self.config, thinking=thinking),
         ]
 
     async def run_session(

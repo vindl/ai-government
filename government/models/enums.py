@@ -15,4 +15,3 @@ class MinistryType(StrEnum):
     ECONOMY = "economy"
     TOURISM_ECOLOGY = "tourism"
     ENVIRONMENT = "environment"
-    LABOUR = "labour"

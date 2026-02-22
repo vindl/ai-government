@@ -33,6 +33,7 @@ venv/
 output/*
 !output/.gitkeep
 !output/data/
+!output/twitter_state.json
 
 # Site build output
 _site/

@@ -237,6 +237,11 @@ class Orchestrator:
 
         return result
 
+    def _sort_assessments(self, assessments: list[Assessment]) -> list[Assessment]:
+        """Sort assessments to match the canonical ministry order."""
+        order = {a.ministry.name: i for i, a in enumerate(self.ministry_agents)}
+        return sorted(assessments, key=lambda a: order.get(a.ministry, len(order)))
+
     async def _run_ministries_parallel(
         self,
         decision: GovernmentDecision,
@@ -253,7 +258,7 @@ class Orchestrator:
 
                 tg.start_soon(analyze)
 
-        return assessments
+        return self._sort_assessments(assessments)
 
     async def _run_ministries_sequential(
         self,

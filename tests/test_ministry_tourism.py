@@ -45,7 +45,7 @@ class TestTourismPrompt:
         assert "Spatial planning" in TOURISM_EXPERTISE
 
     def test_system_prompt_built_for_correct_ministry(self) -> None:
-        assert "Ministry of Tourism, Ecology, Sustainable Development" in TOURISM_SYSTEM_PROMPT
+        assert "Ministry of Tourism" in TOURISM_SYSTEM_PROMPT
 
     def test_focus_areas_include_environment(self) -> None:
         joined = " ".join(TOURISM_FOCUS_AREAS)

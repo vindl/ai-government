@@ -164,6 +164,7 @@ class GovernmentAgent:
         """Build an Assessment from the structured output dict."""
         if data is not None:
             data.setdefault("decision_id", decision_id)
+            data["ministry"] = self.ministry.name
             return Assessment(**data)
 
         name = self.ministry.name

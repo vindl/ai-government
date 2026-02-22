@@ -1,4 +1,4 @@
-"""Prompt for the Ministry of Tourism, Ecology, Sustainable Development and Northern Region Development."""
+"""Prompt for the Tourism ministry agent."""
 
 from government.prompts.ministry_base import build_ministry_prompt
 

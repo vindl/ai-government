@@ -1,4 +1,4 @@
-"""Ministry of Tourism, Ecology, Sustainable Development and Northern Region Development."""
+"""Ministry of Tourism agent."""
 
 from claude_agent_sdk import ThinkingConfig
 
@@ -15,7 +15,7 @@ def create_tourism_agent(
     *,
     thinking: ThinkingConfig | None = None,
 ) -> GovernmentAgent:
-    """Create the Tourism, Ecology, Sustainable Development ministry agent."""
+    """Create the Tourism ministry agent."""
     config = MinistryConfig(
         name="Tourism",
         slug="tourism",

@@ -41,7 +41,7 @@ Montenegro is a small country with an active government making consequential dec
 | Health | Public health, social protection | Healthcare access, safety, welfare programs, pensions, disability rights |
 | Interior | Security, administration | Public safety, administrative capacity, enforcement |
 | Education | Education quality, research, VET | Brain drain, PISA scores, human capital |
-| Economy and Labour | Economic development, labour market | FDI, SMEs, workers' rights, labour law, EU Chapter 19 |
+| Economy | Economic development, labour market | FDI, SMEs, workers' rights, labour law, EU Chapter 19 |
 | Tourism | Tourism, coastal management | Seasonal employment, national parks, UNESCO sites |
 | Environment | Environmental protection, climate | EU Chapter 27, waste management, spatial planning |
 

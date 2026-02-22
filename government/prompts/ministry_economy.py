@@ -1,4 +1,4 @@
-"""Prompt for the Ministry of Economy and Labour agent."""
+"""Prompt for the Economy ministry agent."""
 
 from government.prompts.ministry_base import build_ministry_prompt
 

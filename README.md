@@ -9,7 +9,7 @@ All agents are bound by the [Constitution](docs/CONSTITUTION.md).
 ## How It Works
 
 1. **News intake**: A News Scout agent searches Montenegrin government sources daily for new decisions
-2. **Analysis**: Nine AI ministry agents (Finance, Justice, EU Integration, Health, Interior, Economy and Labour, Education, Environment, Tourism) each evaluate the decision from their domain perspective
+2. **Analysis**: Nine AI ministry agents (Finance, Economy, Education, Health, Environment, Tourism, Interior, Justice, EU Integration) each evaluate the decision from their domain perspective
 3. **Debate**: A parliament agent synthesizes all ministry assessments into a structured debate
 4. **Scoring**: An independent critic agent scores the government's decision and the quality of the AI analysis
 5. **Counter-proposal**: The AI cabinet produces an alternative proposal with key differences and trade-offs

@@ -29,7 +29,7 @@ The full repository scaffold is in place. All code passes linting, type checking
 - [x] `GovernmentAgent` base class with `analyze()` method
 - [x] `MinistryConfig` frozen dataclass for per-ministry config
 - [x] Response parsing with JSON extraction + graceful fallback
-- [x] 9 ministry agents: Finance, Justice, EU Integration, Health, Interior, Education, Economy and Labour, Tourism, Environment
+- [x] 9 ministry agents: Finance, Economy, Education, Health, Environment, Tourism, Interior, Justice, EU Integration
 - [x] `ParliamentAgent` — receives all assessments, synthesizes debate
 - [x] `CriticAgent` — independent scoring of decision + assessments
 - [x] `SynthesizerAgent` — consolidates ministry counter-proposals into unified alternative

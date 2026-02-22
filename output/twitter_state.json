@@ -1,9 +1,10 @@
 {
-  "last_posted_at": "2026-02-22T20:19:45.600593Z",
+  "last_posted_at": "2026-02-22T22:19:12.887046Z",
   "posted_decision_ids": [
-    "item-2026-02-20-fec6ac2d"
+    "item-2026-02-20-fec6ac2d",
+    "item-2026-02-17-71a2fb46"
   ],
-  "monthly_post_count": 1,
+  "monthly_post_count": 2,
   "monthly_post_month": "2026-02",
   "posted_tweets": [
     {
@@ -12,6 +13,13 @@
       "decision_id": "item-2026-02-20-fec6ac2d",
       "posted_at": "2026-02-22T20:19:45.600593Z",
       "category": "economy"
+    },
+    {
+      "tweet_id": "2025696903325798748",
+      "reply_tweet_id": "2025696905389384101",
+      "decision_id": "item-2026-02-17-71a2fb46",
+      "posted_at": "2026-02-22T22:19:12.887046Z",
+      "category": "legal"
     }
   ]
 }

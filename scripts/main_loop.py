@@ -4763,7 +4763,20 @@ def _commit_output_data() -> None:
                 "Output data was committed locally but NOT pushed."
             )
             return
-        _run_gh(["git", "push"], check=False)
+        push_result = _run_gh(["git", "push"], check=False)
+        if push_result.returncode != 0:
+            log.warning(
+                "git push failed (rc=%d) — retrying with pull --rebase",
+                push_result.returncode,
+            )
+            _run_gh(["git", "pull", "--rebase"], check=False)
+            retry = _run_gh(["git", "push"], check=False)
+            if retry.returncode != 0:
+                log.error(
+                    "git push failed after retry (rc=%d) — output data NOT pushed",
+                    retry.returncode,
+                )
+                return
         log.info("Output data committed and pushed")
     except Exception:
         log.exception("Output data commit failed (non-fatal)")

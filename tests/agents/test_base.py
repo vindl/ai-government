@@ -220,8 +220,8 @@ class TestGovernmentAgent:
         assert "Health" in names
         assert "Interior" in names
         assert "Education" in names
-        assert "Economy and Labour" in names
-        assert "Tourism, Ecology, Sustainable Development and Northern Region Development" in names
+        assert "Economy" in names
+        assert "Tourism" in names
         assert "Environment" in names
 
 

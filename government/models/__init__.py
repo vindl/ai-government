@@ -2,6 +2,7 @@
 
 from government.models.assessment import Assessment, Verdict
 from government.models.decision import GovernmentDecision
+from government.models.enums import MinistryType
 from government.models.telemetry import CyclePhaseResult, CycleTelemetry
 
 __all__ = [
@@ -9,5 +10,6 @@ __all__ = [
     "CyclePhaseResult",
     "CycleTelemetry",
     "GovernmentDecision",
+    "MinistryType",
     "Verdict",
 ]

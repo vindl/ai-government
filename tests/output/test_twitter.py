@@ -374,6 +374,36 @@ class TestComposeAnalysisTweet:
         assert "/analyses/d1" in tweets.me
         assert "/analyses/d1" in tweets.en
 
+    def test_en_tweet_has_lang_en_param(self) -> None:
+        """English tweet link should contain ?lang=en."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "?lang=en" in tweets.en
+        assert "?lang=me" not in tweets.en
+
+    def test_me_tweet_has_lang_me_param(self) -> None:
+        """Montenegrin tweet link should contain ?lang=me."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="Strong fiscal policy",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "?lang=me" in tweets.me
+        assert "?lang=en" not in tweets.me
+
+    def test_no_headline_tweets_have_lang_params(self) -> None:
+        """Even without headlines, tweets should have correct lang params."""
+        result = _make_result(
+            "d1", "Budget Law", date(2026, 2, 14),
+            critic_score=7, headline="",
+        )
+        tweets = compose_analysis_tweet(result)
+        assert "?lang=en" in tweets.en
+        assert "?lang=me" in tweets.me
+
     def test_both_tweets_fit_280_chars(self) -> None:
         """Both tweets must independently fit within 280 characters."""
         result = _make_result(

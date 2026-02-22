@@ -183,14 +183,14 @@ class Orchestrator:
         thinking = self._ministry_thinking
         return [
             create_finance_agent(self.config, thinking=thinking),
+            create_economy_agent(self.config, thinking=thinking),
+            create_education_agent(self.config, thinking=thinking),
+            create_health_agent(self.config, thinking=thinking),
+            create_environment_agent(self.config, thinking=thinking),
+            create_tourism_agent(self.config, thinking=thinking),
+            create_interior_agent(self.config, thinking=thinking),
             create_justice_agent(self.config, thinking=thinking),
             create_eu_agent(self.config, thinking=thinking),
-            create_health_agent(self.config, thinking=thinking),
-            create_interior_agent(self.config, thinking=thinking),
-            create_education_agent(self.config, thinking=thinking),
-            create_economy_agent(self.config, thinking=thinking),
-            create_tourism_agent(self.config, thinking=thinking),
-            create_environment_agent(self.config, thinking=thinking),
         ]
 
     async def run_session(

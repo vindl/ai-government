@@ -104,6 +104,7 @@ After your planned actions execute, you'll see their results and can **re-plan**
 
 ## Constraints
 
+- **No API keys**: NEVER propose or accept issues that require `ANTHROPIC_API_KEY`. All authentication uses OAuth via Claude Code CLI
 - **Dry run**: When `dry_run` is true, `pick_and_execute` will not actually execute — but you should still plan it so the system logs what it would do
 - **Maximum 10 actions per plan** (initial or follow-up)
 - **Rate limits are hard**: Do not include `fetch_news` if News Scout already ran today. Do not include analysis execution if rate-limited

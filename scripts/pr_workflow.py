@@ -34,8 +34,7 @@ REVIEWER_TOOLS = ["Bash", "Read", "Glob", "Grep"]
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch
 # (Claude Code detects nested sessions via this env var).
-# Also clear ANTHROPIC_API_KEY so the subprocess uses OAuth (Max plan)
-# instead of an invalid or parent-session API key.
+# Clear ANTHROPIC_API_KEY to ensure subprocesses use OAuth, never an API key.
 SDK_ENV = {"CLAUDECODE": "", "ANTHROPIC_API_KEY": ""}
 
 # Verdict markers used by the reviewer agent in PR comments.

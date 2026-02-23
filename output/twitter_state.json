@@ -1,11 +1,12 @@
 {
-  "last_posted_at": "2026-02-22T23:39:12.940565Z",
+  "last_posted_at": "2026-02-23T00:14:05.247592Z",
   "posted_decision_ids": [
     "item-2026-02-20-fec6ac2d",
     "item-2026-02-17-71a2fb46",
-    "news-2026-02-16-a14f1b55"
+    "news-2026-02-16-a14f1b55",
+    "item-2026-02-20-d1b8e70d"
   ],
-  "monthly_post_count": 3,
+  "monthly_post_count": 4,
   "monthly_post_month": "2026-02",
   "posted_tweets": [
     {
@@ -28,6 +29,13 @@
       "decision_id": "news-2026-02-16-a14f1b55",
       "posted_at": "2026-02-22T23:39:12.940565Z",
       "category": "security"
+    },
+    {
+      "tweet_id": "2025725812880609589",
+      "reply_tweet_id": "2025725814688346170",
+      "decision_id": "item-2026-02-20-d1b8e70d",
+      "posted_at": "2026-02-23T00:14:05.247592Z",
+      "category": "economy"
     }
   ]
 }

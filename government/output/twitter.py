@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import subprocess
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -21,11 +21,6 @@ SITE_BASE_URL = "https://vindl.github.io/ai-government"
 MAX_TWEET_LENGTH = 280
 MONTHLY_POST_LIMIT = 400  # X free tier allows 500/month; keep headroom
 STATE_FILE = Path("output/twitter_state.json")
-METRICS_FILE = Path("output/data/tweet_metrics.jsonl")
-
-# Age window for metrics collection: fetch metrics for tweets posted 24-48h ago
-METRICS_MIN_AGE = timedelta(hours=24)
-METRICS_MAX_AGE = timedelta(hours=48)
 
 
 class BilingualTweet(NamedTuple):
@@ -44,19 +39,6 @@ class PostedTweetRecord(BaseModel):
     posted_at: datetime
     category: str = ""
 
-
-class TweetMetrics(BaseModel):
-    """Public metrics fetched from the X API for a single tweet."""
-
-    tweet_id: str
-    decision_id: str
-    fetched_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    impression_count: int = 0
-    like_count: int = 0
-    retweet_count: int = 0
-    reply_count: int = 0
-    # Derived
-    engagement_rate: float = 0.0  # (likes + retweets + replies) / impressions
 
 
 def translate_headline(headline: str) -> str:
@@ -368,140 +350,3 @@ def post_tweet(text: str, *, in_reply_to_tweet_id: str | None = None) -> str | N
         return None
 
 
-# ---------------------------------------------------------------------------
-# Tweet analytics / metrics collection
-# ---------------------------------------------------------------------------
-
-
-def _get_tweets_needing_metrics(
-    state: TwitterState,
-    *,
-    now: datetime | None = None,
-) -> list[PostedTweetRecord]:
-    """Return posted tweets in the 24-48 hour age window for metrics collection."""
-    now = now or datetime.now(UTC)
-    results: list[PostedTweetRecord] = []
-    for record in state.posted_tweets:
-        age = now - record.posted_at
-        if METRICS_MIN_AGE <= age <= METRICS_MAX_AGE:
-            results.append(record)
-    return results
-
-
-def _fetch_tweet_public_metrics(tweet_ids: list[str]) -> dict[str, TweetMetrics]:
-    """Fetch public_metrics for a batch of tweet IDs from the X API v2.
-
-    Uses ``GET /2/tweets`` with ``tweet.fields=public_metrics``.
-    Returns a mapping of tweet_id → TweetMetrics (only for successfully fetched tweets).
-    """
-    if not tweet_ids:
-        return {}
-
-    consumer_key = os.environ.get("TWITTER_CONSUMER_KEY", "")
-    consumer_secret = os.environ.get("TWITTER_CONSUMER_SECRET", "")
-    access_token = os.environ.get("TWITTER_ACCESS_TOKEN", "")
-    access_token_secret = os.environ.get("TWITTER_ACCESS_TOKEN_SECRET", "")
-
-    if not all([consumer_key, consumer_secret, access_token, access_token_secret]):
-        log.info("X API credentials not set — skipping metrics collection")
-        return {}
-
-    try:
-        import tweepy
-
-        client = tweepy.Client(
-            consumer_key=consumer_key,
-            consumer_secret=consumer_secret,
-            access_token=access_token,
-            access_token_secret=access_token_secret,
-        )
-        # X API v2: GET /2/tweets with tweet.fields=public_metrics
-        # tweepy batches up to 100 IDs per request
-        response = client.get_tweets(
-            ids=tweet_ids,
-            tweet_fields=["public_metrics"],
-        )
-        if not response.data:
-            log.info("No tweet data returned from X API")
-            return {}
-
-        metrics_map: dict[str, TweetMetrics] = {}
-        for tweet in response.data:
-            pm = tweet.public_metrics or {}
-            impressions = pm.get("impression_count", 0)
-            likes = pm.get("like_count", 0)
-            retweets = pm.get("retweet_count", 0)
-            replies = pm.get("reply_count", 0)
-            engagement = (likes + retweets + replies) / impressions if impressions > 0 else 0.0
-            metrics_map[str(tweet.id)] = TweetMetrics(
-                tweet_id=str(tweet.id),
-                decision_id="",  # filled by caller
-                impression_count=impressions,
-                like_count=likes,
-                retweet_count=retweets,
-                reply_count=replies,
-                engagement_rate=round(engagement, 6),
-            )
-        return metrics_map
-    except Exception:
-        log.exception("Failed to fetch tweet metrics from X API")
-        return {}
-
-
-def collect_tweet_metrics(
-    *,
-    metrics_path: Path = METRICS_FILE,
-    state_path: Path = STATE_FILE,
-) -> list[TweetMetrics]:
-    """Fetch public_metrics for tweets posted 24-48 hours ago and log to JSONL.
-
-    Returns the list of collected TweetMetrics entries.
-    """
-    state = load_state(state_path)
-    eligible = _get_tweets_needing_metrics(state)
-    if not eligible:
-        log.info("No tweets in the 24-48h window for metrics collection")
-        return []
-
-    # Collect all tweet IDs (primary + reply) for batch fetch
-    tweet_id_to_record: dict[str, PostedTweetRecord] = {}
-    for record in eligible:
-        tweet_id_to_record[record.tweet_id] = record
-        if record.reply_tweet_id:
-            tweet_id_to_record[record.reply_tweet_id] = record
-
-    all_ids = list(tweet_id_to_record.keys())
-    log.info("Collecting metrics for %d tweet(s) from %d analysis post(s)", len(all_ids), len(eligible))
-
-    raw_metrics = _fetch_tweet_public_metrics(all_ids)
-    if not raw_metrics:
-        return []
-
-    # Assign decision_id and write to JSONL
-    results: list[TweetMetrics] = []
-    for tweet_id, metrics in raw_metrics.items():
-        matched_record = tweet_id_to_record.get(tweet_id)
-        if matched_record is not None:
-            metrics.decision_id = matched_record.decision_id
-        results.append(metrics)
-
-    # Append to JSONL
-    metrics_path.parent.mkdir(parents=True, exist_ok=True)
-    with metrics_path.open("a", encoding="utf-8") as f:
-        for m in results:
-            f.write(m.model_dump_json() + "\n")
-
-    log.info("Collected metrics for %d tweet(s)", len(results))
-    return results
-
-
-def load_tweet_metrics(path: Path = METRICS_FILE) -> list[TweetMetrics]:
-    """Load all tweet metrics entries from the JSONL file."""
-    if not path.exists():
-        return []
-    entries: list[TweetMetrics] = []
-    for line in path.read_text(encoding="utf-8").strip().splitlines():
-        line = line.strip()
-        if line:
-            entries.append(TweetMetrics.model_validate_json(line))
-    return entries

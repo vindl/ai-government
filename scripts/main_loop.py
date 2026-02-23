@@ -44,7 +44,6 @@ from government.orchestrator import Orchestrator, SessionResult
 from government.output.scorecard import render_scorecard
 from government.output.site_builder import load_results_from_dir, save_result_json
 from government.output.twitter import (
-    collect_tweet_metrics,
     load_unposted_from_dir,
     post_tweet_backlog,
     try_post_analysis,
@@ -283,7 +282,7 @@ class ConductorAction(BaseModel):
     action: Literal[
         "fetch_news", "propose", "debate", "pick_and_execute",
         "director", "strategic_director", "research_scout",
-        "post_pending_tweets", "collect_tweet_metrics",
+        "post_pending_tweets",
         "cooldown", "halt", "file_issue", "skip_cycle",
     ]
     reason: str
@@ -1335,14 +1334,6 @@ def collect_pr_merges() -> list[PRMerge]:
         # Skip AI-authored PRs — they start with "Written by Coder agent"
         if "written by coder agent" in body.lower():
             continue
-
-        # Tag human-initiated PRs on GitHub for visibility
-        pr_labels = [label.get("name", "") for label in pr.get("labels", [])]
-        if "human-initiated" not in pr_labels:
-            _run_gh(
-                ["gh", "pr", "edit", str(pr["number"]), "--add-label", "human-initiated"],
-                check=False,
-            )
 
         # Extract linked issue number from PR body
         issue_number: int | None = None
@@ -3345,34 +3336,9 @@ def _prefetch_strategic_context(last_n_cycles: int) -> str:
 
         # Tweet posting stats
         tweets_posted = sum(1 for e in entries if e.tweet_posted)
-        metrics_collected = sum(e.tweet_metrics_collected for e in entries)
         sections.append(
-            f"\n## Social Media Activity: {tweets_posted}/{len(entries)} cycles posted tweets"
-            f" | {metrics_collected} tweet metrics collected\n"
+            f"\n## Social Media Activity: {tweets_posted}/{len(entries)} cycles posted tweets\n"
         )
-
-        # Per-tweet engagement data (if available)
-        try:
-            from government.output.twitter import load_tweet_metrics
-            tweet_metrics = load_tweet_metrics()
-            if tweet_metrics:
-                # Show last 10 metrics entries
-                recent = tweet_metrics[-10:]
-                metrics_lines = []
-                for m in recent:
-                    metrics_lines.append(
-                        f"  - tweet {m.tweet_id} (decision {m.decision_id}): "
-                        f"{m.impression_count} impressions, "
-                        f"{m.like_count} likes, {m.retweet_count} RTs, "
-                        f"{m.reply_count} replies "
-                        f"(engagement: {m.engagement_rate:.2%})"
-                    )
-                sections.append(
-                    f"\n## Tweet Engagement Metrics (last {len(recent)})\n\n"
-                    + "\n".join(metrics_lines) + "\n"
-                )
-        except Exception:
-            log.debug("Failed to load tweet metrics for strategic context", exc_info=True)
     else:
         sections.append("## Telemetry\n\nNo telemetry data available yet.\n")
 
@@ -3896,21 +3862,6 @@ def _prefetch_conductor_context(
         )
     except Exception:
         log.debug("Failed to load tweet backlog for conductor context", exc_info=True)
-
-    # Tweet metrics (auto-collected each cycle, but conductor can trigger manually)
-    try:
-        from government.output import twitter as _tw
-        tw_state = _tw.load_state()
-        eligible = _tw._get_tweets_needing_metrics(tw_state)
-        sections.append(
-            f"## Tweet Metrics\n\n"
-            f"- Tracked tweets: {len(tw_state.posted_tweets)}\n"
-            f"- Eligible for metrics (24-48h old): {len(eligible)}\n"
-            + ("- Action: `collect_tweet_metrics` (also runs automatically each cycle)\n"
-               if eligible else "- No tweets in metrics window\n")
-        )
-    except Exception:
-        log.debug("Failed to load tweet metrics context", exc_info=True)
 
     # Director timing
     sections.append(
@@ -4542,14 +4493,6 @@ async def _dispatch_action(
                         telemetry.tweet_posted = True
                     phase.detail = f"posted {posted} tweets"
 
-            case "collect_tweet_metrics":
-                if dry_run:
-                    phase.detail = "skipped (dry run)"
-                else:
-                    metrics = collect_tweet_metrics()
-                    telemetry.tweet_metrics_collected = len(metrics)
-                    phase.detail = f"collected metrics for {len(metrics)} tweets"
-
             case "cooldown":
                 seconds = action.seconds or 30
                 print(f"  Conductor cooldown: sleeping {seconds}s...")
@@ -4730,6 +4673,25 @@ def _check_circuit_breaker() -> None:
         raise  # let sys.exit propagate
     except Exception:
         log.exception("Circuit breaker check failed (non-fatal)")
+
+
+# ---------------------------------------------------------------------------
+# Transparency audit freshness check
+# ---------------------------------------------------------------------------
+
+
+def _transparency_audit_done_today() -> bool:
+    """Return True if the transparency output files were already written today (UTC).
+
+    Checks overrides.json as the sentinel — if it was modified today the full
+    audit (overrides, suggestions, PR merges) has already run this cycle-day
+    and we can skip the expensive GitHub API crawl.
+    """
+    sentinel = PROJECT_ROOT / "output" / "data" / "overrides.json"
+    if not sentinel.exists():
+        return False
+    mtime = datetime.fromtimestamp(sentinel.stat().st_mtime, tz=UTC)
+    return mtime.date() == datetime.now(UTC).date()
 
 
 # ---------------------------------------------------------------------------
@@ -4970,18 +4932,8 @@ async def run_one_cycle(
         except Exception:
             log.exception("Auto tweet backlog drain failed (non-fatal)")
 
-    # --- Auto-collect tweet metrics (runs every cycle, non-fatal) ---
-    if not dry_run and "collect_tweet_metrics" not in telemetry.conductor_actions:
-        try:
-            metrics = collect_tweet_metrics()
-            if metrics:
-                telemetry.tweet_metrics_collected = len(metrics)
-                print(f"  Collected metrics for {len(metrics)} tweet(s)")
-        except Exception:
-            log.exception("Auto tweet metrics collection failed (non-fatal)")
-
-    # --- Collect and save transparency records ---
-    if not dry_run and was_productive:
+    # --- Collect and save transparency records (once per UTC day) ---
+    if not dry_run and was_productive and not _transparency_audit_done_today():
         try:
             override_records = collect_override_records()
             if override_records:

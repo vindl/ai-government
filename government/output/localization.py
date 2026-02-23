@@ -87,6 +87,7 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-6
             "headline": result.critic_report.headline,
             "overall_analysis": result.critic_report.overall_analysis,
             "blind_spots": result.critic_report.blind_spots,
+            "eu_chapter_relevance": result.critic_report.eu_chapter_relevance,
         }
         translated = await _translate_fields(cr_fields, model)
         result.critic_report.headline_mne = translated.get(
@@ -97,6 +98,9 @@ async def localize_result(result: SessionResult, model: str = "claude-sonnet-4-6
         )
         result.critic_report.blind_spots_mne = translated.get(
             "blind_spots", result.critic_report.blind_spots
+        )
+        result.critic_report.eu_chapter_relevance_mne = translated.get(
+            "eu_chapter_relevance", result.critic_report.eu_chapter_relevance
         )
 
     # Translate each assessment

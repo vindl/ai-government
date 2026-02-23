@@ -265,7 +265,7 @@ function AnalysisContent({ data, lang }: { data: SessionResult; lang: "me" | "en
                     {t(lang, "EU Chapter Relevance", "Relevantnost poglavlja EU")}
                   </h3>
                   <ul className="list-disc pl-5 space-y-1">
-                    {critic_report.eu_chapter_relevance.map((ch, i) => (
+                    {tList(lang, critic_report.eu_chapter_relevance, critic_report.eu_chapter_relevance_mne ?? []).map((ch, i) => (
                       <li key={i} className="text-sm text-muted-foreground">{ch}</li>
                     ))}
                   </ul>

@@ -114,6 +114,7 @@ export interface CriticReport {
   headline_mne: string;
   overall_analysis_mne: string;
   blind_spots_mne: string[];
+  eu_chapter_relevance_mne: string[];
 }
 
 /** Full analysis result — mirrors Python SessionResult */

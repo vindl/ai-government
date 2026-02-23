@@ -144,3 +144,6 @@ class CriticReport(BaseModel):
     blind_spots_mne: list[str] = Field(
         default_factory=list, description="Montenegrin translation of blind_spots"
     )
+    eu_chapter_relevance_mne: list[str] = Field(
+        default_factory=list, description="Montenegrin translation of eu_chapter_relevance"
+    )

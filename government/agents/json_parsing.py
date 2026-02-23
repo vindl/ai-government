@@ -35,7 +35,10 @@ def retry_prompt(original_prompt: str) -> str:
 def extract_json(text: str) -> dict[str, object] | None:
     """Try to extract a JSON object from *text*.
 
-    Uses two strategies:
+    Uses three strategies:
+    0. Strip markdown code fences (``\u0060\u0060\u0060json ... \u0060\u0060\u0060``) and try
+       ``json.loads`` directly — handles the common case where the LLM wraps
+       its response in a fenced block.
     1. Find the outermost ``{ ... }`` via bracket-counting so nested braces
        are handled correctly.
     2. Fall back to a regex that grabs the first ``{ ... }`` span.
@@ -45,6 +48,14 @@ def extract_json(text: str) -> dict[str, object] | None:
     """
     if not text:
         return None
+
+    # Strategy 0: strip markdown code fences and try direct parse.
+    stripped = _strip_code_fences(text)
+    if stripped != text:
+        try:
+            return json.loads(stripped)  # type: ignore[no-any-return]
+        except json.JSONDecodeError:
+            pass
 
     # Strategy 1: bracket-counting for the outermost object.
     result = _extract_by_bracket_counting(text)
@@ -60,6 +71,14 @@ def extract_json(text: str) -> dict[str, object] | None:
             pass
 
     return None
+
+
+def _strip_code_fences(text: str) -> str:
+    """Remove markdown code fences wrapping a JSON block."""
+    m = re.search(r"```(?:json)?\s*\n(.*?)\n\s*```", text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    return text
 
 
 def _extract_by_bracket_counting(text: str) -> dict[str, object] | None:

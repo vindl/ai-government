@@ -59,7 +59,12 @@ async def _translate_fields(fields: dict[str, Any], model: str) -> dict[str, Any
     parsed = extract_json(response_text)
     if parsed is not None:
         return parsed
-    _logger.warning("Translation response could not be parsed, using originals")
+    _logger.warning(
+        "Translation response could not be parsed, using originals. "
+        "Response (%d chars): %.200s",
+        len(response_text),
+        response_text,
+    )
     return fields
 
 

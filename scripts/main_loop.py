@@ -2203,20 +2203,28 @@ async def step_execute_analysis(
             log.info("Editorial Director approved analysis #%d (score: %d/10)",
                     issue_number, review.quality_score)
 
-        # Post analysis tweet (non-fatal)
-        try:
-            if try_post_analysis(results[0]):
-                log.info("Posted analysis tweet for %s", results[0].decision.id)
-                if telemetry is not None:
-                    telemetry.tweet_posted = True
-        except Exception:
-            log.exception("Analysis tweet failed (non-fatal)")
-
         mark_issue_done(issue_number)
         _record_analysis_completion()
         log.info("Analysis issue #%d completed successfully", issue_number)
-        # Commit output data immediately so it survives crashes in later phases
-        _commit_output_data()
+        # Commit and push output data before tweeting — tweets link to the
+        # website which is rebuilt from pushed data.  If the push fails the
+        # tweet is deferred to the backlog and will be retried next cycle.
+        pushed = _commit_output_data()
+
+        # Post analysis tweet only after data is pushed to remote
+        if pushed:
+            try:
+                if try_post_analysis(results[0]):
+                    log.info("Posted analysis tweet for %s", results[0].decision.id)
+                    if telemetry is not None:
+                        telemetry.tweet_posted = True
+            except Exception:
+                log.exception("Analysis tweet failed (non-fatal)")
+        else:
+            log.warning(
+                "Deferring tweet for %s — output data was not pushed to remote",
+                results[0].decision.id,
+            )
         return True
     except Exception as exc:
         reason = f"Analysis failed: {exc}"
@@ -4729,14 +4737,17 @@ def _check_circuit_breaker() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _commit_output_data() -> None:
-    """Commit and push output/data/ and twitter_state.json. Non-fatal."""
+def _commit_output_data() -> bool:
+    """Commit and push output/data/ and twitter_state.json. Non-fatal.
+
+    Returns True only when data was successfully pushed to remote.
+    """
     data_dir = PROJECT_ROOT / "output" / "data"
     twitter_state = PROJECT_ROOT / "output" / "twitter_state.json"
     tracked_paths = [str(data_dir), str(twitter_state)]
     try:
         if not data_dir.exists():
-            return
+            return False
         # Check for any changed or untracked files in output/data/ or twitter_state
         has_changes = False
         for path in tracked_paths:
@@ -4751,7 +4762,7 @@ def _commit_output_data() -> None:
                 has_changes = True
                 break
         if not has_changes:
-            return
+            return False
         for path in tracked_paths:
             _run_gh(["git", "add", path], check=False)
         _run_gh(
@@ -4765,7 +4776,7 @@ def _commit_output_data() -> None:
                 "CI is failing on main — skipping push to avoid cascading failures. "
                 "Output data was committed locally but NOT pushed."
             )
-            return
+            return False
         push_result = _run_gh(["git", "push"], check=False)
         if push_result.returncode != 0:
             log.warning(
@@ -4779,10 +4790,12 @@ def _commit_output_data() -> None:
                     "git push failed after retry (rc=%d) — output data NOT pushed",
                     retry.returncode,
                 )
-                return
+                return False
         log.info("Output data committed and pushed")
+        return True
     except Exception:
         log.exception("Output data commit failed (non-fatal)")
+        return False
 
 
 

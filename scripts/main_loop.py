@@ -140,7 +140,7 @@ ALL_LABELS: dict[str, str] = {
 }
 
 # Unset CLAUDECODE so spawned SDK subprocesses don't refuse to launch.
-# Also clear ANTHROPIC_API_KEY so the subprocess uses OAuth.
+# Clear ANTHROPIC_API_KEY to ensure subprocesses use OAuth, never an API key.
 SDK_ENV = {"CLAUDECODE": "", "ANTHROPIC_API_KEY": ""}
 
 PROPOSE_MAX_TURNS = 10

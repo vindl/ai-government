@@ -123,6 +123,11 @@ Keep the codebase simple by offloading heavy lifting to Claude Code and LLMs. On
 - The News Scout runs once per day in Phase A of the main loop.
 - Max 3 decisions per day, prioritized by public interest.
 
+## Authentication
+- This project uses **OAuth (Claude Code CLI login)** for all Claude authentication — never API keys
+- Do NOT propose, add, or accept any functionality that requires `ANTHROPIC_API_KEY`
+- All agents run as Claude Code subprocesses that inherit OAuth credentials from `~/.claude`
+
 ## Git
 - Do NOT include `Co-Authored-By` lines in commit messages
 - Write concise commit messages focused on the "why"

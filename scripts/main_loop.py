@@ -683,9 +683,12 @@ def create_ci_failure_issue(run_id: str, failure_summary: str) -> int:
 ## Next Steps
 
 This issue has been automatically created and labeled with `{LABEL_CI_FAILURE}`,
-`{LABEL_BACKLOG}`, and `{LABEL_TASK_FIX}` for high-priority handling.
+`{LABEL_NEEDS_APPROVAL}`, and `{LABEL_TASK_FIX}`.
 
-The coder agent should:
+**A human must approve this issue** by relabeling it to `{LABEL_BACKLOG}` before
+the coder agent can work on it.
+
+The coder agent should then:
 1. Review the failure logs (linked above)
 2. Fix the issue (lint errors, type errors, test failures, or build issues)
 3. Ensure all checks pass locally before pushing
@@ -694,7 +697,7 @@ The coder agent should:
     result = _gh_create_issue(
         title=f"CI failure on main (run {run_id})",
         body=body,
-        labels=f"{LABEL_CI_FAILURE},{LABEL_BACKLOG},{LABEL_TASK_FIX}",
+        labels=f"{LABEL_CI_FAILURE},{LABEL_NEEDS_APPROVAL},{LABEL_TASK_FIX}",
     )
     url = result.stdout.strip()
     issue_number = int(url.rstrip("/").split("/")[-1])

@@ -15,8 +15,8 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from main_loop import (  # noqa: E402
-    LABEL_BACKLOG,
     LABEL_CI_FAILURE,
+    LABEL_NEEDS_APPROVAL,
     LABEL_TASK_FIX,
     _commit_output_data,
     _find_latest_completed_run,
@@ -196,7 +196,7 @@ class TestCreateCiFailureIssue:
         assert len(calls) == 1
         assert calls[0][0:2] == ["gh", "issue"]
         assert calls[0][2] == "create"
-        assert f"{LABEL_CI_FAILURE},{LABEL_BACKLOG},{LABEL_TASK_FIX}" in calls[0]
+        assert f"{LABEL_CI_FAILURE},{LABEL_NEEDS_APPROVAL},{LABEL_TASK_FIX}" in calls[0]
 
     def test_includes_run_url_in_body(
         self, monkeypatch: pytest.MonkeyPatch,

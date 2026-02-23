@@ -100,7 +100,7 @@ After your planned actions execute, you'll see their results and can **re-plan**
 
 ## Approval Gate
 
-Self-improvement issues (from debate acceptance, directors, research scout) land on `self-improve:needs-approval` — **not** directly on `self-improve:backlog`. A human must approve them by relabeling to `self-improve:backlog` in the GitHub UI before they can be executed. Analysis tasks (`task:analysis`) and human suggestions bypass this gate and go straight to backlog. There is a cap of 10 `needs-approval` issues; when full, new self-improvement issue creation is paused.
+**No PR may be worked on or merged without explicit human approval — no exceptions.** All issues that would produce code changes (self-improvement from debate, directors, research scout, and CI failure fixes) land on `self-improve:needs-approval` — **not** directly on `self-improve:backlog`. A human must approve them by relabeling to `self-improve:backlog` in the GitHub UI before the coder agent can work on them. Analysis tasks (`task:analysis`) bypass this gate because they produce analysis output, not PRs. Human suggestions bypass it because they are already human-initiated. There is a cap of 10 `needs-approval` issues; when full, new issue creation is paused.
 
 ## Constraints
 

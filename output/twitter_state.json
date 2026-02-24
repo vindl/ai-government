@@ -1,14 +1,15 @@
 {
-  "last_posted_at": "2026-02-24T09:59:38.968368Z",
+  "last_posted_at": "2026-02-24T10:38:46.713089Z",
   "posted_decision_ids": [
     "item-2026-02-20-fec6ac2d",
     "item-2026-02-17-71a2fb46",
     "news-2026-02-16-a14f1b55",
     "item-2026-02-20-d1b8e70d",
     "item-2026-02-18-cce0334a",
-    "item-2026-02-19-946ca23f"
+    "item-2026-02-19-946ca23f",
+    "item-2026-02-19-a2d78294"
   ],
-  "monthly_post_count": 6,
+  "monthly_post_count": 7,
   "monthly_post_month": "2026-02",
   "posted_tweets": [
     {
@@ -51,6 +52,13 @@
       "reply_tweet_id": "2026235564098249127",
       "decision_id": "item-2026-02-19-946ca23f",
       "posted_at": "2026-02-24T09:59:38.968368Z",
+      "category": "economy"
+    },
+    {
+      "tweet_id": "2026245409174069430",
+      "reply_tweet_id": "2026245411011187009",
+      "decision_id": "item-2026-02-19-a2d78294",
+      "posted_at": "2026-02-24T10:38:46.713089Z",
       "category": "economy"
     }
   ]
